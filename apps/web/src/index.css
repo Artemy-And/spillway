@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Tokens from the Gatehouse mockup: warm neutral ground, dark rail, one teal accent. */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-canvas: #f6f5f1;
+  --color-surface: #ffffff;
+  --color-ink: #16181d;
+  --color-ink-2: #3e4148;
+  --color-muted: #5b5e66;
+  --color-faint: #6b6e75;
+  --color-line: #e4e1d8;
+  --color-line-soft: #efede6;
+  --color-field: #d9d5ca;
+  --color-chip: #f1efe8;
+  --color-track: #eceae3;
+
+  --color-accent: #0f6e6a;
+  --color-accent-strong: #0b5451;
+  --color-accent-soft: #eef6f5;
+  --color-local: #7fbdb7;
+
+  --color-rail: #16181d;
+  --color-rail-2: #1f2228;
+  --color-rail-active: #262a31;
+  --color-rail-text: #c9c6be;
+  --color-rail-muted: #a9a69e;
+  --color-rail-ink: #e7e5df;
+  --color-healthy: #3fb8a9;
+
+  --color-ok-bg: #e6f1ef;
+  --color-ok-fg: #0b5451;
+  --color-warn-bg: #fdf1e4;
+  --color-warn-fg: #8a4105;
+  --color-warn-bar: #b45309;
+  --color-info-bg: #eaf0f7;
+  --color-info-fg: #1f4e7a;
+  --color-block-bg: #fdecea;
+  --color-block-fg: #9b1c13;
+  --color-block-bar: #b42318;
+  --color-off-bg: #eeede8;
+  --color-off-fg: #55585f;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-strong);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+}

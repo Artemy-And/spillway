@@ -1,0 +1,23 @@
+{
+  "name": "gatehouse",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "db:generate": "pnpm --filter @gatehouse/server db:generate",
+    "demo": "pnpm --filter @gatehouse/server demo"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "typescript": "^7.0.2"
+  }
+}

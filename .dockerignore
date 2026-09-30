@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+apps/server/public
+data
+.git
+.env
+**/*.test.ts

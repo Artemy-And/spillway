@@ -1,0 +1,27 @@
+name: gatehouse
+
+services:
+  gatehouse:
+    build: .
+    image: gatehouse:local
+    restart: unless-stopped
+    ports:
+      - "${GATEHOUSE_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - gatehouse-data:/data
+
+  # Optional local models: docker compose --profile ollama up -d
+  # then set OLLAMA_URL=http://ollama:11434 in .env before the first start.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ollama]
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  gatehouse-data:
+  ollama-data:
