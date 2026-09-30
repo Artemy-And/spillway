@@ -1,17 +1,17 @@
-name: gatehouse
+name: spillway
 
 services:
-  gatehouse:
+  spillway:
     build: .
-    image: gatehouse:local
+    image: spillway:local
     restart: unless-stopped
     ports:
-      - "${GATEHOUSE_PORT:-8080}:8080"
+      - "${SPILLWAY_PORT:-8080}:8080"
     env_file:
       - path: .env
         required: false
     volumes:
-      - gatehouse-data:/data
+      - spillway-data:/data
 
   # Optional local models: docker compose --profile ollama up -d
   # then set OLLAMA_URL=http://ollama:11434 in .env before the first start.
@@ -23,5 +23,5 @@ services:
       - ollama-data:/root/.ollama
 
 volumes:
-  gatehouse-data:
+  spillway-data:
   ollama-data:

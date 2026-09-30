@@ -195,7 +195,7 @@ async function lastLog() {
 test('rejects unknown keys in the client format', async () => {
   const res = await app.request('/v1/messages', {
     method: 'POST',
-    headers: { 'x-api-key': 'gk-nope', 'content-type': 'application/json' },
+    headers: { 'x-api-key': 'sw-nope', 'content-type': 'application/json' },
     body: JSON.stringify({ model: 'claude-sonnet', max_tokens: 10, messages: [] }),
   });
   assert.equal(res.status, 401);
@@ -239,7 +239,7 @@ test('over the daily limit: rerouted to the local model, savings recorded', asyn
     messages: [{ role: 'user', content: 'again' }],
   });
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get('x-gatehouse-result'), 'rerouted');
+  assert.equal(res.headers.get('x-spillway-result'), 'rerouted');
   assert.equal(seen.at(-1)?.body.model, 'qwen2.5-coder:7b');
   const log = await lastLog();
   assert.equal(log.result, 'rerouted');

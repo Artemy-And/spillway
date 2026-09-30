@@ -23,10 +23,12 @@ function icon(paths: React.ReactNode) {
   };
 }
 
-export const HouseIcon = icon(
+/** Water spilling over a weir: the brand mark. */
+export const SpillwayIcon = icon(
   <>
-    <path d="M4 21V9l8-6 8 6v12" />
-    <path d="M9 21v-6h6v6" />
+    <path d="M3 5h8c3 0 4 2 4 5v2" />
+    <path d="M3 14c1.5 0 1.5-1.5 3-1.5s1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5" />
+    <path d="M3 19c1.5 0 1.5-1.5 3-1.5s1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5 1.5-1.5 3-1.5 1.5 1.5 3 1.5" />
   </>,
 );
 export const GridIcon = icon(

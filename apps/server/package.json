@@ -1,5 +1,5 @@
 {
-  "name": "@gatehouse/server",
+  "name": "@spillway/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",

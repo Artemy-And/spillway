@@ -351,7 +351,7 @@ export async function handleGateway(
     return errorResponse(
       format,
       401,
-      'Missing or invalid Gatehouse key. Send it as "Authorization: Bearer gk-…" or "x-api-key: gk-…".',
+      'Missing or invalid Spillway key. Send it as "Authorization: Bearer sw-…" or "x-api-key: sw-…".',
     );
   }
 
@@ -440,9 +440,9 @@ export async function handleGateway(
   try {
     const { response, done } = await forward(ctx, c, format, body, target, stream, meter);
     void done.then((error) => finish(200, error));
-    response.headers.set('x-gatehouse-request-id', id);
-    response.headers.set('x-gatehouse-result', decision.result);
-    response.headers.set('x-gatehouse-model', target.model.name);
+    response.headers.set('x-spillway-request-id', id);
+    response.headers.set('x-spillway-result', decision.result);
+    response.headers.set('x-spillway-model', target.model.name);
     return response;
   } catch (error) {
     const status = error instanceof UpstreamError ? error.status : 502;

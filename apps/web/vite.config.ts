@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const server = process.env.GATEHOUSE_URL ?? 'http://localhost:8080';
+const server = process.env.SPILLWAY_URL ?? 'http://localhost:8080';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

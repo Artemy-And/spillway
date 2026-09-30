@@ -8,7 +8,7 @@ import { randomToken, sha256 } from '../lib/crypto.ts';
 
 export type AuthEnv = { Variables: { user: User } };
 
-const COOKIE = 'gatehouse_session';
+const COOKIE = 'spillway_session';
 const TTL_MS = 7 * 86_400_000;
 
 const secure = (ctx: AppContext) => ctx.env.PUBLIC_URL.startsWith('https://');

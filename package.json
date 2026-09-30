@@ -1,5 +1,5 @@
 {
-  "name": "gatehouse",
+  "name": "spillway",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.8.1",
@@ -13,8 +13,8 @@
     "test": "pnpm -r test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "db:generate": "pnpm --filter @gatehouse/server db:generate",
-    "demo": "pnpm --filter @gatehouse/server demo"
+    "db:generate": "pnpm --filter @spillway/server db:generate",
+    "demo": "pnpm --filter @spillway/server demo"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

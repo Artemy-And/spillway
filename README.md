@@ -1,4 +1,4 @@
-# Gatehouse
+# Spillway
 
 A self-hosted AI gateway for companies without a DevOps team. Give every person, device and agent its
 own key, set daily and monthly limits, send over-budget traffic to a local model instead of blocking
@@ -6,7 +6,7 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 
 ```
  Claude Code ─┐                       ┌─ Anthropic
- Open WebUI  ─┼─▶  Gatehouse  ────────┼─ OpenAI-compatible APIs
+ Open WebUI  ─┼─▶  Spillway  ─────────┼─ OpenAI-compatible APIs
  n8n, SDKs   ─┘   keys · budgets      └─ Ollama on your own GPU
                   rules · masked log
 ```
@@ -14,7 +14,7 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 ## What it does
 
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`),
-  Anthropic (`/v1/messages`) or Ollama (`/api/chat`, `/api/generate`). Gatehouse translates between
+  Anthropic (`/v1/messages`) or Ollama (`/api/chat`, `/api/generate`). Spillway translates between
   them, including streaming and tool calls, so Claude Code can run on a local Qwen when the budget
   runs out.
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
@@ -52,11 +52,11 @@ rerouting in **Settings**, create teams in **Budgets & rules**, and hand out key
 
 | Client | Setting |
 | --- | --- |
-| OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `gk-…` |
-| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=gk-…`, `ANTHROPIC_MODEL=<model name>` |
-| Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `gk-…` |
+| OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `sw-…` |
+| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` |
+| Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…` |
 
-The `model` a client sends is the **name** you gave the model in Gatehouse; it maps to any upstream
+The `model` a client sends is the **name** you gave the model in Spillway; it maps to any upstream
 model on any provider.
 
 ## Development

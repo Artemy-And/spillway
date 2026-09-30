@@ -9,7 +9,7 @@ import { verifyPassword } from '../lib/crypto.ts';
 import type { OidcChecks } from './oidc.ts';
 import { endSession, startSession } from './session.ts';
 
-const OIDC_COOKIE = 'gatehouse_oidc';
+const OIDC_COOKIE = 'spillway_oidc';
 const MAX_FAILURES = 10;
 const LOCK_MS = 15 * 60_000;
 

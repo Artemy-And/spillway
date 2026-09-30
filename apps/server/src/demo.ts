@@ -22,7 +22,7 @@ import { settingsSchema } from './settings.ts';
 
 const env = loadEnv();
 mkdirSync(env.DATA_DIR, { recursive: true });
-const { db } = await openDb(join(env.DATA_DIR, 'gatehouse.db'));
+const { db } = await openDb(join(env.DATA_DIR, 'spillway.db'));
 
 const existing = await db.select({ count: sql<number>`count(*)` }).from(apiKeys).get();
 if (existing?.count) {
@@ -109,9 +109,9 @@ const team = (name: string) => teamRows.find((t) => t.name === name)!;
 const people = await db
   .insert(users)
   .values([
-    { email: 'anna@demo.gatehouse', name: 'Anna Kovacs', teamId: team('Engineering').id },
-    { email: 'leo@demo.gatehouse', name: 'Leo Martin', teamId: team('Engineering').id },
-    { email: 'mia@demo.gatehouse', name: 'Mia Chen', teamId: team('Marketing').id },
+    { email: 'anna@demo.spillway', name: 'Anna Kovacs', teamId: team('Engineering').id },
+    { email: 'leo@demo.spillway', name: 'Leo Martin', teamId: team('Engineering').id },
+    { email: 'mia@demo.spillway', name: 'Mia Chen', teamId: team('Marketing').id },
   ])
   .returning();
 const person = (name: string) => people.find((p) => p.name?.startsWith(name))!;

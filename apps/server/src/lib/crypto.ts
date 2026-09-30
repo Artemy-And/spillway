@@ -31,7 +31,7 @@ export function shortId(prefix: string): string {
 
 /** Gateway keys are shown once; only their hash is stored. */
 export function newGatewayKey(): { key: string; prefix: string; hash: string } {
-  const key = `gk-${randomToken(24)}`;
+  const key = `sw-${randomToken(24)}`;
   return { key, prefix: key.slice(0, 9), hash: sha256(key) };
 }
 
@@ -54,7 +54,7 @@ export class Vault {
   #key: Buffer;
 
   constructor(secret: string) {
-    this.#key = Buffer.from(hkdfSync('sha256', secret, 'gatehouse', 'provider-keys', 32));
+    this.#key = Buffer.from(hkdfSync('sha256', secret, 'spillway', 'provider-keys', 32));
   }
 
   encrypt(plain: string): string {
@@ -72,7 +72,7 @@ export class Vault {
   }
 }
 
-/** Uses GATEHOUSE_SECRET, or a secret generated once into the data directory. */
+/** Uses SPILLWAY_SECRET, or a secret generated once into the data directory. */
 export function loadSecret(fromEnv: string | undefined, dataDir: string): string {
   if (fromEnv) return fromEnv;
   const file = join(dataDir, 'secret.key');

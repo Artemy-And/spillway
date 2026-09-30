@@ -532,7 +532,7 @@ function CreatedKey({
         </button>
       </div>
       <p className="rounded-lg bg-warn-bg px-3 py-2 text-[13px] text-warn-fg">
-        Copy it now. Gatehouse stores only a hash and cannot show it again.
+        Copy it now. Spillway stores only a hash and cannot show it again.
       </p>
       <div className="rounded-lg bg-canvas p-3 font-mono text-[13px] break-all">{value}</div>
       <CopyButton value={value} label="Copy key" />

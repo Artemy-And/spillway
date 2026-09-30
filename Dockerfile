@@ -12,12 +12,12 @@ FROM base AS web
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY apps/server apps/server
 COPY apps/web apps/web
-RUN pnpm --filter @gatehouse/web build
+RUN pnpm --filter @spillway/web build
 
 # Production dependencies of the server only.
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter @gatehouse/server
+    pnpm install --frozen-lockfile --prod --filter @spillway/server
 
 FROM node:24-alpine
 ENV NODE_ENV=production DATA_DIR=/data PORT=8080 PUBLIC_DIR=/app/apps/server/public

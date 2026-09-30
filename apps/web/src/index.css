@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Tokens from the Gatehouse mockup: warm neutral ground, dark rail, one teal accent. */
+/* Tokens from the Spillway mockup: warm neutral ground, dark rail, one teal accent. */
 @theme {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

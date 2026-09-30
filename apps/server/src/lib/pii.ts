@@ -88,7 +88,7 @@ const detectors: Detector[] = [
   {
     kind: 'secret',
     pattern:
-      /\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|gk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})/g,
+      /\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|sw-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})/g,
   },
   { kind: 'email', pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
   { kind: 'card', pattern: /\b(?:\d[ -]?){12,18}\d\b/g, valid: luhn },

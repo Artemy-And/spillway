@@ -48,14 +48,14 @@ export function gatewayRoutes(ctx: AppContext) {
   app.get('/v1/models', async (c) => {
     const format: Format = c.req.header('anthropic-version') ? 'anthropic' : 'openai';
     const rows = await visibleModels(ctx, c.req.raw.headers);
-    if (!rows) return errorResponse(format, 401, 'Missing or invalid Gatehouse key');
+    if (!rows) return errorResponse(format, 401, 'Missing or invalid Spillway key');
     const data = rows.map(({ model }) => ({
       id: model.name,
       object: 'model',
       type: 'model',
       created: Math.floor(model.createdAt.getTime() / 1000),
       created_at: model.createdAt.toISOString(),
-      owned_by: 'gatehouse',
+      owned_by: 'spillway',
       display_name: model.label ?? model.name,
     }));
     return c.json({
@@ -70,7 +70,7 @@ export function gatewayRoutes(ctx: AppContext) {
   // Claude Code asks for token counts; forward to Anthropic or estimate.
   app.post('/v1/messages/count_tokens', async (c) => {
     const caller = await authenticate(ctx, c.req.raw.headers);
-    if (!caller) return errorResponse('anthropic', 401, 'Missing or invalid Gatehouse key');
+    if (!caller) return errorResponse('anthropic', 401, 'Missing or invalid Spillway key');
     const body = await c.req.json<{ model?: string }>().catch(() => null);
     if (!body?.model) return errorResponse('anthropic', 400, 'Field "model" is required');
     const target = await findModel(ctx.db, eq(models.name, body.model));
@@ -87,10 +87,10 @@ export function gatewayRoutes(ctx: AppContext) {
   });
 
   // Enough of the Ollama API for Open WebUI and other Ollama clients.
-  app.get('/api/version', (c) => c.json({ version: `0.0.0-gatehouse-${VERSION}` }));
+  app.get('/api/version', (c) => c.json({ version: `0.0.0-spillway-${VERSION}` }));
   app.get('/api/tags', async (c) => {
     const rows = await visibleModels(ctx, c.req.raw.headers);
-    if (!rows) return errorResponse('ollama-chat', 401, 'Missing or invalid Gatehouse key');
+    if (!rows) return errorResponse('ollama-chat', 401, 'Missing or invalid Spillway key');
     return c.json({
       models: rows.map(({ model, provider }) => ({
         name: model.name,

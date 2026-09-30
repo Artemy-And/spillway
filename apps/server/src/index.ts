@@ -13,8 +13,8 @@ import { SettingsStore } from './settings.ts';
 const env = loadEnv();
 mkdirSync(env.DATA_DIR, { recursive: true });
 
-const secret = loadSecret(env.GATEHOUSE_SECRET, env.DATA_DIR);
-const { db, close } = await openDb(join(env.DATA_DIR, 'gatehouse.db'));
+const secret = loadSecret(env.SPILLWAY_SECRET, env.DATA_DIR);
+const { db, close } = await openDb(join(env.DATA_DIR, 'spillway.db'));
 
 const ctx: AppContext = {
   db,
@@ -35,7 +35,7 @@ const server = serve(
   { fetch: createApp(ctx).fetch, port: env.PORT, hostname: env.HOST },
   (info) => {
     console.log(
-      `Gatehouse ${VERSION} listening on http://${info.address}:${info.port} (${env.PUBLIC_URL})`,
+      `Spillway ${VERSION} listening on http://${info.address}:${info.port} (${env.PUBLIC_URL})`,
     );
   },
 );

@@ -73,7 +73,7 @@ function exportRoutes(ctx: AppContext) {
     ].join('\n');
     return c.body(csv, 200, {
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="gatehouse-requests-${days}d.csv"`,
+      'content-disposition': `attachment; filename="spillway-requests-${days}d.csv"`,
     });
   });
 }
@@ -95,7 +95,7 @@ export function createApp(ctx: AppContext) {
     app.get('*', (c) => c.html(indexHtml));
   } else {
     app.get('/', (c) =>
-      c.text('Gatehouse gateway is running. The admin UI is not built; run `pnpm dev` for it.'),
+      c.text('Spillway gateway is running. The admin UI is not built; run `pnpm dev` for it.'),
     );
   }
 
