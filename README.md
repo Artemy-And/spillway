@@ -21,9 +21,11 @@ it, and keep a log of every request with personal data masked. Single sign-on is
   per team and per key.
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
-- **Team budgets and four routing rules**: switch to the local model at N% of the team budget, block
-  prompts with card, passport, SNILS, INN, IBAN numbers or API keys from reaching cloud models, rate
-  limit agents, and keep off-hours traffic local.
+- **Team budgets and four routing rules**: switch to the local model at N% of the team budget, keep
+  card numbers, IBANs, US Social Security and UK National Insurance numbers, passport numbers and
+  API keys away from cloud models, rate limit agents, and keep off-hours traffic local. Numbers that
+  need context, like passports, only count next to the word itself, so timestamps and IDs in code
+  never block a request.
 - **Every decision explained.** Each log entry shows the steps the gateway took ("Marketing is at
   104% of its budget → sent to Qwen Coder · local"), tokens, cost, and money saved.
 - **Privacy by default.** Prompts are stored masked, text is dropped after a retention period (the
@@ -41,7 +43,8 @@ docker compose up -d --build
 open http://localhost:8080
 ```
 
-The first visitor creates the admin account in the browser. A short tour and a getting-started
+The first visitor creates the admin account in the browser (with SSO configured, the first person
+to sign in from an allowed domain becomes the admin instead). A short tour and a getting-started
 checklist on the Overview page then walk through connecting a provider, adding models, picking a
 local model, creating a key and sending the first request. For unattended installs, set
 `ADMIN_EMAIL` and `ADMIN_PASSWORD` instead; they are used only when nobody exists yet.
@@ -85,7 +88,6 @@ Requires Node.js 24+ and pnpm (via `corepack enable`).
 ```sh
 pnpm install
 cp .env.example .env    # optional; without ADMIN_PASSWORD the UI asks for the first account
-pnpm demo               # optional: fill an empty gateway with demo teams, keys and traffic
 pnpm dev                # API on :8080, UI with hot reload on :5173
 pnpm test               # gateway, failover, auth, translation and PII tests
 pnpm reset-password you@company.com

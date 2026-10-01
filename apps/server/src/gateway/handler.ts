@@ -514,7 +514,8 @@ export async function handleGateway(
         providerName: target.provider.name,
         status,
         result: failed && status !== 200 ? 'error' : result,
-        ruleId: outage ? 'outage' : decision.ruleId,
+        // Only a failover the local model actually answered counts as one.
+        ruleId: outage && !failed ? 'outage' : decision.ruleId,
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
         costUsd: cost,

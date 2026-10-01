@@ -31,8 +31,18 @@ export class Oidc {
   }
 
   #discover(): Promise<client.Configuration> {
+    const issuer = new URL(this.issuer);
+    // An http:// issuer is the admin's explicit choice (a Keycloak or Dex inside the network);
+    // openid-client refuses it unless told to.
+    const insecure = issuer.protocol === 'http:';
     this.#config ??= client
-      .discovery(new URL(this.issuer), this.#env.OIDC_CLIENT_ID!, this.#env.OIDC_CLIENT_SECRET)
+      .discovery(
+        issuer,
+        this.#env.OIDC_CLIENT_ID!,
+        this.#env.OIDC_CLIENT_SECRET,
+        undefined,
+        insecure ? { execute: [client.allowInsecureRequests] } : undefined,
+      )
       .catch((error: unknown) => {
         this.#config = null;
         throw error;

@@ -10,6 +10,8 @@ const pii = {
   email: '邮箱',
   card: '银行卡号',
   iban: 'IBAN',
+  ssn: 'SSN',
+  nino: '英国 NI 号',
   snils: 'SNILS 号',
   passport: '护照号',
   inn: 'INN 号',
@@ -64,6 +66,8 @@ export const zh: Messages = {
       email: '邮箱',
       card: '卡号',
       iban: 'IBAN',
+      ssn: 'SSN',
+      nino: 'NI 号',
       snils: 'SNILS',
       passport: '护照',
       inn: 'INN',
@@ -73,6 +77,7 @@ export const zh: Messages = {
   },
 
   errors: {
+    'A team with this name already exists': '已有同名团队',
     'This invite link is invalid or has expired': '邀请链接无效或已过期',
     'Person not found': '找不到此人',
     'Wrong email or password': '邮箱或密码错误',
@@ -134,6 +139,8 @@ export const zh: Messages = {
     submit: '创建账户',
     submitting: '正在创建…',
     note: '在第一个账户创建之前，才会显示此页面。',
+    orSso: '或使用密码',
+    ssoHint: '使用单点登录时，允许域名下第一个登录的人成为管理员。',
   },
 
   invite: {
@@ -383,7 +390,7 @@ export const zh: Messages = {
     budgetAfter: '% 或以上',
     thresholdLabel: '预算阈值（百分比）',
     sendTo: (local) => `将请求发往 ${local}`,
-    piiWhen: '请求中含有银行卡号、护照号、SNILS 或 INN 号、IBAN 或 API 密钥',
+    piiWhen: '请求中含有银行卡号、IBAN、SSN、护照或身份证件号码，或 API 密钥',
     piiThen: '禁止云端模型，允许本地模型',
     agentWhen: '密钥类型为智能体',
     agentBefore: '每分钟最多',
@@ -495,7 +502,7 @@ export const zh: Messages = {
     kinds: {
       openai: {
         label: 'OpenAI 兼容',
-        hint: 'OpenAI、OpenRouter、DeepSeek、vLLM、LM Studio、YandexGPT 及其他 /v1/chat/completions API',
+        hint: 'OpenAI、OpenRouter、Mistral、Groq、DeepSeek、vLLM、LM Studio 及其他 /v1/chat/completions API',
       },
       anthropic: { label: 'Anthropic', hint: '通过 Messages API 使用 Claude 模型' },
       ollama: {

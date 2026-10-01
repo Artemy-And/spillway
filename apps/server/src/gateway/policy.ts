@@ -40,7 +40,16 @@ export interface Decision {
 }
 
 /** Kinds that stop a request to a cloud model. Emails, phones and IPs are only masked in logs. */
-const BLOCKING_PII: PiiKind[] = ['card', 'passport', 'snils', 'inn', 'iban', 'secret'];
+const BLOCKING_PII: PiiKind[] = [
+  'card',
+  'iban',
+  'ssn',
+  'nino',
+  'passport',
+  'snils',
+  'inn',
+  'secret',
+];
 
 export function modelLabel(target: Target): string {
   return `${target.model.label ?? target.model.name}${target.provider.isLocal ? ' · local' : ''}`;

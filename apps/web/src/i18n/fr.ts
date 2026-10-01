@@ -9,6 +9,8 @@ const pii = {
   email: 'e-mails',
   card: 'numéros de carte',
   iban: 'IBAN',
+  ssn: 'SSN',
+  nino: 'numéros NI britanniques',
   snils: 'numéros SNILS',
   passport: 'numéros de passeport',
   inn: 'numéros INN',
@@ -65,6 +67,8 @@ export const fr: Messages = {
       email: 'e-mail',
       card: 'carte',
       iban: 'IBAN',
+      ssn: 'SSN',
+      nino: 'numéro NI',
       snils: 'SNILS',
       passport: 'passeport',
       inn: 'INN',
@@ -74,6 +78,7 @@ export const fr: Messages = {
   },
 
   errors: {
+    'A team with this name already exists': 'Une équipe porte déjà ce nom',
     'This invite link is invalid or has expired': 'Ce lien d’invitation est invalide ou a expiré',
     'Person not found': 'Personne introuvable',
     'Wrong email or password': 'E-mail ou mot de passe incorrect',
@@ -140,6 +145,9 @@ export const fr: Messages = {
     submit: 'Créer le compte',
     submitting: 'Création…',
     note: 'Cette page ne s’affiche que tant qu’aucun compte n’existe.',
+    orSso: 'ou avec un mot de passe',
+    ssoHint:
+      'Avec l’authentification unique, la première personne d’un domaine autorisé devient admin.',
   },
 
   invite: {
@@ -406,7 +414,7 @@ export const fr: Messages = {
     thresholdLabel: 'Seuil du budget, en pourcentage',
     sendTo: (local) => `Envoyer la requête à ${local}`,
     piiWhen:
-      'La requête contient des numéros de carte, de passeport, SNILS ou INN, des IBAN ou des clés API',
+      'La requête contient des numéros de carte, des IBAN, des SSN, des numéros de passeport ou d’identité, ou des clés API',
     piiThen: 'Bloquer les modèles cloud, autoriser les locaux',
     agentWhen: 'Le type de clé est Agent',
     agentBefore: 'Au plus',
@@ -527,7 +535,7 @@ export const fr: Messages = {
     kinds: {
       openai: {
         label: 'Compatible OpenAI',
-        hint: 'OpenAI, OpenRouter, DeepSeek, vLLM, LM Studio, YandexGPT et autres API /v1/chat/completions',
+        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio et autres API /v1/chat/completions',
       },
       anthropic: { label: 'Anthropic', hint: 'Modèles Claude via l’API Messages' },
       ollama: {

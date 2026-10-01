@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Logo } from '../components/Layout.tsx';
@@ -16,6 +16,10 @@ export function SetupPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const mismatch = confirm !== '' && confirm !== password;
+  const { data: config } = useQuery({
+    queryKey: ['auth-config'],
+    queryFn: () => unwrap(auth.config.$get()),
+  });
 
   const create = useMutation({
     mutationFn: () => unwrap(auth.setup.$post({ json: { name: name.trim(), email, password } })),
@@ -31,6 +35,22 @@ export function SetupPage() {
         <h1 className="text-xl font-semibold">{m.setup.title}</h1>
         <p className="mt-1 text-sm text-muted">{m.setup.subtitle}</p>
       </div>
+      {config?.sso && (
+        <>
+          <a
+            href="/auth/oidc/start"
+            className="flex h-11 items-center justify-center rounded-lg bg-accent text-sm font-medium text-white no-underline hover:bg-accent-strong hover:text-white"
+          >
+            {config.sso.label}
+          </a>
+          <p className="-mt-3 text-xs text-muted">{m.setup.ssoHint}</p>
+          <div className="flex items-center gap-3 text-xs text-faint">
+            <span className="h-px flex-1 bg-line" />
+            {m.setup.orSso}
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
       <form
         className="flex flex-col gap-4"
         onSubmit={(event) => {

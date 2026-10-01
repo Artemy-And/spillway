@@ -319,8 +319,13 @@ export function adminRoutes(ctx: AppContext) {
       })
 
       .post('/teams', adminOnly, zValidator('json', teamInput), async (c) => {
-        const [team] = await db.insert(teams).values(c.req.valid('json')).returning();
-        return c.json(team!, 201);
+        const [team] = await db
+          .insert(teams)
+          .values(c.req.valid('json'))
+          .onConflictDoNothing()
+          .returning();
+        if (!team) return c.json({ error: 'A team with this name already exists' }, 409);
+        return c.json(team, 201);
       })
 
       .patch(
@@ -613,10 +618,17 @@ export function adminRoutes(ctx: AppContext) {
                 gte(requestLogs.createdAt, new Date(Date.now() - hours * 3_600_000)),
                 keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
                 query.keyId ? eq(requestLogs.keyId, query.keyId) : undefined,
+                // A model shows up both where it was asked for and where it answered.
                 query.model
                   ? or(
                       eq(requestLogs.requestedModel, query.model),
-                      eq(requestLogs.servedModelId, query.model),
+                      inArray(
+                        requestLogs.servedModelId,
+                        db
+                          .select({ id: models.id })
+                          .from(models)
+                          .where(eq(models.name, query.model)),
+                      ),
                     )
                   : undefined,
                 query.result ? eq(requestLogs.result, query.result) : undefined,

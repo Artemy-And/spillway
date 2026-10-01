@@ -13,8 +13,7 @@
     "test": "pnpm -r test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "db:generate": "pnpm --filter @spillway/server db:generate",
-    "demo": "pnpm --filter @spillway/server demo"
+    "db:generate": "pnpm --filter @spillway/server db:generate"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

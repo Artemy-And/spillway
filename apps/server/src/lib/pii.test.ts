@@ -10,16 +10,42 @@ test('masks emails, phones and secrets', () => {
   assert.deepEqual(found, { email: 1, phone: 1, secret: 1 });
 });
 
+test('masks US and European phone formats', () => {
+  assert.deepEqual(maskPii('Call (415) 555-0132 or 415-555-0199').found, { phone: 2 });
+  assert.deepEqual(maskPii('Berlin office +49 30 12345678, Paris +33 1 23 45 67 89').found, {
+    phone: 2,
+  });
+});
+
 test('masks card numbers only when the Luhn check passes', () => {
   assert.deepEqual(maskPii('card 4111 1111 1111 1111').found, { card: 1 });
   assert.deepEqual(maskPii('order 4111 1111 1111 1112').found, {});
+});
+
+test('masks US Social Security and UK National Insurance numbers', () => {
+  assert.deepEqual(maskPii('SSN 123-45-6789').found, { ssn: 1 });
+  assert.deepEqual(maskPii('my social security number: 123456789').found, { ssn: 1 });
+  assert.deepEqual(maskPii('invalid 000-12-3456 and 666-12-3456').found, {});
+  assert.deepEqual(maskPii('NI number AB 12 34 56 C').found, { nino: 1 });
+});
+
+test('masks passport numbers next to the word passport, in several languages', () => {
+  assert.deepEqual(maskPii('Passport number: 123456789').found, { passport: 1 });
+  assert.deepEqual(maskPii('Reisepass C01X00T47').found, { passport: 1 });
+  assert.deepEqual(maskPii('паспорт серия 4510 123456').found, { passport: 1 });
 });
 
 test('masks Russian documents with valid checksums', () => {
   assert.deepEqual(maskPii('СНИЛС 112-233-445 95').found, { snils: 1 });
   assert.deepEqual(maskPii('ИНН 7707083893').found, { inn: 1 });
   assert.deepEqual(maskPii('ИНН 7707083894').found, {});
-  assert.deepEqual(maskPii('паспорт серия 4510 123456').found, { passport: 1 });
+});
+
+test('leaves the numbers coding tools send alone', () => {
+  // Unix timestamps, IDs and versions pass checksums by chance; none of them is personal data.
+  const input =
+    'created: 1790849792, the inn at 7707083893 Main St, id 1234567890123452, build 2026.10.01';
+  assert.deepEqual(maskPii(input).found, {});
 });
 
 test('masks IBANs and IPv4 addresses', () => {

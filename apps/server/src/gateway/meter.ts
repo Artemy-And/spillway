@@ -32,13 +32,13 @@ export class Meter {
       this.inputTokens = chunk.usage.prompt_tokens;
       this.outputTokens = chunk.usage.completion_tokens;
     }
-    this.#append(chunk.choices[0]?.delta.content);
+    this.#append(chunk.choices[0]?.delta?.content);
   }
 
   openAIResponse(res: OAIChatResponse) {
     this.inputTokens = res.usage?.prompt_tokens ?? 0;
     this.outputTokens = res.usage?.completion_tokens ?? 0;
-    this.#append(res.choices[0]?.message.content);
+    this.#append(res.choices[0]?.message?.content);
   }
 
   anthropicEvent(event: AStreamEvent) {

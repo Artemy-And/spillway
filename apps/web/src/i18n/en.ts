@@ -12,6 +12,8 @@ const pii = {
   email: 'emails',
   card: 'card numbers',
   iban: 'IBANs',
+  ssn: 'SSNs',
+  nino: 'UK NI numbers',
   snils: 'SNILS numbers',
   passport: 'passport numbers',
   inn: 'INNs',
@@ -67,6 +69,8 @@ export const en = {
       email: 'email',
       card: 'card',
       iban: 'IBAN',
+      ssn: 'SSN',
+      nino: 'NI number',
       snils: 'SNILS',
       passport: 'passport',
       inn: 'INN',
@@ -121,6 +125,8 @@ export const en = {
     submit: 'Create account',
     submitting: 'Creating…',
     note: 'This page is shown only until the first account exists.',
+    orSso: 'or with a password',
+    ssoHint: 'With single sign-on, the first person from an allowed domain becomes the admin.',
   },
 
   invite: {
@@ -386,7 +392,8 @@ export const en = {
     budgetAfter: '% or more of its monthly budget',
     thresholdLabel: 'Budget threshold, percent',
     sendTo: (local: string) => `Send the request to ${local}`,
-    piiWhen: 'Prompt contains card numbers, passport, SNILS or INN numbers, IBANs or API keys',
+    piiWhen:
+      'Prompt contains card numbers, IBANs, SSNs, passport or national ID numbers, or API keys',
     piiThen: 'Block cloud models, allow local ones',
     agentWhen: 'Key type is Agent',
     agentBefore: 'At most',
@@ -505,7 +512,7 @@ export const en = {
     kinds: {
       openai: {
         label: 'OpenAI-compatible',
-        hint: 'OpenAI, OpenRouter, DeepSeek, vLLM, LM Studio, YandexGPT and other /v1/chat/completions APIs',
+        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio and other /v1/chat/completions APIs',
       },
       anthropic: { label: 'Anthropic', hint: 'Claude models through the Messages API' },
       ollama: {

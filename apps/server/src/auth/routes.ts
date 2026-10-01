@@ -165,9 +165,11 @@ export function authRoutes(ctx: AppContext) {
         if (!isAdmin && !ctx.env.OIDC_ALLOWED_DOMAINS.includes(domain)) {
           return c.redirect(loginError(`${email} has no access. Ask an admin to add you.`));
         }
+        // Like the setup page: on an empty gateway the first person in becomes the admin.
+        const first = await needsSetup(ctx);
         [user] = await ctx.db
           .insert(users)
-          .values({ email, name, role: isAdmin ? 'admin' : 'member' })
+          .values({ email, name, role: isAdmin || first ? 'admin' : 'member' })
           .returning();
       }
       if (!user || user.disabledAt) return c.redirect(loginError('This account is disabled'));

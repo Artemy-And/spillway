@@ -9,6 +9,8 @@ const pii = {
   email: 'E-Mail-Adressen',
   card: 'Kartennummern',
   iban: 'IBANs',
+  ssn: 'SSNs',
+  nino: 'britische NI-Nummern',
   snils: 'SNILS-Nummern',
   passport: 'Passnummern',
   inn: 'INN-Nummern',
@@ -65,6 +67,8 @@ export const de: Messages = {
       email: 'E-Mail',
       card: 'Karte',
       iban: 'IBAN',
+      ssn: 'SSN',
+      nino: 'NI-Nummer',
       snils: 'SNILS',
       passport: 'Pass',
       inn: 'INN',
@@ -74,6 +78,7 @@ export const de: Messages = {
   },
 
   errors: {
+    'A team with this name already exists': 'Ein Team mit diesem Namen gibt es bereits',
     'This invite link is invalid or has expired':
       'Dieser Einladungslink ist ungültig oder abgelaufen',
     'Person not found': 'Person nicht gefunden',
@@ -143,6 +148,8 @@ export const de: Messages = {
     submit: 'Konto anlegen',
     submitting: 'Wird angelegt…',
     note: 'Diese Seite erscheint nur, solange es noch kein Konto gibt.',
+    orSso: 'oder mit Passwort',
+    ssoHint: 'Bei Single Sign-on wird die erste Person aus einer erlaubten Domain Admin.',
   },
 
   invite: {
@@ -408,7 +415,7 @@ export const de: Messages = {
     thresholdLabel: 'Budgetschwelle in Prozent',
     sendTo: (local) => `Anfrage an ${local} senden`,
     piiWhen:
-      'Anfrage enthält Kartennummern, Pass-, SNILS- oder INN-Nummern, IBANs oder API-Schlüssel',
+      'Anfrage enthält Kartennummern, IBANs, SSNs, Pass- oder Ausweisnummern oder API-Schlüssel',
     piiThen: 'Cloud-Modelle blockieren, lokale erlauben',
     agentWhen: 'Schlüsseltyp ist Agent',
     agentBefore: 'Höchstens',
@@ -531,7 +538,7 @@ export const de: Messages = {
     kinds: {
       openai: {
         label: 'OpenAI-kompatibel',
-        hint: 'OpenAI, OpenRouter, DeepSeek, vLLM, LM Studio, YandexGPT und andere /v1/chat/completions-APIs',
+        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio und andere /v1/chat/completions-APIs',
       },
       anthropic: { label: 'Anthropic', hint: 'Claude-Modelle über die Messages-API' },
       ollama: {

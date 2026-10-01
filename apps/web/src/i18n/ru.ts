@@ -9,6 +9,8 @@ const pii = {
   email: 'email',
   card: 'номера карт',
   iban: 'IBAN',
+  ssn: 'SSN',
+  nino: 'номера NI (Великобритания)',
   snils: 'СНИЛС',
   passport: 'паспорта',
   inn: 'ИНН',
@@ -65,6 +67,8 @@ export const ru: Messages = {
       email: 'email',
       card: 'номер карты',
       iban: 'IBAN',
+      ssn: 'SSN',
+      nino: 'номер NI',
       snils: 'СНИЛС',
       passport: 'паспорт',
       inn: 'ИНН',
@@ -74,6 +78,7 @@ export const ru: Messages = {
   },
 
   errors: {
+    'A team with this name already exists': 'Команда с таким названием уже есть',
     'This invite link is invalid or has expired': 'Ссылка недействительна или устарела',
     'Person not found': 'Человек не найден',
     'Wrong email or password': 'Неверный email или пароль',
@@ -140,6 +145,9 @@ export const ru: Messages = {
     submit: 'Создать аккаунт',
     submitting: 'Создаём…',
     note: 'Эта страница видна, только пока нет ни одного аккаунта.',
+    orSso: 'или с паролем',
+    ssoHint:
+      'При входе через SSO администратором становится первый человек из разрешённого домена.',
   },
 
   invite: {
@@ -425,7 +433,8 @@ export const ru: Messages = {
     budgetAfter: '% месячного бюджета или больше',
     thresholdLabel: 'Порог бюджета, процент',
     sendTo: (local) => `Отправить запрос в ${local}`,
-    piiWhen: 'В запросе есть номера карт, паспорта, СНИЛС, ИНН, IBAN или API-ключи',
+    piiWhen:
+      'В запросе есть номера карт, IBAN, SSN, номера паспортов или других удостоверений, или API-ключи',
     piiThen: 'Запретить облачные модели, разрешить локальные',
     agentWhen: 'Тип ключа: агент',
     agentBefore: 'Не больше',
@@ -547,7 +556,7 @@ export const ru: Messages = {
     kinds: {
       openai: {
         label: 'Совместимый с OpenAI',
-        hint: 'OpenAI, OpenRouter, DeepSeek, vLLM, LM Studio, YandexGPT и другие API с /v1/chat/completions',
+        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio и другие API с /v1/chat/completions',
       },
       anthropic: { label: 'Anthropic', hint: 'Модели Claude через Messages API' },
       ollama: {

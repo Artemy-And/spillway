@@ -84,9 +84,10 @@ export function anthropicRequestToOpenAI(req: ARequest): OAIChatRequest {
           });
         }
       }
+      // null content is only valid next to tool calls (a turn may hold just thinking blocks).
       messages.push({
         role: 'assistant',
-        content: text || null,
+        content: text || (toolCalls.length ? null : ''),
         ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
       });
       continue;
