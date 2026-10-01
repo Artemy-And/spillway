@@ -74,6 +74,9 @@ export const de: Messages = {
   },
 
   errors: {
+    'This invite link is invalid or has expired':
+      'Dieser Einladungslink ist ungültig oder abgelaufen',
+    'Person not found': 'Person nicht gefunden',
     'Wrong email or password': 'E-Mail oder Passwort falsch',
     'Too many attempts. Try again in 15 minutes.':
       'Zu viele Versuche. Versuchen Sie es in 15 Minuten erneut.',
@@ -134,6 +137,20 @@ export const de: Messages = {
     submit: 'Konto anlegen',
     submitting: 'Wird angelegt…',
     note: 'Diese Seite erscheint nur, solange es noch kein Konto gibt.',
+  },
+
+  invite: {
+    title: 'Spillway beitreten',
+    subtitle: (email) =>
+      `Sie wurden als ${email} eingeladen. Wählen Sie Ihren Namen und ein Passwort.`,
+    resetTitle: 'Neues Passwort festlegen',
+    resetSubtitle: (email) =>
+      `Für ${email}. Mit dem alten Passwort angemeldete Browser werden abgemeldet.`,
+    submit: 'Beitreten',
+    resetSubmit: 'Passwort speichern',
+    submitting: 'Wird gespeichert…',
+    checking: 'Link wird geprüft…',
+    toSignIn: 'Zur Anmeldung',
   },
 
   welcome: {
@@ -595,7 +612,15 @@ export const de: Messages = {
       'Funktioniert mit Google Workspace, Microsoft Entra ID oder jedem OpenID-Connect-Anbieter. Registrieren Sie dort eine App mit dieser Redirect-URI, setzen Sie die Variablen und starten Sie neu:',
     people: 'Personen',
     peopleIntro:
-      'Fügen Sie Personen vor ihrer ersten SSO-Anmeldung hinzu, um sie einem Team zuzuordnen. Danach können sie eigene Schlüssel erstellen.',
+      'Fügen Sie eine Person hinzu und schicken Sie ihr den Einladungslink, oder lassen Sie sie per SSO anmelden. Danach kann sie eigene Schlüssel erstellen.',
+    linkTitle: (email) => `Link für ${email}`,
+    linkHint: (date) =>
+      `Einmal gültig, bis ${date}. Per Messenger verschicken; Spillway versendet keine E-Mails.`,
+    copyLink: 'Link kopieren',
+    newLink: 'Neuer Link',
+    newLinkHint: 'Neuen Einladungs- oder Passwort-Reset-Link erstellen',
+    invited: 'Eingeladen',
+    noPassword: 'Noch kein Passwort',
     addPerson: 'Person hinzufügen',
     person: 'Person',
     lastSignIn: 'Letzte Anmeldung',

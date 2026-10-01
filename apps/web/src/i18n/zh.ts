@@ -73,6 +73,8 @@ export const zh: Messages = {
   },
 
   errors: {
+    'This invite link is invalid or has expired': '邀请链接无效或已过期',
+    'Person not found': '找不到此人',
     'Wrong email or password': '邮箱或密码错误',
     'Too many attempts. Try again in 15 minutes.': '尝试次数过多，请 15 分钟后再试。',
     'Sign in to continue': '请先登录',
@@ -128,6 +130,18 @@ export const zh: Messages = {
     submit: '创建账户',
     submitting: '正在创建…',
     note: '在第一个账户创建之前，才会显示此页面。',
+  },
+
+  invite: {
+    title: '加入 Spillway',
+    subtitle: (email) => `你以 ${email} 的身份受邀。请填写名字并设置密码。`,
+    resetTitle: '设置新密码',
+    resetSubtitle: (email) => `账户 ${email}。使用旧密码登录的浏览器将被退出。`,
+    submit: '加入',
+    resetSubmit: '保存密码',
+    submitting: '正在保存…',
+    checking: '正在检查链接…',
+    toSignIn: '前往登录',
   },
 
   welcome: {
@@ -557,7 +571,15 @@ export const zh: Messages = {
     ssoIntro:
       '支持 Google Workspace、Microsoft Entra ID 或任何 OpenID Connect 提供商。在那里用此重定向 URI 注册应用，设置变量后重启：',
     people: '人员',
-    peopleIntro: '在某人首次通过 SSO 登录前添加他，即可把他分到团队中。之后他可以自己创建密钥。',
+    peopleIntro: '添加人员并把邀请链接发给他，或让他通过 SSO 登录。之后他可以自己创建密钥。',
+    linkTitle: (email) => `${email} 的链接`,
+    linkHint: (date) =>
+      `仅可使用一次，${date} 前有效。可通过任意聊天工具发送；Spillway 不会发送邮件。`,
+    copyLink: '复制链接',
+    newLink: '新链接',
+    newLinkHint: '生成新的邀请或重置密码链接',
+    invited: '已邀请',
+    noPassword: '尚未设置密码',
     addPerson: '添加人员',
     person: '人员',
     lastSignIn: '最近登录',

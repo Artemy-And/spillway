@@ -74,6 +74,9 @@ export const es: Messages = {
   },
 
   errors: {
+    'This invite link is invalid or has expired':
+      'Este enlace de invitación no es válido o ha caducado',
+    'Person not found': 'Persona no encontrada',
     'Wrong email or password': 'Correo o contraseña incorrectos',
     'Too many attempts. Try again in 15 minutes.':
       'Demasiados intentos. Vuelve a intentarlo en 15 minutos.',
@@ -132,6 +135,19 @@ export const es: Messages = {
     submit: 'Crear cuenta',
     submitting: 'Creando…',
     note: 'Esta página solo aparece mientras no exista ninguna cuenta.',
+  },
+
+  invite: {
+    title: 'Únete a Spillway',
+    subtitle: (email) => `Te invitaron como ${email}. Elige tu nombre y una contraseña.`,
+    resetTitle: 'Nueva contraseña',
+    resetSubtitle: (email) =>
+      `Para ${email}. Los navegadores con la contraseña anterior cerrarán sesión.`,
+    submit: 'Unirme',
+    resetSubmit: 'Guardar contraseña',
+    submitting: 'Guardando…',
+    checking: 'Comprobando el enlace…',
+    toSignIn: 'Ir al inicio de sesión',
   },
 
   welcome: {
@@ -587,7 +603,15 @@ export const es: Messages = {
       'Funciona con Google Workspace, Microsoft Entra ID o cualquier proveedor OpenID Connect. Registra allí una app con esta URI de redirección, define las variables y reinicia:',
     people: 'Personas',
     peopleIntro:
-      'Añade a alguien antes de su primer inicio con SSO para meterlo en un equipo. Después podrá crear sus propias claves.',
+      'Añade a alguien y envíale el enlace de invitación, o deja que entre con SSO. Después podrá crear sus propias claves.',
+    linkTitle: (email) => `Enlace para ${email}`,
+    linkHint: (date) =>
+      `Sirve una vez, hasta el ${date}. Envíalo por cualquier mensajería; Spillway no envía correos.`,
+    copyLink: 'Copiar enlace',
+    newLink: 'Nuevo enlace',
+    newLinkHint: 'Crear un nuevo enlace de invitación o de cambio de contraseña',
+    invited: 'Invitada',
+    noPassword: 'Sin contraseña',
     addPerson: 'Añadir persona',
     person: 'Persona',
     lastSignIn: 'Último acceso',

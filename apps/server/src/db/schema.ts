@@ -74,6 +74,17 @@ export const sessions = sqliteTable('sessions', {
   createdAt: createdAt(),
 });
 
+/** One-time links that let someone set their password; only a hash of the token is kept. */
+export const invites = sqliteTable('invites', {
+  /** sha256 of the token in the link */
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: createdAt(),
+});
+
 export const providers = sqliteTable('providers', {
   id: id(),
   name: text('name').notNull(),

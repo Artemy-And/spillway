@@ -74,6 +74,8 @@ export const ru: Messages = {
   },
 
   errors: {
+    'This invite link is invalid or has expired': 'Ссылка недействительна или устарела',
+    'Person not found': 'Человек не найден',
     'Wrong email or password': 'Неверный email или пароль',
     'Too many attempts. Try again in 15 minutes.':
       'Слишком много попыток. Попробуйте через 15 минут.',
@@ -132,6 +134,19 @@ export const ru: Messages = {
     submit: 'Создать аккаунт',
     submitting: 'Создаём…',
     note: 'Эта страница видна, только пока нет ни одного аккаунта.',
+  },
+
+  invite: {
+    title: 'Вход в Spillway',
+    subtitle: (email) => `Вас пригласили как ${email}. Укажите имя и придумайте пароль.`,
+    resetTitle: 'Новый пароль',
+    resetSubtitle: (email) =>
+      `Для ${email}. Браузеры, где выполнен вход со старым паролем, выйдут из аккаунта.`,
+    submit: 'Войти в Spillway',
+    resetSubmit: 'Сохранить пароль',
+    submitting: 'Сохраняем…',
+    checking: 'Проверяем ссылку…',
+    toSignIn: 'На страницу входа',
   },
 
   welcome: {
@@ -613,7 +628,15 @@ export const ru: Messages = {
       'Работает с Google Workspace, Microsoft Entra ID и любым провайдером OpenID Connect. Зарегистрируйте там приложение с этим redirect URI, задайте переменные и перезапустите:',
     people: 'Люди',
     peopleIntro:
-      'Добавьте человека до первого входа через SSO, чтобы сразу включить его в команду. После входа он сможет создавать свои ключи.',
+      'Добавьте человека и отправьте ему ссылку-приглашение или дайте войти через SSO. Потом он сможет создавать свои ключи.',
+    linkTitle: (email) => `Ссылка для ${email}`,
+    linkHint: (date) =>
+      `Одноразовая, действует до ${date}. Отправьте её в любом мессенджере: Spillway не рассылает письма.`,
+    copyLink: 'Скопировать ссылку',
+    newLink: 'Новая ссылка',
+    newLinkHint: 'Создать новую ссылку для приглашения или сброса пароля',
+    invited: 'Приглашён',
+    noPassword: 'Без пароля',
     addPerson: 'Добавить',
     person: 'Человек',
     lastSignIn: 'Последний вход',

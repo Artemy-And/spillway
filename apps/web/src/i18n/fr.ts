@@ -74,6 +74,8 @@ export const fr: Messages = {
   },
 
   errors: {
+    'This invite link is invalid or has expired': 'Ce lien d’invitation est invalide ou a expiré',
+    'Person not found': 'Personne introuvable',
     'Wrong email or password': 'E-mail ou mot de passe incorrect',
     'Too many attempts. Try again in 15 minutes.': 'Trop de tentatives. Réessayez dans 15 minutes.',
     'Sign in to continue': 'Connectez-vous pour continuer',
@@ -132,6 +134,20 @@ export const fr: Messages = {
     submit: 'Créer le compte',
     submitting: 'Création…',
     note: 'Cette page ne s’affiche que tant qu’aucun compte n’existe.',
+  },
+
+  invite: {
+    title: 'Rejoindre Spillway',
+    subtitle: (email) =>
+      `Vous avez été invité en tant que ${email}. Choisissez votre nom et un mot de passe.`,
+    resetTitle: 'Nouveau mot de passe',
+    resetSubtitle: (email) =>
+      `Pour ${email}. Les navigateurs connectés avec l’ancien mot de passe seront déconnectés.`,
+    submit: 'Rejoindre',
+    resetSubmit: 'Enregistrer le mot de passe',
+    submitting: 'Enregistrement…',
+    checking: 'Vérification du lien…',
+    toSignIn: 'Aller à la connexion',
   },
 
   welcome: {
@@ -591,7 +607,15 @@ export const fr: Messages = {
       'Fonctionne avec Google Workspace, Microsoft Entra ID ou tout fournisseur OpenID Connect. Enregistrez-y une application avec cette URI de redirection, définissez les variables et redémarrez :',
     people: 'Personnes',
     peopleIntro:
-      'Ajoutez quelqu’un avant sa première connexion SSO pour le placer dans une équipe. Il pourra ensuite créer ses propres clés.',
+      'Ajoutez quelqu’un et envoyez-lui le lien d’invitation, ou laissez-le se connecter par SSO. Il pourra ensuite créer ses propres clés.',
+    linkTitle: (email) => `Lien pour ${email}`,
+    linkHint: (date) =>
+      `Valable une fois, jusqu’au ${date}. Envoyez-le par messagerie ; Spillway n’envoie pas d’e-mails.`,
+    copyLink: 'Copier le lien',
+    newLink: 'Nouveau lien',
+    newLinkHint: 'Créer un nouveau lien d’invitation ou de réinitialisation',
+    invited: 'Invité',
+    noPassword: 'Pas encore de mot de passe',
     addPerson: 'Ajouter',
     person: 'Personne',
     lastSignIn: 'Dernière connexion',

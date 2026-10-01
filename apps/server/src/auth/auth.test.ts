@@ -87,3 +87,27 @@ test('changing the password needs the current one and signs out other sessions',
   const login = await send('/auth/login', { email: 'me@company.com', password: 'new pass 1' });
   assert.equal(login.status, 200);
 });
+
+test('an invite link lets a new person set a password, once', async () => {
+  const admin = cookieOf(
+    await send('/auth/login', { email: 'me@company.com', password: 'new pass 1' }),
+  );
+  const added = await json(await send('/admin/api/users', { email: 'anna@company.com' }, admin));
+  const token = added.invite.token as string;
+  const listed = await json(await app.request('/admin/api/users', { headers: { cookie: admin } }));
+  assert.equal(listed.find((u: { email: string }) => u.email === 'anna@company.com').invited, true);
+
+  const info = await json(await app.request(`/auth/invite/${token}`));
+  assert.equal(info.email, 'anna@company.com');
+  const accepted = await send(`/auth/invite/${token}`, { name: 'Anna', password: 'anna pass 1' });
+  assert.equal(accepted.status, 200);
+  const me = await json(
+    await app.request('/admin/api/me', { headers: { cookie: cookieOf(accepted) } }),
+  );
+  assert.equal(me.user.name, 'Anna');
+  assert.equal(me.user.role, 'member');
+
+  assert.equal((await app.request(`/auth/invite/${token}`)).status, 404, 'links are single-use');
+  const login = await send('/auth/login', { email: 'anna@company.com', password: 'anna pass 1' });
+  assert.equal(login.status, 200);
+});

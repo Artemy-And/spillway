@@ -46,7 +46,11 @@ checklist on the Overview page then walk through connecting a provider, adding m
 local model, creating a key and sending the first request. For unattended installs, set
 `ADMIN_EMAIL` and `ADMIN_PASSWORD` instead; they are used only when nobody exists yet.
 
-Locked out? `docker compose exec spillway node apps/server/src/reset-password.ts you@company.com`
+Colleagues join through **Settings → People**: add their email and send them the one-time link
+Spillway shows (valid for 7 days). The same link button resets a forgotten password. Spillway
+does not send email, so any messenger will do. With SSO configured they can also just sign in.
+
+Locked out of the only admin account? `docker compose exec spillway node apps/server/src/reset-password.ts you@company.com`
 prints a new password.
 
 Ollama already installed on the same computer is reachable from the container at

@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { createInvite } from '../auth/invites.ts';
 import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
 import { type AppContext, VERSION } from '../context.ts';
@@ -374,13 +375,17 @@ export function adminRoutes(ctx: AppContext) {
             role: users.role,
             teamId: users.teamId,
             hasPassword: sql<boolean>`${users.passwordHash} is not null`,
+            // Raw names: in a single-table select Drizzle leaves columns unqualified.
+            invited: sql<boolean>`exists (select 1 from invites i where i.user_id = users.id and i.expires_at > ${Date.now()})`,
             lastLoginAt: users.lastLoginAt,
             disabledAt: users.disabledAt,
           })
           .from(users)
           .orderBy(users.email)
           .all();
-        return c.json(rows.map((row) => ({ ...row, hasPassword: !!row.hasPassword })));
+        return c.json(
+          rows.map((row) => ({ ...row, hasPassword: !!row.hasPassword, invited: !!row.invited })),
+        );
       })
 
       .post(
@@ -402,9 +407,18 @@ export function adminRoutes(ctx: AppContext) {
             .onConflictDoNothing()
             .returning();
           if (!user) return c.json({ error: 'This person is already added' }, 409);
-          return c.json({ id: user.id }, 201);
+          // Without SSO the link is the only way in, so every new person gets one.
+          return c.json({ id: user.id, invite: await createInvite(db, user.id) }, 201);
         },
       )
+
+      .post('/users/:id/invite', adminOnly, idParam, async (c) => {
+        const { id } = c.req.valid('param');
+        const user = await db.query.users.findFirst({ where: eq(users.id, id) });
+        if (!user) return c.json({ error: 'Person not found' }, 404);
+        if (user.disabledAt) return c.json({ error: 'This account is disabled' }, 400);
+        return c.json(await createInvite(db, id));
+      })
 
       .patch(
         '/users/:id',

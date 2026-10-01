@@ -4,10 +4,13 @@ import { Hono } from 'hono';
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppContext } from '../context.ts';
-import { users } from '../db/schema.ts';
+import { invites, sessions, users } from '../db/schema.ts';
 import { hashPassword, verifyPassword } from '../lib/crypto.ts';
+import { findInvite } from './invites.ts';
 import type { OidcChecks } from './oidc.ts';
 import { endSession, startSession } from './session.ts';
+
+const INVALID_INVITE = 'This invite link is invalid or has expired';
 
 const OIDC_COOKIE = 'spillway_oidc';
 const MAX_FAILURES = 10;
@@ -56,6 +59,34 @@ export function authRoutes(ctx: AppContext) {
           .returning();
         await startSession(ctx, c, user!);
         return c.json({ ok: true }, 201);
+      },
+    )
+
+    .get('/invite/:token', async (c) => {
+      const user = await findInvite(ctx.db, c.req.param('token'));
+      if (!user) return c.json({ error: INVALID_INVITE }, 404);
+      return c.json({ email: user.email, name: user.name, hasPassword: !!user.passwordHash });
+    })
+
+    .post(
+      '/invite/:token',
+      zValidator(
+        'json',
+        z.object({ name: z.string().trim().min(1).max(128), password: passwordSchema }),
+      ),
+      async (c) => {
+        const user = await findInvite(ctx.db, c.req.param('token'));
+        if (!user) return c.json({ error: INVALID_INVITE }, 404);
+        const { name, password } = c.req.valid('json');
+        await ctx.db
+          .update(users)
+          .set({ name, passwordHash: await hashPassword(password) })
+          .where(eq(users.id, user.id));
+        // The link is single-use, and an old password stops working everywhere.
+        await ctx.db.delete(invites).where(eq(invites.userId, user.id));
+        await ctx.db.delete(sessions).where(eq(sessions.userId, user.id));
+        await startSession(ctx, c, user);
+        return c.json({ ok: true });
       },
     )
 

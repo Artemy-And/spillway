@@ -10,6 +10,7 @@ import { Layout } from './components/Layout.tsx';
 import { ApiError, meQuery } from './lib/api.ts';
 import { AccountPage } from './pages/Account.tsx';
 import { BudgetsPage } from './pages/Budgets.tsx';
+import { InvitePage } from './pages/Invite.tsx';
 import { KeysPage } from './pages/Keys.tsx';
 import { LoginPage } from './pages/Login.tsx';
 import { LogsPage } from './pages/Logs.tsx';
@@ -30,6 +31,12 @@ const login = createRoute({
 });
 
 const setup = createRoute({ getParentRoute: () => root, path: '/setup', component: SetupPage });
+
+const invite = createRoute({
+  getParentRoute: () => root,
+  path: '/invite/$token',
+  component: InvitePage,
+});
 
 const app = createRoute({
   getParentRoute: () => root,
@@ -54,6 +61,7 @@ const adminOnly = async ({ context }: { context: { queryClient: QueryClient } })
 const routeTree = root.addChildren([
   login,
   setup,
+  invite,
   app.addChildren([
     createRoute({ getParentRoute: () => app, path: '/', component: OverviewPage }),
     createRoute({ getParentRoute: () => app, path: '/keys', component: KeysPage }),

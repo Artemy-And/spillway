@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { AppContext } from './context.ts';
-import { models, providers, requestLogs, sessions, users } from './db/schema.ts';
+import { invites, models, providers, requestLogs, sessions, users } from './db/schema.ts';
 import { listUpstreamModels } from './gateway/upstream.ts';
 import { hashPassword } from './lib/crypto.ts';
 
@@ -82,4 +82,5 @@ export async function cleanup(ctx: AppContext): Promise<void> {
       ),
     );
   await ctx.db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+  await ctx.db.delete(invites).where(lt(invites.expiresAt, new Date()));
 }

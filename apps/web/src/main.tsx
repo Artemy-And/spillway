@@ -17,7 +17,8 @@ const onError = (error: unknown) => {
   if (
     error instanceof ApiError &&
     error.status === 401 &&
-    !['/login', '/setup'].includes(location.pathname)
+    !['/login', '/setup'].includes(location.pathname) &&
+    !location.pathname.startsWith('/invite/')
   ) {
     void router.navigate({ to: '/login', search: { error: undefined } });
   }

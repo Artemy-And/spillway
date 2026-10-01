@@ -117,6 +117,19 @@ export const en = {
     note: 'This page is shown only until the first account exists.',
   },
 
+  invite: {
+    title: 'Join Spillway',
+    subtitle: (email: string) => `You were invited as ${email}. Choose your name and a password.`,
+    resetTitle: 'Set a new password',
+    resetSubtitle: (email: string) =>
+      `For ${email}. Browsers signed in with the old password will be signed out.`,
+    submit: 'Join',
+    resetSubmit: 'Save password',
+    submitting: 'Saving…',
+    checking: 'Checking the link…',
+    toSignIn: 'Go to sign-in',
+  },
+
   welcome: {
     label: 'Welcome tour',
     skip: 'Skip',
@@ -570,7 +583,15 @@ export const en = {
       'Works with Google Workspace, Microsoft Entra ID or any OpenID Connect provider. Register an app there with this redirect URI, then set the variables and restart:',
     people: 'People',
     peopleIntro:
-      'Add someone before their first SSO sign-in to put them in a team. They can then create their own keys.',
+      'Add someone and send them the invite link, or let them sign in with SSO. They can then create their own keys.',
+    linkTitle: (email: string) => `Link for ${email}`,
+    linkHint: (date: string) =>
+      `Works once, until ${date}. Send it in any messenger; Spillway does not send email.`,
+    copyLink: 'Copy link',
+    newLink: 'New link',
+    newLinkHint: 'Create a new invite or password reset link',
+    invited: 'Invited',
+    noPassword: 'No password yet',
     addPerson: 'Add person',
     person: 'Person',
     lastSignIn: 'Last sign-in',

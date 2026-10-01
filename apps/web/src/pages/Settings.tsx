@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { CloseIcon, LinkIcon } from '../components/icons.tsx';
 import {
   Button,
   Card,
+  CopyButton,
   Empty,
   ErrorNote,
   Field,
@@ -14,7 +16,7 @@ import {
 } from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, modelsQuery, teamsQuery, unwrap } from '../lib/api.ts';
-import { fmtAgo } from '../lib/format.ts';
+import { fmtAgo, fmtDate } from '../lib/format.ts';
 
 export function SettingsPage() {
   const { m } = useI18n();
@@ -164,12 +166,26 @@ function People() {
   const [email, setEmail] = useState('');
   const [teamId, setTeamId] = useState('');
   const [role, setRole] = useState<'member' | 'admin'>('member');
+  const [link, setLink] = useState<{ email: string; token: string; expiresAt: string } | null>(
+    null,
+  );
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['users'] });
 
   const add = useMutation({
     mutationFn: () => unwrap(api.users.$post({ json: { email, role, teamId: teamId || null } })),
-    onSuccess: async () => {
+    onSuccess: async (created) => {
+      setLink({ email: email.trim().toLowerCase(), ...created.invite });
       setEmail('');
+      await refresh();
+    },
+  });
+  const newLink = useMutation({
+    mutationFn: async (user: { id: string; email: string }) => ({
+      email: user.email,
+      ...(await unwrap(api.users[':id'].invite.$post({ param: { id: user.id } }))),
+    }),
+    onSuccess: async (created) => {
+      setLink(created);
       await refresh();
     },
   });
@@ -228,9 +244,17 @@ function People() {
           {m.settings.addPerson}
         </Button>
       </form>
-      <ErrorNote error={add.error ?? update.error} />
+      <ErrorNote error={add.error ?? update.error ?? newLink.error} />
+      {link && (
+        <InviteLink
+          email={link.email}
+          url={`${window.location.origin}/invite/${link.token}`}
+          expiresAt={link.expiresAt}
+          onClose={() => setLink(null)}
+        />
+      )}
       <div className="min-w-[720px]">
-        <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_90px] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
+        <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_100px] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
           <div>{m.settings.person}</div>
           <div>{m.common.role}</div>
           <div>{m.common.team}</div>
@@ -241,7 +265,7 @@ function People() {
         {users.map((user) => (
           <div
             key={user.id}
-            className="grid grid-cols-[2fr_1fr_1.2fr_1fr_90px] items-center gap-3 border-b border-line-soft py-2.5 text-sm last:border-0"
+            className="grid grid-cols-[2fr_1fr_1.2fr_1fr_100px] items-center gap-3 border-b border-line-soft py-2.5 text-sm last:border-0"
           >
             <div className="flex min-w-0 flex-col">
               <span className="truncate">{user.name ?? user.email}</span>
@@ -272,18 +296,84 @@ function People() {
                 </option>
               ))}
             </Select>
-            <span className="text-[13px] text-ink-2">{fmtAgo(user.lastLoginAt)}</span>
-            <input
-              type="checkbox"
-              aria-label={m.settings.activeLabel(user.email)}
-              checked={!user.disabledAt}
-              disabled={user.id === me?.user.id}
-              onChange={(e) => update.mutate({ id: user.id, disabled: !e.target.checked })}
-              className="size-4 accent-accent"
-            />
+            <span className="text-[13px] text-ink-2">
+              {user.lastLoginAt || user.hasPassword ? (
+                fmtAgo(user.lastLoginAt)
+              ) : (
+                <Status tone={user.invited ? 'info' : 'off'}>
+                  {user.invited ? m.settings.invited : m.settings.noPassword}
+                </Status>
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                aria-label={m.settings.activeLabel(user.email)}
+                checked={!user.disabledAt}
+                disabled={user.id === me?.user.id}
+                onChange={(e) => update.mutate({ id: user.id, disabled: !e.target.checked })}
+                className="size-4 accent-accent"
+              />
+              {!user.disabledAt && (
+                <button
+                  type="button"
+                  aria-label={`${m.settings.newLink}: ${user.email}`}
+                  title={m.settings.newLinkHint}
+                  disabled={newLink.isPending}
+                  onClick={() => newLink.mutate(user)}
+                  className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track hover:text-ink"
+                >
+                  <LinkIcon />
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
     </Card>
+  );
+}
+
+/** The link an admin passes on, shown once right after it is made. */
+function InviteLink({
+  email,
+  url,
+  expiresAt,
+  onClose,
+}: {
+  email: string;
+  url: string;
+  expiresAt: string;
+  onClose: () => void;
+}) {
+  const { m } = useI18n();
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2.5 rounded-lg border border-accent bg-accent-soft p-4"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">{m.settings.linkTitle(email)}</h3>
+        <button
+          type="button"
+          aria-label={m.common.close}
+          onClick={onClose}
+          className="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <code className="min-w-0 flex-1 rounded-md bg-surface px-3 py-2 font-mono text-xs break-all">
+          {url}
+        </code>
+        <CopyButton value={url} label={m.settings.copyLink} />
+      </div>
+      <p className="text-xs text-ink-2">
+        {m.settings.linkHint(
+          fmtDate(expiresAt, { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        )}
+      </p>
+    </div>
   );
 }
