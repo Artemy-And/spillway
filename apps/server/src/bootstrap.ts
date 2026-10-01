@@ -2,44 +2,25 @@ import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { AppContext } from './context.ts';
 import { models, providers, requestLogs, sessions, users } from './db/schema.ts';
 import { listUpstreamModels } from './gateway/upstream.ts';
-import { hashPassword, randomToken, verifyPassword } from './lib/crypto.ts';
+import { hashPassword } from './lib/crypto.ts';
 
 /** Makes sure someone can sign in, and adds providers from the environment on first start. */
 export async function bootstrap(ctx: AppContext): Promise<void> {
   const { db, env } = ctx;
 
-  const admin = await db.query.users.findFirst({ where: eq(users.email, env.ADMIN_EMAIL) });
-  if (env.ADMIN_PASSWORD) {
-    if (!admin) {
+  // The first admin is created in the browser (the setup page), or from ADMIN_PASSWORD for
+  // unattended installs. Either way it happens once; passwords then live on the account page.
+  const anyone = await db.select({ count: sql<number>`count(*)` }).from(users).get();
+  if (!anyone?.count) {
+    if (env.ADMIN_PASSWORD) {
       await db.insert(users).values({
         email: env.ADMIN_EMAIL,
         name: 'Admin',
         role: 'admin',
         passwordHash: await hashPassword(env.ADMIN_PASSWORD),
       });
-    } else if (
-      !admin.passwordHash ||
-      !(await verifyPassword(env.ADMIN_PASSWORD, admin.passwordHash))
-    ) {
-      await db
-        .update(users)
-        .set({ passwordHash: await hashPassword(env.ADMIN_PASSWORD), role: 'admin' })
-        .where(eq(users.id, admin.id));
-    }
-  } else {
-    const anyone = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-    if (!anyone?.count && !ctx.oidc) {
-      const password = randomToken(12);
-      await db.insert(users).values({
-        email: env.ADMIN_EMAIL,
-        name: 'Admin',
-        role: 'admin',
-        passwordHash: await hashPassword(password),
-      });
-      console.log(
-        `\n  First start: sign in as ${env.ADMIN_EMAIL} with password ${password}\n` +
-          '  Set ADMIN_PASSWORD to choose your own.\n',
-      );
+    } else {
+      console.log(`\n  First start: open ${env.PUBLIC_URL} to create the admin account.\n`);
     }
   }
 

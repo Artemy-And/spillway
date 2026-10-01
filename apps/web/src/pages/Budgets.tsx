@@ -11,6 +11,7 @@ import {
   PageHeader,
   Progress,
 } from '../components/ui.tsx';
+import { useI18n } from '../i18n/index.tsx';
 import {
   api,
   type ModelRow,
@@ -21,11 +22,12 @@ import {
   teamsQuery,
   unwrap,
 } from '../lib/api.ts';
-import { fmtDate, fmtLimit, fmtNumber, fmtUsd, pct } from '../lib/format.ts';
+import { fmtDate, fmtLimit, fmtMonth, fmtUsd, pct } from '../lib/format.ts';
 
 type RuleSet = Rules['rules'];
 
 export function BudgetsPage() {
+  const { m } = useI18n();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQuery);
   const isAdmin = me?.user.role === 'admin';
@@ -63,7 +65,7 @@ export function BudgetsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rules'] }),
   });
 
-  const month = new Date().toLocaleDateString('en-US', { month: 'long' });
+  const month = fmtMonth(new Date());
   const totalSpent = teams.reduce((sum, t) => sum + t.spentMonth, 0);
   const totalBudget = teams.reduce((sum, t) => sum + (t.monthlyBudgetUsd ?? 0), 0);
   const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
@@ -71,22 +73,19 @@ export function BudgetsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Budgets & rules"
-        subtitle="Limits per team, and rules the gateway checks on every request, top to bottom."
-      >
+      <PageHeader title={m.budgets.title} subtitle={m.budgets.subtitle}>
         {isAdmin && (
           <Button variant="primary" onClick={() => setAdding(true)}>
             <PlusIcon strokeWidth={2.2} />
-            Add team
+            {m.budgets.addTeam}
           </Button>
         )}
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1.35fr]">
-        <Card aria-label="Team budgets" className="flex flex-col gap-1 px-6 py-5">
+        <Card aria-label={m.budgets.teamBudgets} className="flex flex-col gap-1 px-6 py-5">
           <div className="mb-2 flex items-baseline justify-between gap-3">
-            <h2 className="text-[15px] font-semibold">Team budgets · {month}</h2>
+            <h2 className="text-[15px] font-semibold">{m.budgets.teamBudgetsMonth(month)}</h2>
             <span className="font-mono text-[13px] text-muted">
               {fmtUsd(totalSpent)}
               {totalBudget > 0 && ` / ${fmtLimit(totalBudget)}`}
@@ -99,11 +98,7 @@ export function BudgetsPage() {
               error={addTeam.error}
             />
           )}
-          {teams.length === 0 && !adding && (
-            <Empty>
-              No teams yet. Teams hold a monthly budget and decide which models their keys may use.
-            </Empty>
-          )}
+          {teams.length === 0 && !adding && <Empty>{m.budgets.noTeams}</Empty>}
           {teams.map((team) => (
             <TeamBudget
               key={team.id}
@@ -116,16 +111,16 @@ export function BudgetsPage() {
           <ErrorNote error={saveTeam.error} />
         </Card>
 
-        <Card aria-label="Routing rules" className="flex flex-col gap-3 px-6 py-5">
-          <h2 className="mb-1 text-[15px] font-semibold">Routing rules</h2>
+        <Card aria-label={m.budgets.routingRules} className="flex flex-col gap-3 px-6 py-5">
+          <h2 className="mb-1 text-[15px] font-semibold">{m.budgets.routingRules}</h2>
           {rules && (
             <RuleList
               rules={rules.rules}
               hits={rules.hits}
               localName={
                 localModel
-                  ? `${localModel.label ?? localModel.name} · local`
-                  : 'the local model (set one in Settings)'
+                  ? m.budgets.localName(localModel.label ?? localModel.name)
+                  : m.budgets.localUnset
               }
               editable={isAdmin}
               onChange={(next) => saveRules.mutate(next)}
@@ -135,10 +130,10 @@ export function BudgetsPage() {
         </Card>
       </div>
 
-      <Card aria-label="Model access" className="flex flex-col px-6 py-5">
+      <Card aria-label={m.budgets.modelAccess} className="flex flex-col px-6 py-5">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-[15px] font-semibold">Model access by team</h2>
-          <span className="text-[13px] text-muted">Keys can narrow this, never widen it</span>
+          <h2 className="text-[15px] font-semibold">{m.budgets.modelAccessTitle}</h2>
+          <span className="text-[13px] text-muted">{m.budgets.narrow}</span>
         </div>
         {teams.length && models.length ? (
           <AccessMatrix
@@ -148,7 +143,7 @@ export function BudgetsPage() {
             onChange={(team, allowedModelIds) => saveTeam.mutate({ id: team.id, allowedModelIds })}
           />
         ) : (
-          <Empty>Add teams and models to control who may use what.</Empty>
+          <Empty>{m.budgets.addTeamsModels}</Empty>
         )}
       </Card>
     </>
@@ -164,6 +159,7 @@ function NewTeam({
   onCancel: () => void;
   error: unknown;
 }) {
+  const { m } = useI18n();
   const [name, setName] = useState('');
   const [budget, setBudget] = useState('');
   return (
@@ -176,28 +172,28 @@ function NewTeam({
     >
       <div className="grid grid-cols-[1fr_140px] gap-3">
         <Input
-          aria-label="Team name"
+          aria-label={m.budgets.teamName}
           required
-          placeholder="Team name"
+          placeholder={m.budgets.teamName}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <Input
-          aria-label="Monthly budget, $"
+          aria-label={m.budgets.monthlyBudget}
           mono
           type="number"
           min="0"
           step="any"
-          placeholder="Budget, $"
+          placeholder={m.budgets.budgetPlaceholder}
           value={budget}
           onChange={(e) => setBudget(e.target.value)}
         />
       </div>
       <ErrorNote error={error} />
       <div className="flex justify-end gap-2">
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onCancel}>{m.common.cancel}</Button>
         <Button type="submit" variant="primary">
-          Add team
+          {m.budgets.addTeam}
         </Button>
       </div>
     </form>
@@ -215,6 +211,7 @@ function TeamBudget({
   editable: boolean;
   onBudget: (value: number | null) => void;
 }) {
+  const { m } = useI18n();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(team.monthlyBudgetUsd?.toString() ?? '');
   const budget = team.monthlyBudgetUsd;
@@ -222,10 +219,13 @@ function TeamBudget({
   const over = budget != null && team.spentMonth >= budget;
   const note =
     budget == null
-      ? `No budget · ${fmtUsd(team.spentMonth)} spent · ${team.keys} keys`
+      ? m.budgets.noBudget(fmtUsd(team.spentMonth), team.keys)
       : over
-        ? 'Over budget · requests go to local models'
-        : `${used >= 80 ? 'Close to budget' : 'On track'} · forecast ${fmtUsd(team.forecast)} by ${fmtDate(monthEnd)}`;
+        ? m.budgets.over
+        : (used >= 80 ? m.budgets.closeTo : m.budgets.onTrack)(
+            fmtUsd(team.forecast),
+            fmtDate(monthEnd),
+          );
 
   return (
     <div className="flex flex-col gap-2 border-b border-line-soft py-3.5 last:border-0">
@@ -241,7 +241,7 @@ function TeamBudget({
             }}
           >
             <Input
-              aria-label={`${team.name} monthly budget`}
+              aria-label={m.budgets.teamMonthlyBudget(team.name)}
               mono
               type="number"
               min="0"
@@ -252,7 +252,7 @@ function TeamBudget({
               autoFocus
             />
             <Button type="submit" variant="primary" className="h-8 px-3">
-              Save
+              {m.common.save}
             </Button>
           </form>
         ) : (
@@ -261,9 +261,9 @@ function TeamBudget({
             disabled={!editable}
             onClick={() => setEditing(true)}
             className="cursor-pointer font-mono text-[13px] enabled:hover:text-accent disabled:cursor-default"
-            title={editable ? 'Change budget' : undefined}
+            title={editable ? m.budgets.changeBudget : undefined}
           >
-            {fmtUsd(team.spentMonth)} of {budget != null ? fmtLimit(budget) : '—'}
+            {m.budgets.spentOf(fmtUsd(team.spentMonth), budget != null ? fmtLimit(budget) : '—')}
           </button>
         )}
       </div>
@@ -271,7 +271,7 @@ function TeamBudget({
         value={budget ? used : 0}
         height={8}
         color={over ? 'bg-block-bar' : used >= 80 ? 'bg-warn-bar' : 'bg-accent'}
-        label={`${team.name} budget used`}
+        label={m.budgets.budgetUsed(team.name)}
       />
       <div className={cx('text-[13px]', over ? 'text-block-fg' : 'text-muted')}>{note}</div>
     </div>
@@ -291,6 +291,7 @@ function RuleList({
   editable: boolean;
   onChange: (next: RuleSet) => void;
 }) {
+  const { m } = useI18n();
   const [draft, setDraft] = useState(rules);
   const dirty = JSON.stringify(draft) !== JSON.stringify(rules);
   const num =
@@ -303,9 +304,9 @@ function RuleList({
       id: 'budgetThreshold',
       when: (
         <>
-          Team has spent
+          {m.budgets.budgetBefore}
           <input
-            aria-label="Budget threshold, percent"
+            aria-label={m.budgets.thresholdLabel}
             type="number"
             min={1}
             max={100}
@@ -319,24 +320,24 @@ function RuleList({
               })
             }
           />
-          % or more of its monthly budget
+          {m.budgets.budgetAfter}
         </>
       ),
-      action: `Send the request to ${localName}`,
+      action: m.budgets.sendTo(localName),
     },
     {
       id: 'piiGuard',
-      when: 'Prompt contains card numbers, passport, SNILS or INN numbers, IBANs or API keys',
-      action: 'Block cloud models, allow local ones',
+      when: m.budgets.piiWhen,
+      action: m.budgets.piiThen,
     },
     {
       id: 'agentRateLimit',
-      when: 'Key type is Agent',
+      when: m.budgets.agentWhen,
       action: (
         <>
-          At most
+          {m.budgets.agentBefore}
           <input
-            aria-label="Requests per minute"
+            aria-label={m.budgets.rpmLabel}
             type="number"
             min={1}
             disabled={!editable}
@@ -349,7 +350,7 @@ function RuleList({
               })
             }
           />
-          requests per minute
+          {m.budgets.agentAfter}
         </>
       ),
     },
@@ -357,9 +358,9 @@ function RuleList({
       id: 'offHours',
       when: (
         <>
-          Time is outside
+          {m.budgets.offBefore}
           <input
-            aria-label="Working hours start"
+            aria-label={m.budgets.startLabel}
             type="time"
             disabled={!editable}
             className={time}
@@ -370,7 +371,7 @@ function RuleList({
           />
           –
           <input
-            aria-label="Working hours end"
+            aria-label={m.budgets.endLabel}
             type="time"
             disabled={!editable}
             className={time}
@@ -381,7 +382,7 @@ function RuleList({
           />
         </>
       ),
-      action: 'Local models only',
+      action: m.budgets.offThen,
     },
   ];
 
@@ -404,20 +405,18 @@ function RuleList({
             <div className="flex flex-1 flex-col gap-1.5 text-sm leading-relaxed">
               <div>
                 <span className="mr-2 text-[11px] font-semibold tracking-wider text-muted">
-                  WHEN
+                  {m.budgets.whenLabel}
                 </span>
                 {rule.when}
               </div>
               <div>
                 <span className="mr-2 text-[11px] font-semibold tracking-wider text-muted">
-                  THEN
+                  {m.budgets.thenLabel}
                 </span>
                 <span className="font-medium">{rule.action}</span>
               </div>
               <div className="text-xs text-muted">
-                {on
-                  ? `Matched ${fmtNumber(count)} time${count === 1 ? '' : 's'} this month`
-                  : 'Off'}
+                {on ? m.budgets.matched(count) : m.common.off}
               </div>
             </div>
             <label className="flex shrink-0 items-center gap-2 text-[13px] text-ink-2">
@@ -435,16 +434,16 @@ function RuleList({
                 }}
                 className="size-4 accent-accent"
               />
-              {on ? 'On' : 'Off'}
+              {on ? m.common.on : m.common.off}
             </label>
           </div>
         );
       })}
       {dirty && editable && (
         <div className="flex justify-end gap-2">
-          <Button onClick={() => setDraft(rules)}>Discard</Button>
+          <Button onClick={() => setDraft(rules)}>{m.budgets.discard}</Button>
           <Button variant="primary" onClick={() => onChange(draft)}>
-            Save rules
+            {m.budgets.saveRules}
           </Button>
         </div>
       )}
@@ -463,6 +462,7 @@ function AccessMatrix({
   editable: boolean;
   onChange: (team: TeamRow, allowed: string[] | null) => void;
 }) {
+  const { m } = useI18n();
   const columns = `1.4fr repeat(${models.length}, minmax(96px, 1fr))`;
   return (
     <div className="overflow-x-auto">
@@ -471,11 +471,11 @@ function AccessMatrix({
           className="grid gap-3 border-b border-line py-2.5 text-xs font-medium text-muted"
           style={{ gridTemplateColumns: columns }}
         >
-          <div>Team</div>
+          <div>{m.common.team}</div>
           {models.map((model) => (
             <div key={model.id} className="text-center">
               {model.label ?? model.name}
-              {model.isLocal && ' · local'}
+              {model.isLocal && ` · ${m.common.local}`}
             </div>
           ))}
         </div>
@@ -488,14 +488,14 @@ function AccessMatrix({
             <div className="font-medium">{team.name}</div>
             {models.map((model) => {
               const allowed = !team.allowedModelIds || team.allowedModelIds.includes(model.id);
-              const label = `${allowed ? 'Allowed' : 'Not allowed'}: ${team.name} · ${model.label ?? model.name}`;
+              const label = `${allowed ? m.budgets.allowed : m.budgets.notAllowed}: ${team.name} · ${model.label ?? model.name}`;
               return (
                 <div key={model.id} className="flex justify-center">
                   <button
                     type="button"
                     aria-pressed={allowed}
                     aria-label={label}
-                    title={editable ? 'Toggle access' : undefined}
+                    title={editable ? m.budgets.toggle : undefined}
                     disabled={!editable}
                     onClick={() => {
                       const current = team.allowedModelIds ?? models.map((m) => m.id);

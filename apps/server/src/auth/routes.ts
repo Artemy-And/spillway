@@ -1,17 +1,25 @@
 import { zValidator } from '@hono/zod-validator';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { users } from '../db/schema.ts';
-import { verifyPassword } from '../lib/crypto.ts';
+import { hashPassword, verifyPassword } from '../lib/crypto.ts';
 import type { OidcChecks } from './oidc.ts';
 import { endSession, startSession } from './session.ts';
 
 const OIDC_COOKIE = 'spillway_oidc';
 const MAX_FAILURES = 10;
 const LOCK_MS = 15 * 60_000;
+
+export const passwordSchema = z.string().min(8, 'Use at least 8 characters').max(256);
+
+/** Nobody can sign in yet: the first visitor creates the admin account, like Faved does. */
+async function needsSetup(ctx: AppContext): Promise<boolean> {
+  const row = await ctx.db.select({ count: sql<number>`count(*)` }).from(users).get();
+  return !row?.count;
+}
 
 /** Slows down password guessing: 10 failures lock an email for 15 minutes. */
 const failures = new Map<string, { count: number; until: number }>();
@@ -20,7 +28,36 @@ export function authRoutes(ctx: AppContext) {
   const loginError = (message: string) => `/login?error=${encodeURIComponent(message)}`;
 
   return new Hono()
-    .get('/config', (c) => c.json({ sso: ctx.oidc ? { label: ctx.oidc.label } : null }))
+    .get('/config', async (c) =>
+      c.json({
+        sso: ctx.oidc ? { label: ctx.oidc.label } : null,
+        setup: await needsSetup(ctx),
+      }),
+    )
+
+    .post(
+      '/setup',
+      zValidator(
+        'json',
+        z.object({
+          name: z.string().trim().min(1).max(128),
+          email: z.email().transform((email) => email.toLowerCase()),
+          password: passwordSchema,
+        }),
+      ),
+      async (c) => {
+        if (!(await needsSetup(ctx))) {
+          return c.json({ error: 'Spillway is already set up. Sign in instead.' }, 409);
+        }
+        const { name, email, password } = c.req.valid('json');
+        const [user] = await ctx.db
+          .insert(users)
+          .values({ email, name, role: 'admin', passwordHash: await hashPassword(password) })
+          .returning();
+        await startSession(ctx, c, user!);
+        return c.json({ ok: true }, 201);
+      },
+    )
 
     .post(
       '/login',

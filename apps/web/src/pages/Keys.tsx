@@ -12,7 +12,8 @@ import {
   ErrorNote,
   Field,
   Input,
-  KIND_LABELS,
+  type KeyKind,
+  KINDS,
   PageHeader,
   Progress,
   Segmented,
@@ -21,10 +22,12 @@ import {
   Switch,
   type Tone,
 } from '../components/ui.tsx';
+import type { Messages } from '../i18n/en.ts';
+import { useI18n } from '../i18n/index.tsx';
 import { api, type KeyRow, meQuery, modelsQuery, teamsQuery, unwrap } from '../lib/api.ts';
 import { fmtAgo, fmtLimit, fmtUsd, pct } from '../lib/format.ts';
 
-type Kind = keyof typeof KIND_LABELS;
+type Kind = KeyKind;
 type Filter = 'all' | Kind;
 
 interface Draft {
@@ -49,21 +52,23 @@ const EMPTY: Draft = {
   allowedModelIds: null,
 };
 
-function status(key: KeyRow): { label: string; tone: Tone } {
-  if (key.revokedAt) return { label: 'Revoked', tone: 'off' };
+function status(key: KeyRow, m: Messages): { label: string; tone: Tone } {
+  const labels = m.keys.status;
+  if (key.revokedAt) return { label: labels.revoked, tone: 'off' };
   if (key.dailyLimitUsd != null && key.spentToday >= key.dailyLimitUsd) {
     return key.fallbackToLocal
-      ? { label: 'Local only', tone: 'info' }
-      : { label: 'Limit reached', tone: 'block' };
+      ? { label: labels.localOnly, tone: 'info' }
+      : { label: labels.limitReached, tone: 'block' };
   }
   if (key.dailyLimitUsd && key.spentToday >= key.dailyLimitUsd * 0.8)
-    return { label: 'Near limit', tone: 'warn' };
-  return { label: 'Active', tone: 'ok' };
+    return { label: labels.nearLimit, tone: 'warn' };
+  return { label: labels.active, tone: 'ok' };
 }
 
 const money = (value: string) => (value.trim() === '' ? null : Number(value));
 
 export function KeysPage() {
+  const { m } = useI18n();
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQuery);
   const isAdmin = me?.user.role === 'admin';
@@ -180,38 +185,35 @@ export function KeysPage() {
 
   return (
     <>
-      <PageHeader
-        title="Keys"
-        subtitle="One key per person, device or agent. Revoke one without touching the rest."
-      >
+      <PageHeader title={m.keys.title} subtitle={m.keys.subtitle}>
         <Button variant="primary" onClick={openNew}>
           <PlusIcon strokeWidth={2.2} />
-          New key
+          {m.keys.newKey}
         </Button>
       </PageHeader>
 
       <div className="flex flex-col gap-6 xl:flex-row">
-        <section aria-label="All keys" className="flex min-w-0 flex-1 flex-col gap-4">
+        <section aria-label={m.keys.allKeys} className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Segmented
-              label="Key type"
+              label={m.keys.keyType}
               value={filter}
               onChange={setFilter}
               options={[
-                { value: 'all', label: `All ${counts.all}` },
-                { value: 'person', label: `People ${counts.person}` },
-                { value: 'device', label: `Devices ${counts.device}` },
-                { value: 'agent', label: `Agents ${counts.agent}` },
+                { value: 'all', label: m.keys.filterAll(counts.all) },
+                { value: 'person', label: m.keys.filterPeople(counts.person) },
+                { value: 'device', label: m.keys.filterDevices(counts.device) },
+                { value: 'agent', label: m.keys.filterAgents(counts.agent) },
               ]}
             />
             <label className="flex h-10 w-full items-center gap-2 rounded-lg border border-field bg-surface px-3 text-muted sm:w-60">
               <SearchIcon />
-              <span className="sr-only">Search keys</span>
+              <span className="sr-only">{m.keys.search}</span>
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search keys or owners"
+                placeholder={m.keys.searchPlaceholder}
                 className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
               />
             </label>
@@ -220,21 +222,15 @@ export function KeysPage() {
           <Card className="overflow-x-auto px-5 py-1">
             <div className="min-w-[640px]">
               <div className="grid grid-cols-[2fr_0.9fr_1.7fr_1fr_1fr] gap-3.5 border-b border-line py-3 text-xs font-medium text-muted">
-                <div>Key</div>
-                <div>Type</div>
-                <div>Today vs daily limit</div>
-                <div>Last used</div>
-                <div>Status</div>
+                <div>{m.common.key}</div>
+                <div>{m.common.type}</div>
+                <div>{m.keys.todayVsLimit}</div>
+                <div>{m.keys.lastUsed}</div>
+                <div>{m.common.status}</div>
               </div>
-              {visible.length === 0 && (
-                <Empty>
-                  {keys.length
-                    ? 'No keys match.'
-                    : 'No keys yet. Create one for each person, device or agent.'}
-                </Empty>
-              )}
+              {visible.length === 0 && <Empty>{keys.length ? m.keys.noMatch : m.keys.none}</Empty>}
               {visible.map((key) => {
-                const s = status(key);
+                const s = status(key, m);
                 const used = key.dailyLimitUsd ? pct(key.spentToday, key.dailyLimitUsd) : 0;
                 return (
                   <div
@@ -255,13 +251,14 @@ export function KeysPage() {
                         {key.name}
                       </button>
                       <span className="truncate text-xs text-muted">
-                        {[key.owner, key.team && `${key.team} team`].filter(Boolean).join(' · ') ||
-                          'No owner'}{' '}
+                        {[key.owner, key.team && m.keys.teamSuffix(key.team)]
+                          .filter(Boolean)
+                          .join(' · ') || m.keys.noOwner}{' '}
                         · <span className="font-mono">{key.prefix}…</span>
                       </span>
                     </div>
                     <div>
-                      <Chip>{KIND_LABELS[key.kind]}</Chip>
+                      <Chip>{m.kinds[key.kind]}</Chip>
                     </div>
                     <div className="flex flex-col gap-1.5">
                       {key.dailyLimitUsd != null ? (
@@ -269,7 +266,7 @@ export function KeysPage() {
                           <Progress
                             value={used}
                             color={used >= 80 ? 'bg-warn-bar' : 'bg-accent'}
-                            label={`${key.name} daily limit used`}
+                            label={m.keys.limitUsed(key.name)}
                           />
                           <span className="font-mono text-xs text-ink-2">
                             {fmtUsd(key.spentToday)} / {fmtLimit(key.dailyLimitUsd)}
@@ -277,7 +274,7 @@ export function KeysPage() {
                         </>
                       ) : (
                         <span className="font-mono text-xs text-ink-2">
-                          {fmtUsd(key.spentToday)} today · no limit
+                          {m.keys.todayNoLimit(fmtUsd(key.spentToday))}
                         </span>
                       )}
                     </div>
@@ -297,7 +294,7 @@ export function KeysPage() {
         )}
 
         {(panel?.mode === 'new' || panel?.mode === 'edit') && (
-          <Aside label={panel.mode === 'new' ? 'New key' : 'Edit key'}>
+          <Aside label={panel.mode === 'new' ? m.keys.newKey : m.keys.editKey}>
             <form
               className="flex flex-col gap-[18px]"
               onSubmit={(event) => {
@@ -307,11 +304,15 @@ export function KeysPage() {
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-[17px] font-semibold">
-                  {panel.mode === 'new' ? 'New key' : `Edit ${editing?.name ?? 'key'}`}
+                  {panel.mode === 'new'
+                    ? m.keys.newKey
+                    : editing
+                      ? m.common.edit(editing.name)
+                      : m.keys.editKey}
                 </h2>
                 <button
                   type="button"
-                  aria-label="Close"
+                  aria-label={m.common.close}
                   onClick={() => setPanel(null)}
                   className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track"
                 >
@@ -319,12 +320,12 @@ export function KeysPage() {
                 </button>
               </div>
 
-              <Field label="Name">
+              <Field label={m.common.name}>
                 <Input
                   mono
                   required
                   maxLength={64}
-                  placeholder="anna-macbook"
+                  placeholder={m.keys.namePlaceholder}
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                 />
@@ -332,12 +333,12 @@ export function KeysPage() {
 
               {isAdmin && (
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Owner">
+                  <Field label={m.keys.owner}>
                     <Select
                       value={draft.userId}
                       onChange={(e) => setDraft({ ...draft, userId: e.target.value })}
                     >
-                      <option value="">Nobody (team key)</option>
+                      <option value="">{m.keys.nobody}</option>
                       {users.map((user) => (
                         <option key={user.id} value={user.id}>
                           {user.name ?? user.email}
@@ -345,12 +346,12 @@ export function KeysPage() {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Team">
+                  <Field label={m.common.team}>
                     <Select
                       value={draft.teamId}
                       onChange={(e) => setDraft({ ...draft, teamId: e.target.value })}
                     >
-                      <option value="">{draft.userId ? "Owner's team" : 'No team'}</option>
+                      <option value="">{draft.userId ? m.keys.ownersTeam : m.common.noTeam}</option>
                       {teams.map((team) => (
                         <option key={team.id} value={team.id}>
                           {team.name}
@@ -362,9 +363,9 @@ export function KeysPage() {
               )}
 
               <fieldset className="flex flex-col gap-1.5">
-                <legend className="mb-1.5 text-[13px] font-medium">Type</legend>
+                <legend className="mb-1.5 text-[13px] font-medium">{m.common.type}</legend>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {(Object.keys(KIND_LABELS) as Kind[]).map((kind) => (
+                  {KINDS.map((kind) => (
                     <label
                       key={kind}
                       className={cx(
@@ -381,7 +382,7 @@ export function KeysPage() {
                         checked={draft.kind === kind}
                         onChange={() => setDraft({ ...draft, kind })}
                       />
-                      {KIND_LABELS[kind]}
+                      {m.kinds[kind]}
                     </label>
                   ))}
                 </div>
@@ -390,7 +391,9 @@ export function KeysPage() {
               {isAdmin && (
                 <>
                   <fieldset className="flex flex-col gap-2">
-                    <legend className="mb-1.5 text-[13px] font-medium">Allowed models</legend>
+                    <legend className="mb-1.5 text-[13px] font-medium">
+                      {m.keys.allowedModels}
+                    </legend>
                     <Switch
                       checked={draft.allowedModelIds === null}
                       onChange={(all) =>
@@ -399,7 +402,7 @@ export function KeysPage() {
                           allowedModelIds: all ? null : models.map((m) => m.id),
                         })
                       }
-                      label="Everything the team may use"
+                      label={m.keys.everything}
                     />
                     {draft.allowedModelIds !== null &&
                       models.map((model) => (
@@ -418,32 +421,32 @@ export function KeysPage() {
                             }
                           />
                           {model.label ?? model.name}
-                          {model.isLocal && <span className="text-muted">· local</span>}
+                          {model.isLocal && <span className="text-muted">· {m.common.local}</span>}
                         </label>
                       ))}
                   </fieldset>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Daily limit, $">
+                    <Field label={m.keys.daily}>
                       <Input
                         mono
                         inputMode="decimal"
                         type="number"
                         min="0"
                         step="any"
-                        placeholder="none"
+                        placeholder={m.common.none}
                         value={draft.daily}
                         onChange={(e) => setDraft({ ...draft, daily: e.target.value })}
                       />
                     </Field>
-                    <Field label="Monthly limit, $">
+                    <Field label={m.keys.monthly}>
                       <Input
                         mono
                         inputMode="decimal"
                         type="number"
                         min="0"
                         step="any"
-                        placeholder="none"
+                        placeholder={m.common.none}
                         value={draft.monthly}
                         onChange={(e) => setDraft({ ...draft, monthly: e.target.value })}
                       />
@@ -454,19 +457,17 @@ export function KeysPage() {
                     <Switch
                       checked={draft.fallbackToLocal}
                       onChange={(fallbackToLocal) => setDraft({ ...draft, fallbackToLocal })}
-                      label="Over the limit? Use a local model"
+                      label={m.keys.fallback}
                       description={
                         localModel
-                          ? `Requests go to ${localModel.label ?? localModel.name} instead of being blocked.`
-                          : 'Pick a local model in Settings first; until then requests are blocked.'
+                          ? m.keys.fallbackTo(localModel.label ?? localModel.name)
+                          : m.keys.fallbackNone
                       }
                     />
                   </div>
                 </>
               )}
-              {!isAdmin && (
-                <p className="text-[13px] text-muted">Limits for your keys are set by an admin.</p>
-              )}
+              {!isAdmin && <p className="text-[13px] text-muted">{m.keys.adminSets}</p>}
 
               <ErrorNote error={save.error ?? revoke.error} />
               <div className="flex flex-wrap justify-between gap-2.5">
@@ -474,23 +475,22 @@ export function KeysPage() {
                   <Button
                     variant="danger"
                     onClick={() =>
-                      confirm(`Revoke ${editing.name}? Apps using it stop working at once.`) &&
-                      revoke.mutate(editing.id)
+                      confirm(m.keys.revokeConfirm(editing.name)) && revoke.mutate(editing.id)
                     }
                   >
-                    Revoke
+                    {m.keys.revoke}
                   </Button>
                 ) : (
                   <span />
                 )}
                 <div className="flex gap-2.5">
-                  <Button onClick={() => setPanel(null)}>Cancel</Button>
+                  <Button onClick={() => setPanel(null)}>{m.common.cancel}</Button>
                   <Button
                     type="submit"
                     variant="primary"
                     disabled={save.isPending || !draft.name.trim()}
                   >
-                    {panel.mode === 'new' ? 'Create key' : 'Save'}
+                    {panel.mode === 'new' ? m.keys.create : m.common.save}
                   </Button>
                 </div>
               </div>
@@ -511,39 +511,41 @@ function CreatedKey({
   value: string;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<'curl' | 'claude' | 'webui'>('curl');
+  const { m } = useI18n();
+  const [tab, setTab] = useState<'curl' | 'chatbox' | 'claude' | 'webui'>('curl');
   const origin = window.location.origin;
+  const model = m.keys.modelPlaceholder;
   const snippets = {
-    curl: `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer ${value}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "<model name>", "messages": [{"role": "user", "content": "Hi"}]}'`,
-    claude: `export ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=<model name>\nclaude`,
+    chatbox: `Chatbox → Settings → Model provider → Add custom provider\n\nAPI mode:  OpenAI API Compatible\nAPI host:  ${origin}/v1\nAPI key:   ${value}`,
+    curl: `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer ${value}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "${model}", "messages": [{"role": "user", "content": "Hi"}]}'`,
+    claude: `export ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=${model}\nclaude`,
     webui: `Open WebUI → Settings → Connections\n\nOpenAI API:  ${origin}/v1\nOllama API:  ${origin}\nKey:         ${value}`,
   };
   return (
-    <Aside label="Key created">
+    <Aside label={m.keys.keyCreated}>
       <div className="flex items-center justify-between">
-        <h2 className="text-[17px] font-semibold">Key for {name} is ready</h2>
+        <h2 className="text-[17px] font-semibold">{m.keys.ready(name)}</h2>
         <button
           type="button"
-          aria-label="Close"
+          aria-label={m.common.close}
           onClick={onClose}
           className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track"
         >
           <CloseIcon />
         </button>
       </div>
-      <p className="rounded-lg bg-warn-bg px-3 py-2 text-[13px] text-warn-fg">
-        Copy it now. Spillway stores only a hash and cannot show it again.
-      </p>
+      <p className="rounded-lg bg-warn-bg px-3 py-2 text-[13px] text-warn-fg">{m.keys.copyNow}</p>
       <div className="rounded-lg bg-canvas p-3 font-mono text-[13px] break-all">{value}</div>
-      <CopyButton value={value} label="Copy key" />
+      <CopyButton value={value} label={m.keys.copyKey} />
       <div className="flex flex-col gap-2">
-        <h3 className="text-[13px] font-semibold">Connect a client</h3>
+        <h3 className="text-[13px] font-semibold">{m.keys.connect}</h3>
         <Segmented
-          label="Client"
+          label={m.keys.client}
           value={tab}
           onChange={setTab}
           options={[
             { value: 'curl', label: 'curl / SDK' },
+            { value: 'chatbox', label: 'Chatbox' },
             { value: 'claude', label: 'Claude Code' },
             { value: 'webui', label: 'Open WebUI' },
           ]}

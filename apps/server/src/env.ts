@@ -18,8 +18,12 @@ const schema = z.object({
   /** Encrypts provider API keys and signs cookies. Generated into DATA_DIR on first run if unset. */
   SPILLWAY_SECRET: z.string().min(32).optional(),
 
+  /** Creates the first admin without the setup page; ignored once anyone exists. */
   ADMIN_EMAIL: z.email().default('admin@spillway.local'),
   ADMIN_PASSWORD: z.string().min(8).optional(),
+
+  /** How long a cloud provider may take to start answering before the request fails over. */
+  UPSTREAM_TIMEOUT_SECONDS: z.coerce.number().int().min(1).max(3600).default(120),
 
   OIDC_ISSUER: z.url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),

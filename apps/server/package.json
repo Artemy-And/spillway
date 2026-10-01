@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --disable-warning=ExperimentalWarning --test \"src/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
-    "demo": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/demo.ts"
+    "demo": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/demo.ts",
+    "reset-password": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/reset-password.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",

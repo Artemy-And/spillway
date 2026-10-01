@@ -1,11 +1,27 @@
-const number = new Intl.NumberFormat('en-US');
-const money2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const money3 = new Intl.NumberFormat('en-US', {
+// Numbers, money and dates in the viewer's language. The i18n provider sets the locale.
+let locale = 'en';
+let number = new Intl.NumberFormat(locale);
+let money2 = new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' });
+let money3 = new Intl.NumberFormat(locale, {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 3,
   maximumFractionDigits: 3,
 });
+let relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+
+export function setFormatLocale(next: string) {
+  locale = next;
+  number = new Intl.NumberFormat(locale);
+  money2 = new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' });
+  money3 = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  });
+  relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+}
 
 export const fmtNumber = (value: number) => number.format(Math.round(value));
 
@@ -14,22 +30,29 @@ export const fmtUsd = (value: number) =>
   (value !== 0 && Math.abs(value) < 1 ? money3 : money2).format(value);
 
 export const fmtLimit = (value: number) =>
-  Number.isInteger(value) ? `$${number.format(value)}` : money2.format(value);
+  Number.isInteger(value)
+    ? new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+      }).format(value)
+    : money2.format(value);
 
+/** "5 min ago", "yesterday"; a dash when it never happened. */
 export function fmtAgo(iso: string | null | undefined): string {
-  if (!iso) return 'never';
-  const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 45) return seconds < 5 ? 'just now' : `${seconds} s ago`;
+  if (!iso) return '—';
+  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+  if (Math.abs(seconds) < 45) return relative.format(Math.abs(seconds) < 5 ? 0 : seconds, 'second');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (Math.abs(minutes) < 60) return relative.format(minutes, 'minute');
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
+  if (Math.abs(hours) < 24) return relative.format(hours, 'hour');
+  return relative.format(Math.round(hours / 24), 'day');
 }
 
+/** 24-hour clock everywhere; plain English would otherwise switch to AM/PM. */
 export const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-GB', {
+  new Date(iso).toLocaleTimeString(locale === 'en' ? 'en-GB' : locale, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -38,10 +61,13 @@ export const fmtTime = (iso: string) =>
 export const fmtDate = (
   iso: string,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' },
-) => new Date(iso).toLocaleDateString('en-US', options);
+) => new Date(iso).toLocaleDateString(locale, options);
+
+export const fmtMonth = (date: Date, withYear = false) =>
+  date.toLocaleDateString(
+    locale,
+    withYear ? { month: 'long', year: 'numeric' } : { month: 'long' },
+  );
 
 export const pct = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 100) : 0;
-
-export const plural = (count: number, word: string) =>
-  `${fmtNumber(count)} ${word}${count === 1 ? '' : 's'}`;

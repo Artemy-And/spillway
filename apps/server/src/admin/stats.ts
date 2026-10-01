@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { apiKeys, requestLogs, teams } from '../db/schema.ts';
+import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import { daysAgo, startOfDay, startOfMonth, startOfNextMonth } from '../lib/time.ts';
 
 export type Period = '7d' | '30d' | 'month';
@@ -78,13 +78,27 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
     .where(and(gte(requestLogs.createdAt, previousSince), lt(requestLogs.createdAt, since), scope))
     .get();
 
-  const activeKeys = await db
-    .select({ kind: apiKeys.kind, count: sql<number>`count(distinct ${apiKeys.id})` })
+  // People are counted by key owner; a person key without an owner is a shared key.
+  const activeRows = await db
+    .select({
+      kind: apiKeys.kind,
+      keys: sql<number>`count(distinct ${apiKeys.id})`,
+      owners: sql<number>`count(distinct ${apiKeys.userId})`,
+      unowned: sql<number>`count(distinct case when ${apiKeys.userId} is null then ${apiKeys.id} end)`,
+    })
     .from(requestLogs)
     .innerJoin(apiKeys, eq(requestLogs.keyId, apiKeys.id))
     .where(inPeriod)
     .groupBy(apiKeys.kind)
     .all();
+  const byKind = (kind: string) => activeRows.find((row) => row.kind === kind);
+  const activity = {
+    keys: activeRows.reduce((total, row) => total + row.keys, 0),
+    people: byKind('person')?.owners ?? 0,
+    sharedKeys: byKind('person')?.unowned ?? 0,
+    devices: byKind('device')?.keys ?? 0,
+    agents: byKind('agent')?.keys ?? 0,
+  };
 
   const dailyRows = await db
     .select({
@@ -156,10 +170,7 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
     local: totals?.local ?? 0,
     blocked: totals?.blocked ?? 0,
     blockedPii: totals?.blockedPii ?? 0,
-    activeKeys: Object.fromEntries(activeKeys.map((row) => [row.kind, row.count])) as Record<
-      string,
-      number
-    >,
+    activity,
     daily,
     spenders,
     models: byModel.filter((row) => !row.local).slice(0, 5),
@@ -168,11 +179,41 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
   };
 }
 
-type Alert = { tone: 'warn' | 'block' | 'muted'; text: string; meta: string; at: number };
+/** Alerts carry a code and params; the admin UI turns them into text in the viewer's language. */
+type Alert =
+  | {
+      tone: 'warn' | 'block';
+      code: 'keyLimit';
+      key: string;
+      percent: number;
+      limit: number;
+      team: string | null;
+      at: number;
+    }
+  | { tone: 'muted'; code: 'keyUnused'; key: string; days: number; at: number }
+  | { tone: 'block'; code: 'piiBlocked'; key: string; count: number; at: number }
+  | {
+      tone: 'block';
+      code: 'teamOverBudget';
+      team: string;
+      spent: number;
+      budget: number;
+      at: number;
+    }
+  | {
+      tone: 'warn' | 'block';
+      code: 'providerFailing';
+      provider: string;
+      failed: number;
+      rescued: number;
+      error: string | null;
+      at: number;
+    };
 
 async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert[]> {
   const out: Alert[] = [];
   const keyScope = keyIds ? inArray(apiKeys.id, keyIds) : undefined;
+  const lastDay = new Date(now.getTime() - DAY);
 
   const keys = await db
     .select({ key: apiKeys, team: teams.name })
@@ -188,8 +229,11 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
       const percent = Math.round((today / key.dailyLimitUsd) * 100);
       out.push({
         tone: percent >= 100 ? 'block' : 'warn',
-        text: `${key.name} is at ${percent}% of its $${key.dailyLimitUsd} daily limit`,
-        meta: team ?? 'No team',
+        code: 'keyLimit',
+        key: key.name,
+        percent,
+        limit: key.dailyLimitUsd,
+        team,
         at: now.getTime(),
       });
     }
@@ -197,8 +241,9 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
     if (now.getTime() - lastUsed.getTime() > 30 * DAY) {
       out.push({
         tone: 'muted',
-        text: `Key ${key.name} has not been used for ${Math.floor((now.getTime() - lastUsed.getTime()) / DAY)} days`,
-        meta: 'Consider revoking it',
+        code: 'keyUnused',
+        key: key.name,
+        days: Math.floor((now.getTime() - lastUsed.getTime()) / DAY),
         at: 0,
       });
     }
@@ -215,17 +260,48 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
     .where(
       and(
         eq(requestLogs.result, 'blocked_pii'),
-        gte(requestLogs.createdAt, new Date(now.getTime() - DAY)),
+        gte(requestLogs.createdAt, lastDay),
         keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
       ),
     )
     .groupBy(apiKeys.id)
     .all();
   for (const row of piiBlocks) {
+    out.push({ tone: 'block', code: 'piiBlocked', key: row.name, count: row.count, at: row.last });
+  }
+
+  // Cloud providers that failed in the last day: plain errors, and failovers to the local model.
+  // Both rows point at the cloud model that was asked for, which leads to the failing provider.
+  const failures = await db
+    .select({
+      provider: providers.name,
+      failed: sql<number>`sum(case when ${requestLogs.result} = 'error' then 1 else 0 end)`,
+      rescued: sql<number>`sum(case when ${requestLogs.ruleId} = 'outage' then 1 else 0 end)`,
+      last: sql<number>`max(${requestLogs.createdAt})`,
+      error: sql<
+        string | null
+      >`(select r.error from request_logs r join models m on m.id = r.requested_model_id where m.provider_id = ${providers.id} and r.error is not null order by r.created_at desc limit 1)`,
+    })
+    .from(requestLogs)
+    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
+    .innerJoin(providers, eq(models.providerId, providers.id))
+    .where(
+      and(
+        gte(requestLogs.createdAt, lastDay),
+        sql`(${requestLogs.result} = 'error' or ${requestLogs.ruleId} = 'outage')`,
+        keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
+      ),
+    )
+    .groupBy(providers.id)
+    .all();
+  for (const row of failures) {
     out.push({
-      tone: 'block',
-      text: `${row.count} prompt${row.count === 1 ? '' : 's'} to cloud models blocked: sensitive data found`,
-      meta: row.name,
+      tone: row.failed > 0 ? 'block' : 'warn',
+      code: 'providerFailing',
+      provider: row.provider,
+      failed: row.failed,
+      rescued: row.rescued,
+      error: row.error,
       at: row.last,
     });
   }
@@ -237,8 +313,10 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
       if (team.monthlyBudgetUsd != null && spent >= team.monthlyBudgetUsd) {
         out.push({
           tone: 'block',
-          text: `${team.name} is over its monthly budget; requests go to local models`,
-          meta: `$${spent.toFixed(2)} of $${team.monthlyBudgetUsd}`,
+          code: 'teamOverBudget',
+          team: team.name,
+          spent,
+          budget: team.monthlyBudgetUsd,
           at: now.getTime(),
         });
       }

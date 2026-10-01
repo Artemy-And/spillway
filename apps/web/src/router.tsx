@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router';
 import { Layout } from './components/Layout.tsx';
 import { ApiError, meQuery } from './lib/api.ts';
+import { AccountPage } from './pages/Account.tsx';
 import { BudgetsPage } from './pages/Budgets.tsx';
 import { KeysPage } from './pages/Keys.tsx';
 import { LoginPage } from './pages/Login.tsx';
@@ -15,6 +16,7 @@ import { LogsPage } from './pages/Logs.tsx';
 import { ModelsPage } from './pages/Models.tsx';
 import { OverviewPage } from './pages/Overview.tsx';
 import { SettingsPage } from './pages/Settings.tsx';
+import { SetupPage } from './pages/Setup.tsx';
 
 const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: Outlet });
 
@@ -26,6 +28,8 @@ const login = createRoute({
   }),
   component: LoginPage,
 });
+
+const setup = createRoute({ getParentRoute: () => root, path: '/setup', component: SetupPage });
 
 const app = createRoute({
   getParentRoute: () => root,
@@ -49,6 +53,7 @@ const adminOnly = async ({ context }: { context: { queryClient: QueryClient } })
 
 const routeTree = root.addChildren([
   login,
+  setup,
   app.addChildren([
     createRoute({ getParentRoute: () => app, path: '/', component: OverviewPage }),
     createRoute({ getParentRoute: () => app, path: '/keys', component: KeysPage }),
@@ -73,6 +78,7 @@ const routeTree = root.addChildren([
       beforeLoad: adminOnly,
       component: SettingsPage,
     }),
+    createRoute({ getParentRoute: () => app, path: '/account', component: AccountPage }),
   ]),
 ]);
 

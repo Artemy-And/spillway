@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type { AppContext } from '../context.ts';
 import type { Provider, ProviderKind } from '../db/schema.ts';
 import { UpstreamError } from './sse.ts';
@@ -9,10 +10,13 @@ export function wireOf(kind: ProviderKind): Wire {
   return kind === 'anthropic' ? 'anthropic' : 'openai';
 }
 
+// Inside Docker, "localhost" is the container itself; Ollama usually runs on the host.
+const OLLAMA_HOST = existsSync('/.dockerenv') ? 'host.docker.internal' : 'localhost';
+
 export const DEFAULT_BASE_URLS: Record<ProviderKind, string> = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com',
-  ollama: 'http://localhost:11434',
+  ollama: `http://${OLLAMA_HOST}:11434`,
 };
 
 function url(provider: Provider, path: string): string {
@@ -62,11 +66,15 @@ export async function upstreamFailure(provider: Provider, res: Response): Promis
   const text = await res.text();
   let message = text.slice(0, 500);
   try {
-    const body = JSON.parse(text) as { error?: string | { message?: string }; message?: string };
-    message =
-      (typeof body.error === 'string' ? body.error : body.error?.message) ??
-      body.message ??
-      message;
+    const body = JSON.parse(text) as {
+      error?: string | { message?: string; metadata?: { raw?: unknown } };
+      message?: string;
+    };
+    const error = typeof body.error === 'string' ? { message: body.error } : body.error;
+    // Aggregators like OpenRouter put the real reason ("rate-limited upstream, retry shortly")
+    // under metadata.raw and only "Provider returned error" in the message.
+    const raw = typeof error?.metadata?.raw === 'string' ? error.metadata.raw : null;
+    message = raw ?? error?.message ?? body.message ?? message;
   } catch {}
   // A rejected provider key is the gateway's problem, not the client's.
   const status = res.status === 401 || res.status === 403 ? 502 : res.status;

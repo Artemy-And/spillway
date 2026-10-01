@@ -23,6 +23,8 @@ export const settingsSchema = z.object({
   retentionDays: z.number().int().min(1).max(3650).default(30),
   /** Where requests go when a budget or rule sends them to a local model */
   localModelId: z.string().nullable().default(null),
+  /** Answer with the local model when a cloud provider fails, times out or is rate limited */
+  rerouteOnFailure: z.boolean().default(true),
   rules: rulesSchema.default(rulesSchema.parse({})),
 });
 

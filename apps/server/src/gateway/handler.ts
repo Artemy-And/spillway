@@ -1,11 +1,20 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { AppContext } from '../context.ts';
-import { apiKeys, requestLogs, teams, users } from '../db/schema.ts';
+import { apiKeys, models, requestLogs, type TraceStep, teams, users } from '../db/schema.ts';
 import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
+import type { Settings } from '../settings.ts';
 import { Meter } from './meter.ts';
-import { type Caller, type Decision, decide, modelLabel, type Target } from './policy.ts';
+import {
+  type Caller,
+  type Decision,
+  decide,
+  findModel,
+  modelLabel,
+  step,
+  type Target,
+} from './policy.ts';
 import { openAIChunks, parseSSE, SSEParser, sse, UpstreamError } from './sse.ts';
 import {
   anthropicRequestToOpenAI,
@@ -57,7 +66,13 @@ export function errorResponse(format: Format, status: number, message: string): 
   }
   if (isOllama(format)) return Response.json({ error: message }, { status });
   const type =
-    status === 401 ? 'authentication_error' : status >= 500 ? 'api_error' : 'invalid_request_error';
+    status === 401
+      ? 'authentication_error'
+      : status === 429
+        ? 'rate_limit_error'
+        : status >= 500
+          ? 'api_error'
+          : 'invalid_request_error';
   return Response.json({ error: { message, type, code: null } }, { status });
 }
 
@@ -189,6 +204,11 @@ async function* metered(chunks: AsyncIterable<OAIChunk>, meter: Meter): AsyncGen
   }
 }
 
+/**
+ * Passes the provider's bytes through while metering them. Bytes before the first real event
+ * (keep-alive comments some providers send while queued) are held back, so a stream that never
+ * starts can still be failed over.
+ */
 async function* tapped(
   body: ReadableStream<Uint8Array>,
   wire: Wire,
@@ -196,10 +216,53 @@ async function* tapped(
 ): AsyncGenerator<Uint8Array> {
   const parser = new SSEParser();
   const decoder = new TextDecoder();
+  const held: Uint8Array[] = [];
+  let started = false;
   for await (const chunk of body) {
-    for (const event of parser.feed(decoder.decode(chunk, { stream: true })))
-      meter.sseEvent(wire, event);
-    yield chunk;
+    const events = parser.feed(decoder.decode(chunk, { stream: true }));
+    for (const event of events) meter.sseEvent(wire, event);
+    if (started) {
+      yield chunk;
+      continue;
+    }
+    held.push(chunk);
+    if (events.length) {
+      started = true;
+      yield* held;
+      held.length = 0;
+    }
+  }
+  yield* held;
+}
+
+/**
+ * Waits for the first item of a stream before the response is committed, so a provider that
+ * fails or stalls before answering can still be retried elsewhere.
+ */
+async function primed<T>(source: AsyncIterable<T>): Promise<AsyncIterable<T>> {
+  const iterator = source[Symbol.asyncIterator]();
+  const first = await iterator.next();
+  return (async function* () {
+    try {
+      if (first.done) return;
+      yield first.value;
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) return;
+        yield next.value;
+      }
+    } finally {
+      await iterator.return?.();
+    }
+  })();
+}
+
+/** OpenRouter and friends can answer 200 with an error body when the model behind them fails. */
+function assertAnswer(provider: Target['provider'], json: { error?: unknown; choices?: unknown }) {
+  if (json.error && !json.choices) {
+    const error = json.error as { message?: string; metadata?: { raw?: unknown } };
+    const raw = typeof error.metadata?.raw === 'string' ? error.metadata.raw : null;
+    throw new UpstreamError(`${provider.name}: ${raw ?? error.message ?? 'no answer'}`, 502);
   }
 }
 
@@ -253,7 +316,6 @@ async function forward(
   const { model, provider } = target;
   const wire = wireOf(provider.kind);
   const incoming = c.req.raw.headers;
-  const signal = c.req.raw.signal;
   const streamHeaders = {
     'content-type': isOllama(format) ? 'application/x-ndjson' : 'text/event-stream',
     'cache-control': 'no-cache',
@@ -263,68 +325,95 @@ async function forward(
     resolveDone = resolve;
   });
 
-  // Same wire format on both sides: pass the body through untouched, only swap the model.
-  if (format === wire) {
-    const upstreamBody: Record<string, unknown> = { ...body, model: model.upstreamModel };
-    if (wire === 'openai' && stream) {
-      upstreamBody.stream_options = { ...(body.stream_options as object), include_usage: true };
+  // The client hanging up cancels the upstream call. A cloud provider also gets a deadline to
+  // start answering; local models run on our own hardware and may simply be slow.
+  const upstream = new AbortController();
+  const client = c.req.raw.signal;
+  if (client.aborted) upstream.abort(client.reason);
+  else client.addEventListener('abort', () => upstream.abort(client.reason), { once: true });
+  const seconds = ctx.env.UPSTREAM_TIMEOUT_SECONDS;
+  const deadline = provider.isLocal
+    ? undefined
+    : setTimeout(
+        () =>
+          upstream.abort(
+            new UpstreamError(`${provider.name} did not answer within ${seconds} s`, 504),
+          ),
+        seconds * 1000,
+      );
+  const signal = upstream.signal;
+
+  try {
+    // Same wire format on both sides: pass the body through untouched, only swap the model.
+    if (format === wire) {
+      const upstreamBody: Record<string, unknown> = { ...body, model: model.upstreamModel };
+      if (wire === 'openai' && stream) {
+        upstreamBody.stream_options = { ...(body.stream_options as object), include_usage: true };
+      }
+      const path = wire === 'openai' ? '/chat/completions' : '/messages';
+      const res = await callUpstream(ctx, provider, path, { body: upstreamBody, incoming, signal });
+      if (!res.ok) throw await upstreamFailure(provider, res);
+      if (!stream || !res.body) {
+        const json = (await res.json()) as OAIChatResponse & AResponse & { error?: unknown };
+        if (wire === 'openai') {
+          assertAnswer(provider, json);
+          meter.openAIResponse(json);
+        } else meter.anthropicResponse(json);
+        resolveDone();
+        return { response: Response.json(json), done };
+      }
+      const source = await primed(tapped(res.body, wire, meter));
+      return {
+        response: new Response(toBody(source, resolveDone), { headers: streamHeaders }),
+        done,
+      };
     }
-    const path = wire === 'openai' ? '/chat/completions' : '/messages';
-    const res = await callUpstream(ctx, provider, path, { body: upstreamBody, incoming, signal });
-    if (!res.ok) throw await upstreamFailure(provider, res);
-    if (!stream || !res.body) {
-      const json = (await res.json()) as OAIChatResponse & AResponse;
-      if (wire === 'openai') meter.openAIResponse(json);
-      else meter.anthropicResponse(json);
-      resolveDone();
-      return { response: Response.json(json), done };
-    }
-    return {
-      response: new Response(toBody(tapped(res.body, wire, meter), resolveDone), {
-        headers: streamHeaders,
-      }),
-      done,
+
+    // Different formats: go through the OpenAI shape.
+    const request: OAIChatRequest = {
+      ...toOpenAIRequest(format, body),
+      model: model.upstreamModel,
+      stream,
     };
-  }
+    if (stream) request.stream_options = { include_usage: true };
+    else delete request.stream_options;
 
-  // Different formats: go through the OpenAI shape.
-  const request: OAIChatRequest = {
-    ...toOpenAIRequest(format, body),
-    model: model.upstreamModel,
-    stream,
-  };
-  if (stream) request.stream_options = { include_usage: true };
-  else delete request.stream_options;
+    let result: OAIChatResponse | null = null;
+    let chunks: AsyncIterable<OAIChunk> | null = null;
+    if (wire === 'openai') {
+      const res = await callUpstream(ctx, provider, '/chat/completions', { body: request, signal });
+      if (!res.ok) throw await upstreamFailure(provider, res);
+      if (stream && res.body) chunks = await primed(openAIChunks(res.body));
+      else {
+        const json = (await res.json()) as OAIChatResponse & { error?: unknown };
+        assertAnswer(provider, json);
+        result = json;
+      }
+    } else {
+      const anthropic = openAIRequestToAnthropic(request);
+      const res = await callUpstream(ctx, provider, '/messages', {
+        body: anthropic,
+        incoming,
+        signal,
+      });
+      if (!res.ok) throw await upstreamFailure(provider, res);
+      if (stream && res.body) chunks = await primed(anthropicStreamToOpenAI(parseSSE(res.body)));
+      else result = anthropicResponseToOpenAI((await res.json()) as AResponse);
+    }
 
-  let result: OAIChatResponse | null = null;
-  let chunks: AsyncIterable<OAIChunk> | null = null;
-  if (wire === 'openai') {
-    const res = await callUpstream(ctx, provider, '/chat/completions', { body: request, signal });
-    if (!res.ok) throw await upstreamFailure(provider, res);
-    if (stream && res.body) chunks = openAIChunks(res.body);
-    else result = (await res.json()) as OAIChatResponse;
-  } else {
-    const anthropic = openAIRequestToAnthropic(request);
-    const res = await callUpstream(ctx, provider, '/messages', {
-      body: anthropic,
-      incoming,
-      signal,
-    });
-    if (!res.ok) throw await upstreamFailure(provider, res);
-    if (stream && res.body) chunks = anthropicStreamToOpenAI(parseSSE(res.body));
-    else result = anthropicResponseToOpenAI((await res.json()) as AResponse);
+    if (result) {
+      meter.openAIResponse(result);
+      resolveDone();
+      return { response: Response.json(fromOpenAIResponse(format, result, model.name)), done };
+    }
+    const out = withStreamErrors(
+      format,
+      fromOpenAIStream(format, metered(chunks!, meter), model.name),
+    );
+    return { response: new Response(toBody(out, resolveDone), { headers: streamHeaders }), done };
+  } finally {
+    clearTimeout(deadline);
   }
-
-  if (result) {
-    meter.openAIResponse(result);
-    resolveDone();
-    return { response: Response.json(fromOpenAIResponse(format, result, model.name)), done };
-  }
-  const out = withStreamErrors(
-    format,
-    fromOpenAIStream(format, metered(chunks!, meter), model.name),
-  );
-  return { response: new Response(toBody(out, resolveDone), { headers: streamHeaders }), done };
 }
 
 async function writeLog(
@@ -405,43 +494,76 @@ export async function handleGateway(
     return errorResponse(format, decision.status, decision.message);
   }
 
-  const target = decision.target;
+  let target = decision.target;
+  let result = decision.result;
+  let trace: TraceStep[] = decision.trace;
+  let outage = false;
   const meter = new Meter();
   const finish = async (status: number, error?: unknown) => {
     const cost = meter.cost(target.model);
     const requestedCost = decision.requested ? meter.cost(decision.requested.model) : cost;
     const failed = error !== undefined;
+    const message = failed ? (error instanceof Error ? error.message : String(error)) : null;
     await writeLog(
       ctx,
       {
         ...base,
+        servedModelId: target.model.id,
+        servedModel: modelLabel(target),
+        servedLocal: target.provider.isLocal,
+        providerName: target.provider.name,
         status,
-        result: failed && status !== 200 ? 'error' : decision.result,
+        result: failed && status !== 200 ? 'error' : result,
+        ruleId: outage ? 'outage' : decision.ruleId,
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
         costUsd: cost,
-        savedUsd: decision.result === 'rerouted' ? Math.max(0, requestedCost - cost) : 0,
+        // A failover is not a saving: the cloud model was not going to answer anyway.
+        savedUsd: result === 'rerouted' && !outage ? Math.max(0, requestedCost - cost) : 0,
         latencyMs: Date.now() - started,
         responsePreview: settings.storePrompts
           ? maskPii(meter.text).text.slice(0, PREVIEW) || null
           : null,
-        error: failed ? (error instanceof Error ? error.message : String(error)) : null,
+        error: message,
         trace: failed
-          ? [
-              ...decision.trace,
-              { tone: 'block', text: error instanceof Error ? error.message : String(error) },
-            ]
-          : decision.trace,
+          ? [...trace, step('block', message!, 'upstreamError', { message: message! })]
+          : trace,
       },
       caller.key.id,
     );
   };
 
   try {
-    const { response, done } = await forward(ctx, c, format, body, target, stream, meter);
+    let forwarded: Forwarded;
+    try {
+      forwarded = await forward(ctx, c, format, body, target, stream, meter);
+    } catch (error) {
+      const local = await failoverTarget(ctx, caller, target, settings, error);
+      if (!local) throw error;
+      const reason = (error as Error).message;
+      const failedProvider = target.provider.name;
+      trace = [
+        ...trace,
+        step('warn', reason, 'providerFailed', { provider: failedProvider, message: reason }),
+        step(
+          'info',
+          `${failedProvider} is unavailable → sent to ${modelLabel(local)}`,
+          'failover',
+          {
+            provider: failedProvider,
+            model: local.model.label ?? local.model.name,
+          },
+        ),
+      ];
+      target = local;
+      result = 'rerouted';
+      outage = true;
+      forwarded = await forward(ctx, c, format, body, local, stream, meter);
+    }
+    const { response, done } = forwarded;
     void done.then((error) => finish(200, error));
     response.headers.set('x-spillway-request-id', id);
-    response.headers.set('x-spillway-result', decision.result);
+    response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);
     return response;
   } catch (error) {
@@ -450,4 +572,24 @@ export async function handleGateway(
     await finish(status, error);
     return errorResponse(format, status, message);
   }
+}
+
+/**
+ * The local model to answer with when a cloud provider is down, times out or rate limits us.
+ * Client mistakes (4xx other than 429) are passed back as they are.
+ */
+async function failoverTarget(
+  ctx: AppContext,
+  caller: Caller,
+  target: Target,
+  settings: Settings,
+  error: unknown,
+): Promise<Target | null> {
+  if (!(error instanceof UpstreamError) || (error.status < 500 && error.status !== 429)) {
+    return null;
+  }
+  if (target.provider.isLocal || !caller.key.fallbackToLocal) return null;
+  if (!settings.rerouteOnFailure || !settings.localModelId) return null;
+  const local = await findModel(ctx.db, eq(models.id, settings.localModelId));
+  return local && local.model.id !== target.model.id ? local : null;
 }

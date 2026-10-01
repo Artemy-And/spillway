@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
 import { type AppContext, VERSION } from '../context.ts';
 import {
@@ -13,12 +14,13 @@ import {
   RESULTS,
   ROLES,
   requestLogs,
+  sessions,
   teams,
   type User,
   users,
 } from '../db/schema.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
-import { newGatewayKey } from '../lib/crypto.ts';
+import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { startOfMonth, startOfNextMonth } from '../lib/time.ts';
 import { RULE_IDS, rulesSchema, settingsSchema } from '../settings.ts';
 import { keySpend, overview, type Period, teamSpend } from './stats.ts';
@@ -102,6 +104,9 @@ export function adminRoutes(ctx: AppContext) {
             name: user.name,
             role: user.role,
             teamId: user.teamId,
+            hasPassword: !!user.passwordHash,
+            welcomed: !!user.welcomedAt,
+            checklistHidden: !!user.checklistHiddenAt,
           },
           gateway: {
             host: new URL(ctx.env.PUBLIC_URL).host,
@@ -109,6 +114,96 @@ export function adminRoutes(ctx: AppContext) {
             providers: counts?.providers ?? 0,
             localProviders: counts?.local ?? 0,
           },
+        });
+      })
+
+      // ── Own account ─────────────────────────────────────────────────────────
+      .patch(
+        '/me',
+        zValidator(
+          'json',
+          z.object({
+            name: z.string().trim().min(1).max(128).optional(),
+            email: z
+              .email()
+              .transform((email) => email.toLowerCase())
+              .optional(),
+            welcomed: z.boolean().optional(),
+            checklistHidden: z.boolean().optional(),
+          }),
+        ),
+        async (c) => {
+          const user = c.get('user');
+          const { name, email, welcomed, checklistHidden } = c.req.valid('json');
+          if (email && email !== user.email) {
+            const taken = await db.query.users.findFirst({ where: eq(users.email, email) });
+            if (taken) return c.json({ error: 'Someone already uses this email' }, 409);
+          }
+          await db
+            .update(users)
+            .set({
+              ...(name === undefined ? {} : { name }),
+              ...(email === undefined ? {} : { email }),
+              ...(welcomed === undefined ? {} : { welcomedAt: welcomed ? new Date() : null }),
+              ...(checklistHidden === undefined
+                ? {}
+                : { checklistHiddenAt: checklistHidden ? new Date() : null }),
+            })
+            .where(eq(users.id, user.id));
+          return c.json({ ok: true });
+        },
+      )
+
+      .post(
+        '/me/password',
+        zValidator('json', z.object({ current: z.string().optional(), password: passwordSchema })),
+        async (c) => {
+          const user = c.get('user');
+          const { current, password } = c.req.valid('json');
+          // People who only ever used SSO have no password yet and may set one.
+          if (
+            user.passwordHash &&
+            !(current && (await verifyPassword(current, user.passwordHash)))
+          ) {
+            return c.json({ error: 'The current password is wrong' }, 400);
+          }
+          await db
+            .update(users)
+            .set({ passwordHash: await hashPassword(password) })
+            .where(eq(users.id, user.id));
+          // Other browsers signed in as this person have to sign in again.
+          await db.delete(sessions).where(eq(sessions.userId, user.id));
+          return c.json({ ok: true });
+        },
+      )
+
+      /** What the getting-started checklist ticks off, from the real state of the gateway. */
+      .get('/onboarding', async (c) => {
+        const user = c.get('user');
+        const keyIds = await ownKeyIds(ctx, user);
+        const count = async (query: Promise<{ count: number } | undefined>) =>
+          (await query)?.count ?? 0;
+        const settings = await ctx.settings.get();
+        return c.json({
+          providers: await count(db.select({ count: sql<number>`count(*)` }).from(providers).get()),
+          models: await count(db.select({ count: sql<number>`count(*)` }).from(models).get()),
+          localModel: settings.localModelId !== null,
+          keys: await count(
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(apiKeys)
+              .where(
+                and(isNull(apiKeys.revokedAt), keyIds ? inArray(apiKeys.id, keyIds) : undefined),
+              )
+              .get(),
+          ),
+          requests: await count(
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(requestLogs)
+              .where(keyIds ? inArray(requestLogs.keyId, keyIds) : undefined)
+              .get(),
+          ),
         });
       })
 
@@ -394,6 +489,8 @@ export function adminRoutes(ctx: AppContext) {
         return c.json({ ok: true });
       })
 
+      .get('/provider-defaults', adminOnly, (c) => c.json(DEFAULT_BASE_URLS))
+
       .get('/providers/:id/available', adminOnly, idParam, async (c) => {
         const provider = await db.query.providers.findFirst({
           where: eq(providers.id, c.req.valid('param').id),
@@ -554,6 +651,7 @@ export function adminRoutes(ctx: AppContext) {
           storePrompts: settings.storePrompts,
           retentionDays: settings.retentionDays,
           localModelId: settings.localModelId,
+          rerouteOnFailure: settings.rerouteOnFailure,
           sso: ctx.oidc
             ? {
                 issuer: ctx.oidc.issuer,
@@ -571,7 +669,12 @@ export function adminRoutes(ctx: AppContext) {
         zValidator(
           'json',
           settingsSchema
-            .pick({ storePrompts: true, retentionDays: true, localModelId: true })
+            .pick({
+              storePrompts: true,
+              retentionDays: true,
+              localModelId: true,
+              rerouteOnFailure: true,
+            })
             .partial(),
         ),
         async (c) => {

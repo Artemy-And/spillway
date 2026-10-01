@@ -1,4 +1,5 @@
 import { type ComponentProps, type ReactNode, useId, useState } from 'react';
+import { useI18n } from '../i18n/index.tsx';
 import { CheckIcon, CopyIcon } from './icons.tsx';
 
 const cx = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(' ');
@@ -246,7 +247,8 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="px-5 py-10 text-center text-sm text-muted">{children}</div>;
 }
 
-export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+export function CopyButton({ value, label }: { value: string; label?: string }) {
+  const { m } = useI18n();
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -257,13 +259,18 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
       }}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}
-      {copied ? 'Copied' : label}
+      {copied ? m.common.copied : (label ?? m.common.copy)}
     </Button>
   );
 }
 
-/** Masked spans like "[email hidden]" get a quiet highlight. */
+/** Masked spans like "[email hidden]" get a quiet highlight, in the viewer's language. */
 export function MaskedText({ text }: { text: string }) {
+  const { m } = useI18n();
+  const label = (part: string) => {
+    const kind = part.slice(1, -' hidden]'.length);
+    return m.masked.label(m.masked.kinds[kind] ?? kind);
+  };
   const parts = text.split(/(\[[a-z]+ hidden\])/g);
   return (
     <>
@@ -271,7 +278,7 @@ export function MaskedText({ text }: { text: string }) {
         /^\[[a-z]+ hidden\]$/.test(part) ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: static split of one string
           <span key={i} className="rounded bg-line px-1">
-            {part}
+            {label(part)}
           </span>
         ) : (
           part
@@ -281,14 +288,15 @@ export function MaskedText({ text }: { text: string }) {
   );
 }
 
-export const KIND_LABELS = { person: 'Person', device: 'Device', agent: 'Agent' } as const;
+export const KINDS = ['person', 'device', 'agent'] as const;
+export type KeyKind = (typeof KINDS)[number];
 
-export const RESULT_LABELS: Record<string, { label: string; tone: Tone }> = {
-  ok: { label: 'OK', tone: 'ok' },
-  rerouted: { label: 'Rerouted', tone: 'info' },
-  blocked_pii: { label: 'Blocked · PII', tone: 'block' },
-  blocked_budget: { label: 'Blocked · budget', tone: 'block' },
-  blocked_model: { label: 'Blocked · model', tone: 'block' },
-  rate_limited: { label: 'Rate limited', tone: 'warn' },
-  error: { label: 'Error', tone: 'off' },
+export const RESULT_TONES: Record<string, Tone> = {
+  ok: 'ok',
+  rerouted: 'info',
+  blocked_pii: 'block',
+  blocked_budget: 'block',
+  blocked_model: 'block',
+  rate_limited: 'warn',
+  error: 'off',
 };

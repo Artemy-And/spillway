@@ -14,30 +14,17 @@ import {
   Select,
   Switch,
 } from '../components/ui.tsx';
+import { useI18n } from '../i18n/index.tsx';
 import { api, type ModelRow, modelsQuery, type ProviderRow, unwrap } from '../lib/api.ts';
-import { plural } from '../lib/format.ts';
 
 type Kind = 'openai' | 'anthropic' | 'ollama';
 
-const KINDS: Record<Kind, { label: string; baseUrl: string; hint: string }> = {
-  openai: {
-    label: 'OpenAI-compatible',
-    baseUrl: 'https://api.openai.com/v1',
-    hint: 'OpenAI, OpenRouter, vLLM, LM Studio, YandexGPT and other /v1/chat/completions APIs',
-  },
-  anthropic: {
-    label: 'Anthropic',
-    baseUrl: 'https://api.anthropic.com',
-    hint: 'Claude models through the Messages API',
-  },
-  ollama: {
-    label: 'Ollama',
-    baseUrl: 'http://ollama:11434',
-    hint: 'Local models; no API key needed',
-  },
-};
+const KIND_ORDER: Kind[] = ['openai', 'anthropic', 'ollama'];
+/** Names the form suggests per type, replaced when the type changes unless edited. */
+const DEFAULT_NAMES = ['Ollama', 'Anthropic', 'OpenAI', 'OpenAI-compatible'];
 
 export function ModelsPage() {
+  const { m } = useI18n();
   const queryClient = useQueryClient();
   const { data: providers = [] } = useQuery({
     queryKey: ['providers'],
@@ -62,13 +49,10 @@ export function ModelsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Models & providers"
-        subtitle="Where requests go, and the model names your people and agents use."
-      >
+      <PageHeader title={m.models.title} subtitle={m.models.subtitle}>
         <Button variant="primary" onClick={() => setAdding(true)}>
           <PlusIcon strokeWidth={2.2} />
-          Add provider
+          {m.models.addProvider}
         </Button>
       </PageHeader>
 
@@ -85,14 +69,12 @@ export function ModelsPage() {
       )}
 
       <section
-        aria-label="Providers"
+        aria-label={m.models.providers}
         className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
       >
         {providers.length === 0 && !adding && (
           <Card className="lg:col-span-2">
-            <Empty>
-              No providers yet. Add Ollama for local models, or a cloud API with its key.
-            </Empty>
+            <Empty>{m.models.noProviders}</Empty>
           </Card>
         )}
         {providers.map((provider) =>
@@ -113,17 +95,17 @@ export function ModelsPage() {
                 <div className="flex flex-col gap-1">
                   <h2 className="text-[15px] font-semibold">{provider.name}</h2>
                   <div className="flex flex-wrap gap-1.5">
-                    <Chip>{KINDS[provider.kind].label}</Chip>
-                    {provider.isLocal && <Chip>Local · free</Chip>}
+                    <Chip>{m.models.kinds[provider.kind].label}</Chip>
+                    {provider.isLocal && <Chip>{m.models.localFree}</Chip>}
                     {provider.kind !== 'ollama' && (
-                      <Chip>{provider.hasApiKey ? 'API key set' : 'No API key'}</Chip>
+                      <Chip>{provider.hasApiKey ? m.models.keySet : m.models.noKey}</Chip>
                     )}
                   </div>
                 </div>
                 <div className="flex">
                   <button
                     type="button"
-                    aria-label={`Edit ${provider.name}`}
+                    aria-label={m.common.edit(provider.name)}
                     onClick={() => setEditing(provider.id)}
                     className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track hover:text-ink"
                   >
@@ -131,9 +113,9 @@ export function ModelsPage() {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Delete ${provider.name}`}
+                    aria-label={m.common.delete(provider.name)}
                     onClick={() =>
-                      confirm(`Delete ${provider.name} and its models?`) &&
+                      confirm(m.models.deleteConfirm(provider.name)) &&
                       removeProvider.mutate(provider.id)
                     }
                     className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-block-bg hover:text-block-fg"
@@ -144,7 +126,7 @@ export function ModelsPage() {
               </div>
               <div className="truncate font-mono text-xs text-muted">{provider.baseUrl}</div>
               <div className="text-[13px] text-ink-2">
-                {plural(models.filter((m) => m.providerId === provider.id).length, 'model')}
+                {m.models.count(models.filter((row) => row.providerId === provider.id).length)}
               </div>
               {picking === provider.id ? (
                 <ModelPicker
@@ -157,7 +139,7 @@ export function ModelsPage() {
                 />
               ) : (
                 <Button onClick={() => setPicking(provider.id)} className="self-start">
-                  Add models
+                  {m.models.addModels}
                 </Button>
               )}
             </Card>
@@ -166,25 +148,24 @@ export function ModelsPage() {
       </section>
       <ErrorNote error={removeProvider.error} />
 
-      <Card aria-label="Models" className="overflow-x-auto px-6 py-4">
-        <h2 className="mb-1 text-[15px] font-semibold">Models</h2>
+      <Card aria-label={m.models.modelsTitle} className="overflow-x-auto px-6 py-4">
+        <h2 className="mb-1 text-[15px] font-semibold">{m.models.modelsTitle}</h2>
         <p className="mb-3 text-[13px] text-muted">
-          Clients send the name in the <code className="font-mono">model</code> field; renaming a
-          model breaks clients that still use the old name. Prices are USD per million tokens; they
-          drive budgets and savings.
+          {m.models.introBefore} <code className="font-mono">model</code>
+          {m.models.introAfter}
         </p>
         <div className="min-w-[860px]">
           <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
-            <div>Name clients use</div>
-            <div>Display name</div>
-            <div>Provider</div>
-            <div>Upstream model</div>
-            <div className="text-right">Input $/1M</div>
-            <div className="text-right">Output $/1M</div>
-            <div>Enabled</div>
+            <div>{m.models.nameCol}</div>
+            <div>{m.models.displayCol}</div>
+            <div>{m.models.providerCol}</div>
+            <div>{m.models.upstreamCol}</div>
+            <div className="text-right">{m.models.inputCol}</div>
+            <div className="text-right">{m.models.outputCol}</div>
+            <div>{m.models.enabledCol}</div>
             <div />
           </div>
-          {models.length === 0 && <Empty>No models yet. Use “Add models” on a provider.</Empty>}
+          {models.length === 0 && <Empty>{m.models.noModels}</Empty>}
           {models.map((model) => (
             <ModelLine key={model.id} model={model} onChange={refresh} />
           ))}
@@ -204,6 +185,12 @@ function ProviderForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { m } = useI18n();
+  const { data: defaults } = useQuery({
+    queryKey: ['provider-defaults'],
+    queryFn: () => unwrap(api['provider-defaults'].$get()),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
   const [kind, setKind] = useState<Kind>(provider?.kind ?? 'ollama');
   const [name, setName] = useState(provider?.name ?? 'Ollama');
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
@@ -236,9 +223,7 @@ function ProviderForm({
     onSuccess: onDone,
   });
   const wide = provider ? undefined : 'md:col-span-2';
-  const keyHint = provider?.hasApiKey
-    ? 'A key is saved. Leave empty to keep it, or paste a new one.'
-    : 'Encrypted at rest with the gateway secret.';
+  const keyHint = provider?.hasApiKey ? m.models.keySaved : m.models.keyEncrypted;
   return (
     <form
       className={cx('grid grid-cols-1 gap-4', !provider && 'md:grid-cols-2')}
@@ -248,9 +233,9 @@ function ProviderForm({
       }}
     >
       <h2 className={cx('text-[17px] font-semibold', wide)}>
-        {provider ? `Edit ${provider.name}` : 'New provider'}
+        {provider ? m.common.edit(provider.name) : m.models.newProvider}
       </h2>
-      <Field label="Type" hint={KINDS[kind].hint}>
+      <Field label={m.common.type} hint={m.models.kinds[kind].hint}>
         <Select
           disabled={!!provider}
           value={kind}
@@ -258,63 +243,64 @@ function ProviderForm({
             const next = e.target.value as Kind;
             setKind(next);
             setIsLocal(next === 'ollama');
-            if (
-              Object.values(KINDS).some((k) => k.label === name) ||
-              ['Ollama', 'Anthropic', 'OpenAI'].includes(name)
-            ) {
-              setName(next === 'openai' ? 'OpenAI' : KINDS[next].label);
+            if (!name.trim() || DEFAULT_NAMES.includes(name)) {
+              setName(next === 'openai' ? 'OpenAI' : m.models.kinds[next].label);
             }
           }}
         >
-          {(Object.keys(KINDS) as Kind[]).map((k) => (
+          {KIND_ORDER.map((k) => (
             <option key={k} value={k}>
-              {KINDS[k].label}
+              {m.models.kinds[k].label}
             </option>
           ))}
         </Select>
       </Field>
-      <Field label="Name">
+      <Field label={m.common.name}>
         <Input required value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Base URL">
+      <Field label={m.models.baseUrl} hint={m.models.baseUrlHint}>
         <Input
           mono
-          placeholder={KINDS[kind].baseUrl}
+          placeholder={defaults?.[kind]}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
         />
       </Field>
-      <Field label="API key" hint={keyHint}>
+      <Field label={m.models.apiKey} hint={keyHint}>
         <Input
           mono
           type="password"
           autoComplete="off"
           disabled={removeKey}
           placeholder={
-            kind === 'ollama' ? 'not needed' : provider?.hasApiKey ? '•••••••• saved' : 'sk-…'
+            kind === 'ollama'
+              ? m.models.notNeeded
+              : provider?.hasApiKey
+                ? m.models.savedPlaceholder
+                : 'sk-…'
           }
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
         />
       </Field>
       {provider?.hasApiKey && (
-        <Switch checked={removeKey} onChange={setRemoveKey} label="Remove the saved key" />
+        <Switch checked={removeKey} onChange={setRemoveKey} label={m.models.removeKey} />
       )}
       <div className={wide}>
         <Switch
           checked={isLocal}
           onChange={setIsLocal}
-          label="Runs on our own hardware"
-          description="Local models cost nothing, skip budgets and may receive prompts with personal data."
+          label={m.models.ownHardware}
+          description={m.models.ownHardwareHint}
         />
       </div>
       <div className={wide}>
         <ErrorNote error={save.error} />
       </div>
       <div className={cx('flex justify-end gap-2.5', wide)}>
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onCancel}>{m.common.cancel}</Button>
         <Button type="submit" variant="primary" disabled={save.isPending}>
-          {provider ? 'Save' : 'Add provider'}
+          {provider ? m.common.save : m.models.addProvider}
         </Button>
       </div>
     </form>
@@ -330,6 +316,7 @@ function ModelPicker({
   existing: ModelRow[];
   onDone: () => void;
 }) {
+  const { m } = useI18n();
   const [chosen, setChosen] = useState<string[]>([]);
   const [manual, setManual] = useState('');
   const available = useQuery({
@@ -369,21 +356,21 @@ function ModelPicker({
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-canvas p-3">
       {available.isLoading && (
-        <p className="text-[13px] text-muted">Asking {provider.name} for its models…</p>
+        <p className="text-[13px] text-muted">{m.models.asking(provider.name)}</p>
       )}
       {available.error && <ErrorNote error={available.error} />}
       {options.length > 12 && (
         <Input
-          aria-label="Filter models"
+          aria-label={m.models.filterLabel}
           mono
-          placeholder={`Filter ${options.length} models, e.g. deepseek free`}
+          placeholder={m.models.filterPlaceholder(options.length)}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
       )}
       {options.length > 0 && (
         <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
-          {shown.length === 0 && <p className="text-[13px] text-muted">No models match.</p>}
+          {shown.length === 0 && <p className="text-[13px] text-muted">{m.models.noMatch}</p>}
           {shown.map((name) => (
             <label key={name} className="flex items-center gap-2.5 font-mono text-[13px]">
               <input
@@ -400,11 +387,9 @@ function ModelPicker({
         </div>
       )}
       {available.isSuccess && options.length === 0 && (
-        <p className="text-[13px] text-muted">
-          Every model {provider.name} lists is already added.
-        </p>
+        <p className="text-[13px] text-muted">{m.models.allAdded(provider.name)}</p>
       )}
-      <Field label="Or type model ids, comma-separated">
+      <Field label={m.models.manual}>
         <Input
           mono
           placeholder="claude-sonnet-4-5, gpt-5-mini"
@@ -414,13 +399,13 @@ function ModelPicker({
       </Field>
       <ErrorNote error={add.error} />
       <div className="flex justify-end gap-2">
-        <Button onClick={onDone}>Cancel</Button>
+        <Button onClick={onDone}>{m.common.cancel}</Button>
         <Button
           variant="primary"
           disabled={add.isPending || (!chosen.length && !manual.trim())}
           onClick={() => add.mutate()}
         >
-          Add {chosen.length + manual.split(',').filter((s) => s.trim()).length || ''} models
+          {m.models.addN(chosen.length + manual.split(',').filter((s) => s.trim()).length)}
         </Button>
       </div>
     </div>
@@ -428,6 +413,7 @@ function ModelPicker({
 }
 
 function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void }) {
+  const { m } = useI18n();
   const update = useMutation({
     mutationFn: (json: {
       name?: string;
@@ -445,7 +431,7 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
   });
   const price = (field: 'inputPrice' | 'outputPrice') => (
     <Input
-      aria-label={`${model.name} ${field === 'inputPrice' ? 'input' : 'output'} price`}
+      aria-label={(field === 'inputPrice' ? m.models.inputLabel : m.models.outputLabel)(model.name)}
       mono
       type="number"
       min="0"
@@ -462,7 +448,7 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
   // Text fields save on blur; an empty value is not a valid name, so it snaps back.
   const text = (field: 'name' | 'upstreamModel', label: string, className?: string) => (
     <Input
-      aria-label={`${model.name} ${label}`}
+      aria-label={label}
       mono
       required
       className={cx('h-8', className)}
@@ -477,9 +463,9 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
   );
   return (
     <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] items-center gap-3 border-b border-line-soft py-2 text-sm last:border-0">
-      {text('name', 'name clients use', 'text-[13px] font-medium')}
+      {text('name', m.models.nameLabel(model.name), 'text-[13px] font-medium')}
       <Input
-        aria-label={`${model.name} display name`}
+        aria-label={m.models.displayLabel(model.name)}
         className="h-8"
         placeholder={model.name}
         defaultValue={model.label ?? ''}
@@ -490,22 +476,22 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       />
       <span className="truncate text-ink-2">
         {model.provider}
-        {model.isLocal && <span className="text-muted"> · local</span>}
+        {model.isLocal && <span className="text-muted"> · {m.common.local}</span>}
       </span>
-      {text('upstreamModel', 'upstream model', 'text-xs')}
+      {text('upstreamModel', m.models.upstreamLabel(model.name), 'text-xs')}
       {price('inputPrice')}
       {price('outputPrice')}
       <input
         type="checkbox"
-        aria-label={`${model.name} enabled`}
+        aria-label={m.models.enabledLabel(model.name)}
         checked={model.enabled}
         onChange={(e) => update.mutate({ enabled: e.target.checked })}
         className="size-4 accent-accent"
       />
       <button
         type="button"
-        aria-label={`Delete ${model.name}`}
-        onClick={() => confirm(`Delete ${model.name}?`) && remove.mutate()}
+        aria-label={m.common.delete(model.name)}
+        onClick={() => confirm(m.models.deleteModelConfirm(model.name)) && remove.mutate()}
         className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-block-bg hover:text-block-fg"
       >
         <TrashIcon />

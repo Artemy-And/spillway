@@ -28,7 +28,16 @@ export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 export type KeyKind = (typeof KEY_KINDS)[number];
 export type Result = (typeof RESULTS)[number];
 export type TraceTone = 'ok' | 'warn' | 'info' | 'block';
-export type TraceStep = { tone: TraceTone; text: string };
+/**
+ * One line of a request's "why". `text` is English for API clients and old rows;
+ * `code` and `params` let the admin UI show it in the viewer's language.
+ */
+export type TraceStep = {
+  tone: TraceTone;
+  text: string;
+  code?: string;
+  params?: Record<string, string | number | boolean | Record<string, number> | null>;
+};
 
 export const teams = sqliteTable('teams', {
   id: id(),
@@ -49,6 +58,10 @@ export const users = sqliteTable('users', {
   createdAt: createdAt(),
   lastLoginAt: timestamp('last_login_at'),
   disabledAt: timestamp('disabled_at'),
+  /** When the person closed the welcome tour */
+  welcomedAt: timestamp('welcomed_at'),
+  /** When the person hid the getting-started checklist */
+  checklistHiddenAt: timestamp('checklist_hidden_at'),
 });
 
 export const sessions = sqliteTable('sessions', {

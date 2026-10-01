@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useI18n } from '../i18n/index.tsx';
 import { fmtDate, fmtNumber } from '../lib/format.ts';
 
 type Day = { date: string; cloud: number; local: number };
@@ -21,6 +22,7 @@ const tick = (value: number) =>
  * with a 2px surface gap between segments and a tooltip per day.
  */
 export function DailyChart({ days }: { days: Day[] }) {
+  const { m } = useI18n();
   const [hover, setHover] = useState<number | null>(null);
   const max = niceMax(Math.max(...days.map((d) => d.cloud + d.local), 0));
   const ticks = [4, 3, 2, 1, 0].map((i) => (max / 4) * i);
@@ -88,14 +90,14 @@ export function DailyChart({ days }: { days: Day[] }) {
                     </div>
                     <div className="flex items-center gap-2 text-ink-2">
                       <span className="size-2 rounded-sm bg-accent" />
-                      Cloud{' '}
+                      {m.chart.cloud}{' '}
                       <span className="ml-auto pl-3 font-mono text-ink">
                         {fmtNumber(day.cloud)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-ink-2">
                       <span className="size-2 rounded-sm bg-local" />
-                      Local{' '}
+                      {m.chart.local}{' '}
                       <span className="ml-auto pl-3 font-mono text-ink">
                         {fmtNumber(day.local)}
                       </span>
@@ -115,12 +117,12 @@ export function DailyChart({ days }: { days: Day[] }) {
         ))}
       </div>
       <table className="sr-only">
-        <caption>Requests per day</caption>
+        <caption>{m.overview.perDayLabel}</caption>
         <thead>
           <tr>
-            <th>Day</th>
-            <th>Cloud</th>
-            <th>Local</th>
+            <th>{m.chart.day}</th>
+            <th>{m.chart.cloud}</th>
+            <th>{m.chart.local}</th>
           </tr>
         </thead>
         <tbody>

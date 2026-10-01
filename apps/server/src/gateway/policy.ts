@@ -11,6 +11,7 @@ import {
   requestLogs,
   type Team,
   type TraceStep,
+  type TraceTone,
   type User,
 } from '../db/schema.ts';
 import { describePii, type PiiCounts, type PiiKind } from '../lib/pii.ts';
@@ -45,7 +46,19 @@ export function modelLabel(target: Target): string {
   return `${target.model.label ?? target.model.name}${target.provider.isLocal ? ' · local' : ''}`;
 }
 
-const ruleNumber = (id: RuleId) => RULE_IDS.indexOf(id) + 1;
+/** Model name without the " · local" suffix, for translated trace steps. */
+const plainName = (target: Target) => target.model.label ?? target.model.name;
+
+export const ruleNumber = (id: RuleId) => RULE_IDS.indexOf(id) + 1;
+
+export function step(
+  tone: TraceTone,
+  text: string,
+  code: string,
+  params?: TraceStep['params'],
+): TraceStep {
+  return params ? { tone, text, code, params } : { tone, text, code };
+}
 
 export async function findModel(db: Db, where: ReturnType<typeof eq>): Promise<Target | null> {
   const row = await db
@@ -89,12 +102,12 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   const stop = (
     result: Result,
     status: number,
-    message: string,
+    blocked: TraceStep,
     requested: Target | null,
     ruleId: RuleId | null = null,
   ): Decision => {
-    trace.push({ tone: 'block', text: message });
-    return { result, status, requested, target: null, ruleId, trace, message };
+    trace.push(blocked);
+    return { result, status, requested, target: null, ruleId, trace, message: blocked.text };
   };
 
   // 1. Model exists and this key may use it
@@ -103,30 +116,49 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     return stop(
       'blocked_model',
       404,
-      `Model "${requestedName}" is not available on this gateway`,
+      step('block', `Model "${requestedName}" is not available on this gateway`, 'modelMissing', {
+        model: requestedName,
+      }),
       null,
     );
   }
   const teamAllows = !team?.allowedModelIds || team.allowedModelIds.includes(requested.model.id);
   const keyAllows = !key.allowedModelIds || key.allowedModelIds.includes(requested.model.id);
   if (!teamAllows || !keyAllows) {
-    const who = !teamAllows && team ? `team ${team.name}` : `key ${key.name}`;
+    const byTeam = !teamAllows && team;
+    const who = byTeam ? `team ${team.name}` : `key ${key.name}`;
     return stop(
       'blocked_model',
       403,
-      `${modelLabel(requested)} is not allowed for ${who}`,
+      step(
+        'block',
+        `${modelLabel(requested)} is not allowed for ${who}`,
+        byTeam ? 'modelNotAllowedTeam' : 'modelNotAllowedKey',
+        { model: plainName(requested), name: byTeam ? team.name : key.name },
+      ),
       requested,
     );
   }
-  trace.push({ tone: 'ok', text: `Key valid, model allowed${team ? ` for ${team.name}` : ''}` });
+  trace.push(
+    step('ok', `Key valid, model allowed${team ? ` for ${team.name}` : ''}`, 'keyValid', {
+      team: team?.name ?? null,
+    }),
+  );
 
   // 2. Rate limit for agents
   if (rules.agentRateLimit.enabled && key.kind === 'agent') {
     if (!ctx.rateLimiter.hit(key.id, rules.agentRateLimit.rpm)) {
+      const rule = ruleNumber('agentRateLimit');
+      const { rpm } = rules.agentRateLimit;
       return stop(
         'rate_limited',
         429,
-        `Rule ${ruleNumber('agentRateLimit')}: agent keys may send at most ${rules.agentRateLimit.rpm} requests per minute`,
+        step(
+          'block',
+          `Rule ${rule}: agent keys may send at most ${rpm} requests per minute`,
+          'agentRateLimit',
+          { rule, rpm },
+        ),
         requested,
         'agentRateLimit',
       );
@@ -139,9 +171,9 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
 
   // 3. Budgets and schedule. Local models cost nothing, so they skip this.
   if (requested.provider.isLocal) {
-    trace.push({ tone: 'info', text: 'Local model: no API cost, budgets do not apply' });
+    trace.push(step('info', 'Local model: no API cost, budgets do not apply', 'localNoBudget'));
   } else {
-    let reroute: { reason: string; ruleId: RuleId | null; allowed: boolean } | null = null;
+    let reroute: { reason: TraceStep; ruleId: RuleId | null; allowed: boolean } | null = null;
 
     const keyDay =
       key.dailyLimitUsd != null
@@ -158,13 +190,23 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
 
     if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
       reroute = {
-        reason: `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDay)} spent)`,
+        reason: step(
+          'warn',
+          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDay)} spent)`,
+          'keyDailyLimit',
+          { key: key.name, limit: key.dailyLimitUsd, spent: keyDay },
+        ),
         ruleId: null,
         allowed: key.fallbackToLocal,
       };
     } else if (key.monthlyLimitUsd != null && keyMonth >= key.monthlyLimitUsd) {
       reroute = {
-        reason: `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonth)} spent)`,
+        reason: step(
+          'warn',
+          `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonth)} spent)`,
+          'keyMonthlyLimit',
+          { key: key.name, limit: key.monthlyLimitUsd, spent: keyMonth },
+        ),
         ruleId: null,
         allowed: key.fallbackToLocal,
       };
@@ -174,7 +216,12 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       const threshold = rules.budgetThreshold.enabled && percent >= rules.budgetThreshold.percent;
       if (over || threshold) {
         reroute = {
-          reason: `${team.name} is at ${Math.round(percent)}% of its ${usd(team.monthlyBudgetUsd)} budget`,
+          reason: step(
+            'warn',
+            `${team.name} is at ${Math.round(percent)}% of its ${usd(team.monthlyBudgetUsd)} budget`,
+            'teamBudget',
+            { team: team.name, percent: Math.round(percent), budget: team.monthlyBudgetUsd },
+          ),
           ruleId: threshold ? 'budgetThreshold' : null,
           allowed: true,
         };
@@ -185,29 +232,41 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       rules.offHours.enabled &&
       !isWithin(rules.offHours.from, rules.offHours.to, now)
     ) {
+      const { from, to } = rules.offHours;
       reroute = {
-        reason: `Outside working hours ${rules.offHours.from}–${rules.offHours.to}`,
+        reason: step('warn', `Outside working hours ${from}–${to}`, 'offHours', { from, to }),
         ruleId: 'offHours',
         allowed: true,
       };
     }
 
     if (reroute) {
-      trace.push({ tone: 'warn', text: reroute.reason });
+      trace.push(reroute.reason);
       const local = settings.localModelId
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
         : null;
       if (!reroute.allowed || !local) {
-        const why = !reroute.allowed
-          ? 'this key blocks instead of switching to a local model'
-          : 'no local model is configured';
-        return stop('blocked_budget', 429, `Request blocked: ${why}`, requested, reroute.ruleId);
+        const blocked = !reroute.allowed
+          ? step(
+              'block',
+              'Request blocked: this key blocks instead of switching to a local model',
+              'blockedKeyNoFallback',
+            )
+          : step('block', 'Request blocked: no local model is configured', 'blockedNoLocalModel');
+        return stop('blocked_budget', 429, blocked, requested, reroute.ruleId);
       }
       target = local;
       result = 'rerouted';
       ruleId = reroute.ruleId;
-      const prefix = reroute.ruleId ? `Rule ${ruleNumber(reroute.ruleId)} matched → ` : '';
-      trace.push({ tone: 'info', text: `${prefix}sent to ${modelLabel(local)}` });
+      const rule = reroute.ruleId ? ruleNumber(reroute.ruleId) : null;
+      trace.push(
+        step(
+          'info',
+          `${rule ? `Rule ${rule} matched → ` : ''}sent to ${modelLabel(local)}`,
+          'sentToLocal',
+          { rule, model: plainName(local) },
+        ),
+      );
     } else {
       const parts = [
         key.dailyLimitUsd != null ? `key ${usd(keyDay)} of ${usd(key.dailyLimitUsd)} today` : null,
@@ -215,10 +274,19 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
           ? `${team.name} at ${Math.round((teamMonth / team.monthlyBudgetUsd) * 100)}% of ${usd(team.monthlyBudgetUsd)}`
           : null,
       ].filter(Boolean);
-      trace.push({
-        tone: 'ok',
-        text: parts.length ? `Within budget: ${parts.join(' · ')}` : 'No budget set',
-      });
+      trace.push(
+        parts.length
+          ? step('ok', `Within budget: ${parts.join(' · ')}`, 'withinBudget', {
+              keySpent: key.dailyLimitUsd != null ? keyDay : null,
+              keyLimit: key.dailyLimitUsd,
+              team: team?.monthlyBudgetUsd ? team.name : null,
+              teamPercent: team?.monthlyBudgetUsd
+                ? Math.round((teamMonth / team.monthlyBudgetUsd) * 100)
+                : null,
+              teamBudget: team?.monthlyBudgetUsd || null,
+            })
+          : step('ok', 'No budget set', 'noBudget'),
+      );
     }
   }
 
@@ -227,23 +295,39 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     Object.entries(pii).filter(([kind]) => BLOCKING_PII.includes(kind as PiiKind)),
   ) as PiiCounts;
   if (Object.keys(pii).length === 0) {
-    trace.push({ tone: 'ok', text: 'No sensitive data found in prompt' });
+    trace.push(step('ok', 'No sensitive data found in prompt', 'noPii'));
   } else if (!target.provider.isLocal && rules.piiGuard.enabled && Object.keys(blocking).length) {
+    const rule = ruleNumber('piiGuard');
     return stop(
       'blocked_pii',
       403,
-      `Rule ${ruleNumber('piiGuard')}: prompt contains ${describePii(blocking)}; cloud models are blocked for it`,
+      step(
+        'block',
+        `Rule ${rule}: prompt contains ${describePii(blocking)}; cloud models are blocked for it`,
+        'piiBlocked',
+        { rule, pii: blocking as Record<string, number> },
+      ),
       requested,
       'piiGuard',
     );
   } else {
-    trace.push({
-      tone: 'info',
-      text: `Found ${describePii(pii)}; masked in the log${target.provider.isLocal ? ', model is local' : ''}`,
-    });
+    trace.push(
+      step(
+        'info',
+        `Found ${describePii(pii)}; masked in the log${target.provider.isLocal ? ', model is local' : ''}`,
+        'piiMasked',
+        { pii: pii as Record<string, number>, local: target.provider.isLocal },
+      ),
+    );
   }
 
   if (result === 'ok')
-    trace.push({ tone: 'info', text: `Sent to ${modelLabel(target)} (${target.provider.name})` });
+    trace.push(
+      step('info', `Sent to ${modelLabel(target)} (${target.provider.name})`, 'sentTo', {
+        model: plainName(target),
+        provider: target.provider.name,
+        local: target.provider.isLocal,
+      }),
+    );
   return { result, status: 200, requested, target, ruleId, trace, message: '' };
 }

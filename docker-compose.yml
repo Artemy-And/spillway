@@ -12,6 +12,9 @@ services:
         required: false
     volumes:
       - spillway-data:/data
+    # Lets Spillway reach Ollama running on the host (Docker Desktop has this built in).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Optional local models: docker compose --profile ollama up -d
   # then set OLLAMA_URL=http://ollama:11434 in .env before the first start.

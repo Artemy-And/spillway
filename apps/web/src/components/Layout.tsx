@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useI18n } from '../i18n/index.tsx';
 import { auth, meQuery } from '../lib/api.ts';
 import {
   ChipIcon,
@@ -14,14 +15,15 @@ import {
   SpillwayIcon,
 } from './icons.tsx';
 import { cx } from './ui.tsx';
+import { Welcome } from './Welcome.tsx';
 
 const NAV = [
-  { to: '/', label: 'Overview', icon: GridIcon, admin: false },
-  { to: '/keys', label: 'Keys', icon: KeyIcon, admin: false },
-  { to: '/budgets', label: 'Budgets & rules', icon: SlidersIcon, admin: false },
-  { to: '/logs', label: 'Request log', icon: ListIcon, admin: false },
-  { to: '/models', label: 'Models & providers', icon: ChipIcon, admin: true },
-  { to: '/settings', label: 'Settings & SSO', icon: CogIcon, admin: true },
+  { to: '/', label: 'overview', icon: GridIcon, admin: false },
+  { to: '/keys', label: 'keys', icon: KeyIcon, admin: false },
+  { to: '/budgets', label: 'budgets', icon: SlidersIcon, admin: false },
+  { to: '/logs', label: 'logs', icon: ListIcon, admin: false },
+  { to: '/models', label: 'models', icon: ChipIcon, admin: true },
+  { to: '/settings', label: 'settings', icon: CogIcon, admin: true },
 ] as const;
 
 export function Logo() {
@@ -36,6 +38,7 @@ export function Logo() {
 }
 
 export function Layout() {
+  const { m } = useI18n();
   const { data: me } = useQuery(meQuery);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -45,14 +48,14 @@ export function Layout() {
   const signOut = async () => {
     await auth.logout.$post();
     queryClient.clear();
-    await navigate({ to: '/login' });
+    await navigate({ to: '/login', search: { error: undefined } });
   };
 
   return (
     <div className="flex min-h-dvh">
       <button
         type="button"
-        aria-label="Open menu"
+        aria-label={m.nav.openMenu}
         onClick={() => setOpen(true)}
         className="fixed top-4 left-4 z-30 flex size-11 items-center justify-center rounded-lg bg-rail text-rail-ink lg:hidden"
       >
@@ -61,13 +64,13 @@ export function Layout() {
       {open && (
         <button
           type="button"
-          aria-label="Close menu"
+          aria-label={m.nav.closeMenu}
           className="fixed inset-0 z-30 bg-black/30 lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
       <nav
-        aria-label="Main"
+        aria-label={m.nav.main}
         className={cx(
           'fixed inset-y-0 left-0 z-40 flex w-[232px] shrink-0 flex-col gap-7 bg-rail px-3.5 py-6 text-rail-ink transition-transform lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
@@ -85,7 +88,7 @@ export function Layout() {
               activeProps={{ className: 'bg-rail-active !text-white', 'aria-current': 'page' }}
             >
               <item.icon />
-              {item.label}
+              {m.nav[item.label]}
             </Link>
           ))}
         </div>
@@ -93,22 +96,29 @@ export function Layout() {
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-rail-2 p-3.5 text-xs text-rail-muted">
             <div className="flex items-center gap-2 text-[13px] text-rail-ink">
               <span className="size-2 rounded-full bg-healthy" />
-              Gateway healthy
+              {m.nav.healthy}
             </div>
             <div className="font-mono">{me?.gateway.host}</div>
             <div>
-              {me?.gateway.providers ?? 0} providers · {me?.gateway.localProviders ?? 0} local
+              {m.nav.providers(me?.gateway.providers ?? 0, me?.gateway.localProviders ?? 0)}
             </div>
-            <div>v{me?.gateway.version} · self-hosted</div>
+            <div>{m.nav.selfHosted(me?.gateway.version ?? '')}</div>
           </div>
           <div className="flex items-center justify-between gap-2 px-2.5 text-xs text-rail-muted">
-            <span className="truncate" title={me?.user.email}>
+            <Link
+              to="/account"
+              onClick={() => setOpen(false)}
+              title={`${m.nav.account} · ${me?.user.email ?? ''}`}
+              className="truncate text-rail-muted no-underline hover:text-white"
+              activeProps={{ className: '!text-white', 'aria-current': 'page' }}
+            >
               {me?.user.name ?? me?.user.email}
-            </span>
+            </Link>
             <button
               type="button"
               onClick={signOut}
-              aria-label="Sign out"
+              aria-label={m.nav.signOut}
+              title={m.nav.signOut}
               className="flex size-8 cursor-pointer items-center justify-center rounded-md hover:bg-rail-active hover:text-white"
             >
               <LogoutIcon />
@@ -119,6 +129,7 @@ export function Layout() {
       <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pt-20 pb-10 sm:px-10 lg:pt-8">
         <Outlet />
       </main>
+      {me && !me.user.welcomed && <Welcome admin={isAdmin} />}
     </div>
   );
 }

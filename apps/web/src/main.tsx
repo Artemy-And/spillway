@@ -8,12 +8,17 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@ta
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { I18nProvider } from './i18n/index.tsx';
 import { ApiError } from './lib/api.ts';
 import { makeRouter } from './router.tsx';
 
 // An expired session anywhere sends the person back to the sign-in page.
 const onError = (error: unknown) => {
-  if (error instanceof ApiError && error.status === 401 && location.pathname !== '/login') {
+  if (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    !['/login', '/setup'].includes(location.pathname)
+  ) {
     void router.navigate({ to: '/login', search: { error: undefined } });
   }
 };
@@ -32,8 +37,10 @@ const router = makeRouter(queryClient);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </I18nProvider>
   </StrictMode>,
 );
