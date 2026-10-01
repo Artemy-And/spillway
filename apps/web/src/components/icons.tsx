@@ -81,3 +81,4 @@ export const LogoutIcon = icon(
 );
 export const MenuIcon = icon(<path d="M3 6h18M3 12h18M3 18h18" />);
 export const TrashIcon = icon(<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />);
+export const PencilIcon = icon(<path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />);

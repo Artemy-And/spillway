@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { PlusIcon, TrashIcon } from '../components/icons.tsx';
+import { PencilIcon, PlusIcon, TrashIcon } from '../components/icons.tsx';
 import {
   Button,
   Card,
   Chip,
+  cx,
   Empty,
   ErrorNote,
   Field,
@@ -44,6 +45,7 @@ export function ModelsPage() {
   });
   const { data: models = [] } = useQuery(modelsQuery);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
 
   const refresh = () =>
@@ -71,13 +73,15 @@ export function ModelsPage() {
       </PageHeader>
 
       {adding && (
-        <NewProvider
-          onDone={async () => {
-            await refresh();
-            setAdding(false);
-          }}
-          onCancel={() => setAdding(false)}
-        />
+        <Card className="px-6 py-5">
+          <ProviderForm
+            onDone={async () => {
+              await refresh();
+              setAdding(false);
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        </Card>
       )}
 
       <section
@@ -91,59 +95,83 @@ export function ModelsPage() {
             </Empty>
           </Card>
         )}
-        {providers.map((provider) => (
-          <Card key={provider.id} className="flex flex-col gap-3 px-6 py-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-[15px] font-semibold">{provider.name}</h2>
-                <div className="flex flex-wrap gap-1.5">
-                  <Chip>{KINDS[provider.kind].label}</Chip>
-                  {provider.isLocal && <Chip>Local · free</Chip>}
-                  {provider.kind !== 'ollama' && (
-                    <Chip>{provider.hasApiKey ? 'API key set' : 'No API key'}</Chip>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label={`Delete ${provider.name}`}
-                onClick={() =>
-                  confirm(`Delete ${provider.name} and its models?`) &&
-                  removeProvider.mutate(provider.id)
-                }
-                className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-block-bg hover:text-block-fg"
-              >
-                <TrashIcon />
-              </button>
-            </div>
-            <div className="truncate font-mono text-xs text-muted">{provider.baseUrl}</div>
-            <div className="text-[13px] text-ink-2">
-              {plural(models.filter((m) => m.providerId === provider.id).length, 'model')}
-            </div>
-            {picking === provider.id ? (
-              <ModelPicker
+        {providers.map((provider) =>
+          editing === provider.id ? (
+            <Card key={provider.id} className="px-6 py-5">
+              <ProviderForm
                 provider={provider}
-                existing={models}
                 onDone={async () => {
                   await refresh();
-                  setPicking(null);
+                  setEditing(null);
                 }}
+                onCancel={() => setEditing(null)}
               />
-            ) : (
-              <Button onClick={() => setPicking(provider.id)} className="self-start">
-                Add models
-              </Button>
-            )}
-          </Card>
-        ))}
+            </Card>
+          ) : (
+            <Card key={provider.id} className="flex flex-col gap-3 px-6 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-[15px] font-semibold">{provider.name}</h2>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Chip>{KINDS[provider.kind].label}</Chip>
+                    {provider.isLocal && <Chip>Local · free</Chip>}
+                    {provider.kind !== 'ollama' && (
+                      <Chip>{provider.hasApiKey ? 'API key set' : 'No API key'}</Chip>
+                    )}
+                  </div>
+                </div>
+                <div className="flex">
+                  <button
+                    type="button"
+                    aria-label={`Edit ${provider.name}`}
+                    onClick={() => setEditing(provider.id)}
+                    className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track hover:text-ink"
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${provider.name}`}
+                    onClick={() =>
+                      confirm(`Delete ${provider.name} and its models?`) &&
+                      removeProvider.mutate(provider.id)
+                    }
+                    className="flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-block-bg hover:text-block-fg"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+              <div className="truncate font-mono text-xs text-muted">{provider.baseUrl}</div>
+              <div className="text-[13px] text-ink-2">
+                {plural(models.filter((m) => m.providerId === provider.id).length, 'model')}
+              </div>
+              {picking === provider.id ? (
+                <ModelPicker
+                  provider={provider}
+                  existing={models}
+                  onDone={async () => {
+                    await refresh();
+                    setPicking(null);
+                  }}
+                />
+              ) : (
+                <Button onClick={() => setPicking(provider.id)} className="self-start">
+                  Add models
+                </Button>
+              )}
+            </Card>
+          ),
+        )}
       </section>
       <ErrorNote error={removeProvider.error} />
 
       <Card aria-label="Models" className="overflow-x-auto px-6 py-4">
         <h2 className="mb-1 text-[15px] font-semibold">Models</h2>
         <p className="mb-3 text-[13px] text-muted">
-          Clients send the name in the <code className="font-mono">model</code> field. Prices are
-          USD per million tokens; they drive budgets and savings.
+          Clients send the name in the <code className="font-mono">model</code> field; renaming a
+          model breaks clients that still use the old name. Prices are USD per million tokens; they
+          drive budgets and savings.
         </p>
         <div className="min-w-[860px]">
           <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
@@ -166,99 +194,130 @@ export function ModelsPage() {
   );
 }
 
-function NewProvider({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const [kind, setKind] = useState<Kind>('ollama');
-  const [name, setName] = useState('Ollama');
-  const [baseUrl, setBaseUrl] = useState('');
+/** Adds a provider, or edits one when `provider` is given. */
+function ProviderForm({
+  provider,
+  onDone,
+  onCancel,
+}: {
+  provider?: ProviderRow;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [kind, setKind] = useState<Kind>(provider?.kind ?? 'ollama');
+  const [name, setName] = useState(provider?.name ?? 'Ollama');
+  const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
   const [apiKey, setApiKey] = useState('');
-  const [isLocal, setIsLocal] = useState(true);
-  const create = useMutation({
-    mutationFn: () =>
-      unwrap(
-        api.providers.$post({
-          json: {
-            name: name.trim(),
-            kind,
-            baseUrl: baseUrl.trim() || undefined,
-            apiKey: apiKey.trim() || undefined,
-            isLocal,
-          },
+  const [removeKey, setRemoveKey] = useState(false);
+  const [isLocal, setIsLocal] = useState(provider?.isLocal ?? true);
+  const save = useMutation({
+    mutationFn: async () => {
+      const json = {
+        name: name.trim(),
+        baseUrl: baseUrl.trim() || undefined,
+        isLocal,
+      };
+      if (!provider) {
+        await unwrap(
+          api.providers.$post({ json: { ...json, kind, apiKey: apiKey.trim() || undefined } }),
+        );
+        return;
+      }
+      // An empty field keeps the saved key; an empty string tells the server to drop it.
+      const key = removeKey ? { apiKey: '' } : apiKey.trim() ? { apiKey: apiKey.trim() } : {};
+      await unwrap(
+        api.providers[':id'].$patch({
+          param: { id: provider.id },
+          // An empty base URL resets it to the default for this kind.
+          json: { ...json, baseUrl: baseUrl.trim() || null, ...key },
         }),
-      ),
+      );
+    },
     onSuccess: onDone,
   });
+  const wide = provider ? undefined : 'md:col-span-2';
+  const keyHint = provider?.hasApiKey
+    ? 'A key is saved. Leave empty to keep it, or paste a new one.'
+    : 'Encrypted at rest with the gateway secret.';
   return (
-    <Card className="px-6 py-5">
-      <form
-        className="grid grid-cols-1 gap-4 md:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          create.mutate();
-        }}
-      >
-        <h2 className="text-[17px] font-semibold md:col-span-2">New provider</h2>
-        <Field label="Type" hint={KINDS[kind].hint}>
-          <Select
-            value={kind}
-            onChange={(e) => {
-              const next = e.target.value as Kind;
-              setKind(next);
-              setIsLocal(next === 'ollama');
-              if (
-                Object.values(KINDS).some((k) => k.label === name) ||
-                ['Ollama', 'Anthropic', 'OpenAI'].includes(name)
-              ) {
-                setName(next === 'openai' ? 'OpenAI' : KINDS[next].label);
-              }
-            }}
-          >
-            {(Object.keys(KINDS) as Kind[]).map((k) => (
-              <option key={k} value={k}>
-                {KINDS[k].label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Name">
-          <Input required value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Base URL">
-          <Input
-            mono
-            placeholder={KINDS[kind].baseUrl}
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        </Field>
-        <Field label="API key" hint="Encrypted at rest with the gateway secret.">
-          <Input
-            mono
-            type="password"
-            autoComplete="off"
-            placeholder={kind === 'ollama' ? 'not needed' : 'sk-…'}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        </Field>
-        <div className="md:col-span-2">
-          <Switch
-            checked={isLocal}
-            onChange={setIsLocal}
-            label="Runs on our own hardware"
-            description="Local models cost nothing, skip budgets and may receive prompts with personal data."
-          />
-        </div>
-        <div className="md:col-span-2">
-          <ErrorNote error={create.error} />
-        </div>
-        <div className="flex justify-end gap-2.5 md:col-span-2">
-          <Button onClick={onCancel}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={create.isPending}>
-            Add provider
-          </Button>
-        </div>
-      </form>
-    </Card>
+    <form
+      className={cx('grid grid-cols-1 gap-4', !provider && 'md:grid-cols-2')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <h2 className={cx('text-[17px] font-semibold', wide)}>
+        {provider ? `Edit ${provider.name}` : 'New provider'}
+      </h2>
+      <Field label="Type" hint={KINDS[kind].hint}>
+        <Select
+          disabled={!!provider}
+          value={kind}
+          onChange={(e) => {
+            const next = e.target.value as Kind;
+            setKind(next);
+            setIsLocal(next === 'ollama');
+            if (
+              Object.values(KINDS).some((k) => k.label === name) ||
+              ['Ollama', 'Anthropic', 'OpenAI'].includes(name)
+            ) {
+              setName(next === 'openai' ? 'OpenAI' : KINDS[next].label);
+            }
+          }}
+        >
+          {(Object.keys(KINDS) as Kind[]).map((k) => (
+            <option key={k} value={k}>
+              {KINDS[k].label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Name">
+        <Input required value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="Base URL">
+        <Input
+          mono
+          placeholder={KINDS[kind].baseUrl}
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+        />
+      </Field>
+      <Field label="API key" hint={keyHint}>
+        <Input
+          mono
+          type="password"
+          autoComplete="off"
+          disabled={removeKey}
+          placeholder={
+            kind === 'ollama' ? 'not needed' : provider?.hasApiKey ? '•••••••• saved' : 'sk-…'
+          }
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+        />
+      </Field>
+      {provider?.hasApiKey && (
+        <Switch checked={removeKey} onChange={setRemoveKey} label="Remove the saved key" />
+      )}
+      <div className={wide}>
+        <Switch
+          checked={isLocal}
+          onChange={setIsLocal}
+          label="Runs on our own hardware"
+          description="Local models cost nothing, skip budgets and may receive prompts with personal data."
+        />
+      </div>
+      <div className={wide}>
+        <ErrorNote error={save.error} />
+      </div>
+      <div className={cx('flex justify-end gap-2.5', wide)}>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={save.isPending}>
+          {provider ? 'Save' : 'Add provider'}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -299,7 +358,13 @@ function ModelPicker({
     },
     onSuccess: onDone,
   });
+  const [filter, setFilter] = useState('');
   const options = (available.data?.models ?? []).filter((m) => !taken.has(m));
+  // Aggregators like OpenRouter list hundreds of models; chosen ones stay visible while filtering.
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = options.filter(
+    (m) => chosen.includes(m) || words.every((w) => m.toLowerCase().includes(w)),
+  );
 
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-canvas p-3">
@@ -307,9 +372,19 @@ function ModelPicker({
         <p className="text-[13px] text-muted">Asking {provider.name} for its models…</p>
       )}
       {available.error && <ErrorNote error={available.error} />}
+      {options.length > 12 && (
+        <Input
+          aria-label="Filter models"
+          mono
+          placeholder={`Filter ${options.length} models, e.g. deepseek free`}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      )}
       {options.length > 0 && (
         <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
-          {options.map((name) => (
+          {shown.length === 0 && <p className="text-[13px] text-muted">No models match.</p>}
+          {shown.map((name) => (
             <label key={name} className="flex items-center gap-2.5 font-mono text-[13px]">
               <input
                 type="checkbox"
@@ -355,6 +430,8 @@ function ModelPicker({
 function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void }) {
   const update = useMutation({
     mutationFn: (json: {
+      name?: string;
+      upstreamModel?: string;
       label?: string | null;
       inputPrice?: number;
       outputPrice?: number;
@@ -382,11 +459,25 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       }}
     />
   );
+  // Text fields save on blur; an empty value is not a valid name, so it snaps back.
+  const text = (field: 'name' | 'upstreamModel', label: string, className?: string) => (
+    <Input
+      aria-label={`${model.name} ${label}`}
+      mono
+      required
+      className={cx('h-8', className)}
+      defaultValue={model[field]}
+      title={model[field]}
+      onBlur={(e) => {
+        const value = e.target.value.trim();
+        if (!value) e.target.value = model[field];
+        else if (value !== model[field]) update.mutate({ [field]: value });
+      }}
+    />
+  );
   return (
     <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] items-center gap-3 border-b border-line-soft py-2 text-sm last:border-0">
-      <span className="truncate font-mono text-[13px] font-medium" title={model.name}>
-        {model.name}
-      </span>
+      {text('name', 'name clients use', 'text-[13px] font-medium')}
       <Input
         aria-label={`${model.name} display name`}
         className="h-8"
@@ -401,9 +492,7 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
         {model.provider}
         {model.isLocal && <span className="text-muted"> · local</span>}
       </span>
-      <span className="truncate font-mono text-xs text-muted" title={model.upstreamModel}>
-        {model.upstreamModel}
-      </span>
+      {text('upstreamModel', 'upstream model', 'text-xs')}
       {price('inputPrice')}
       {price('outputPrice')}
       <input
@@ -421,6 +510,11 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       >
         <TrashIcon />
       </button>
+      {(update.error || remove.error) && (
+        <div className="col-span-full">
+          <ErrorNote error={update.error ?? remove.error} />
+        </div>
+      )}
     </div>
   );
 }

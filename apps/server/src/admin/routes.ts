@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
@@ -365,19 +365,26 @@ export function adminRoutes(ctx: AppContext) {
         '/providers/:id',
         adminOnly,
         idParam,
-        zValidator('json', providerInput.partial()),
+        // `baseUrl: null` resets it to the kind's default; `apiKey: ''` drops the saved key.
+        zValidator(
+          'json',
+          providerInput.partial().extend({ baseUrl: z.url().nullable().optional() }),
+        ),
         async (c) => {
-          const { apiKey, ...input } = c.req.valid('json');
+          const { id } = c.req.valid('param');
+          const { apiKey, baseUrl, ...input } = c.req.valid('json');
+          const provider = await db.query.providers.findFirst({ where: eq(providers.id, id) });
+          if (!provider) return c.json({ error: 'Provider not found' }, 404);
           const patch = {
             ...input,
+            ...(baseUrl === undefined
+              ? {}
+              : { baseUrl: baseUrl ?? DEFAULT_BASE_URLS[input.kind ?? provider.kind] }),
             ...(apiKey === undefined
               ? {}
               : { apiKeyEnc: apiKey ? ctx.vault.encrypt(apiKey) : null }),
           };
-          await db
-            .update(providers)
-            .set(patch)
-            .where(eq(providers.id, c.req.valid('param').id));
+          await db.update(providers).set(patch).where(eq(providers.id, id));
           return c.json({ ok: true });
         },
       )
@@ -433,10 +440,15 @@ export function adminRoutes(ctx: AppContext) {
         idParam,
         zValidator('json', modelInput.partial()),
         async (c) => {
-          await db
-            .update(models)
-            .set(c.req.valid('json'))
-            .where(eq(models.id, c.req.valid('param').id));
+          const { id } = c.req.valid('param');
+          const input = c.req.valid('json');
+          if (input.name) {
+            const taken = await db.query.models.findFirst({
+              where: and(eq(models.name, input.name), ne(models.id, id)),
+            });
+            if (taken) return c.json({ error: 'A model with this name already exists' }, 409);
+          }
+          await db.update(models).set(input).where(eq(models.id, id));
           return c.json({ ok: true });
         },
       )
