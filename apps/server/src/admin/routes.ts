@@ -24,7 +24,7 @@ import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { startOfMonth, startOfNextMonth } from '../lib/time.ts';
 import { RULE_IDS, rulesSchema, settingsSchema } from '../settings.ts';
-import { keySpend, overview, type Period, teamSpend } from './stats.ts';
+import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
 const idList = z.array(z.string()).nullable();
@@ -117,6 +117,9 @@ export function adminRoutes(ctx: AppContext) {
           },
         });
       })
+
+      /** Polled by the sidebar: answering at all means the gateway is up. */
+      .get('/status', async (c) => c.json({ failing: await failingProviders(db) }))
 
       // ── Own account ─────────────────────────────────────────────────────────
       .patch(

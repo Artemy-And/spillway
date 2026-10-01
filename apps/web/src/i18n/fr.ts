@@ -110,6 +110,12 @@ export const fr: Messages = {
     closeMenu: 'Fermer le menu',
     signOut: 'Se déconnecter',
     healthy: 'Passerelle opérationnelle',
+    degraded: (providers) => `En panne : ${providers}`,
+    degradedHint:
+      'La dernière requête vers ce fournisseur ces 10 dernières minutes a échoué. Le modèle local répond à sa place quand c’est possible.',
+    offline: 'Pas de connexion à la passerelle',
+    offlineBanner:
+      'Pas de connexion à la passerelle. Les chiffres de cette page peuvent être périmés ; nouvel essai toutes les 15 secondes.',
     providers: (all, local) =>
       `${p(all, { one: '# fournisseur', other: '# fournisseurs' })} · ${local} local`,
     selfHosted: (version) => `v${version} · auto-hébergé`,

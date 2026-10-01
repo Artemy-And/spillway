@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useI18n } from '../i18n/index.tsx';
-import { auth, meQuery } from '../lib/api.ts';
+import { ApiError, api, auth, meQuery, unwrap } from '../lib/api.ts';
 import {
   ChipIcon,
   CogIcon,
@@ -44,6 +44,22 @@ export function Layout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = me?.user.role === 'admin';
+  // Answering at all means the gateway is up; the answer says which providers are failing.
+  const status = useQuery({
+    queryKey: ['status'],
+    queryFn: () => unwrap(api.status.$get()),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
+    retry: false,
+  });
+  const offline =
+    status.isError && !(status.error instanceof ApiError && status.error.status < 500);
+  const failing = status.data?.failing ?? [];
+  const health = offline
+    ? { dot: 'bg-block-bar', text: m.nav.offline, hint: undefined }
+    : failing.length
+      ? { dot: 'bg-warn-bar', text: m.nav.degraded(failing.join(', ')), hint: m.nav.degradedHint }
+      : { dot: 'bg-healthy', text: m.nav.healthy, hint: undefined };
 
   const signOut = async () => {
     await auth.logout.$post();
@@ -94,9 +110,13 @@ export function Layout() {
         </div>
         <div className="mt-auto flex flex-col gap-3">
           <div className="flex flex-col gap-1.5 rounded-[10px] bg-rail-2 p-3.5 text-xs text-rail-muted">
-            <div className="flex items-center gap-2 text-[13px] text-rail-ink">
-              <span className="size-2 rounded-full bg-healthy" />
-              {m.nav.healthy}
+            <div
+              role="status"
+              title={health.hint}
+              className="flex items-center gap-2 text-[13px] text-rail-ink"
+            >
+              <span className={cx('size-2 shrink-0 rounded-full', health.dot)} />
+              <span className="min-w-0 break-words">{health.text}</span>
             </div>
             <div className="font-mono">{me?.gateway.host}</div>
             <div>
@@ -127,6 +147,11 @@ export function Layout() {
         </div>
       </nav>
       <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 pt-20 pb-10 sm:px-10 lg:pt-8">
+        {offline && (
+          <p role="alert" className="rounded-lg bg-block-bg px-4 py-2.5 text-[13px] text-block-fg">
+            {m.nav.offlineBanner}
+          </p>
+        )}
         <Outlet />
       </main>
       {me && !me.user.welcomed && <Welcome admin={isAdmin} />}

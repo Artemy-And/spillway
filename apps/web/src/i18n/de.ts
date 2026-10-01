@@ -113,6 +113,12 @@ export const de: Messages = {
     closeMenu: 'Menü schließen',
     signOut: 'Abmelden',
     healthy: 'Gateway läuft',
+    degraded: (providers) => `Störung: ${providers}`,
+    degradedHint:
+      'Die letzte Anfrage an diesen Anbieter in den letzten 10 Minuten ist fehlgeschlagen. Wo möglich, antwortet stattdessen das lokale Modell.',
+    offline: 'Keine Verbindung zum Gateway',
+    offlineBanner:
+      'Keine Verbindung zum Gateway. Die Zahlen auf dieser Seite sind womöglich veraltet; neuer Versuch alle 15 Sekunden.',
     providers: (all, local) =>
       `${p(all, { one: '# Anbieter', other: '# Anbieter' })} · ${local} lokal`,
     selfHosted: (version) => `v${version} · selbst gehostet`,

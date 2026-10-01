@@ -51,6 +51,32 @@ export async function teamSpend(db: Db, now = new Date()) {
 }
 
 /** Everything the Overview screen shows. `keyIds` narrows it to one person's keys. */
+/** How far back the sidebar looks when it asks whether providers are answering. */
+const STATUS_WINDOW_MS = 10 * 60_000;
+
+/**
+ * Providers whose most recent request in the last ten minutes failed: an outage, a timeout or a
+ * rate limit, whether or not the local model covered for it. One success clears it.
+ */
+export async function failingProviders(db: Db, now = new Date()) {
+  const failed = sql`(${requestLogs.ruleId} = 'outage' or (${requestLogs.result} = 'error' and (${requestLogs.status} >= 500 or ${requestLogs.status} = 429)))`;
+  const rows = await db
+    .select({
+      provider: providers.name,
+      last: sql<number>`max(${requestLogs.createdAt})`,
+      lastFailure: sql<number | null>`max(case when ${failed} then ${requestLogs.createdAt} end)`,
+    })
+    .from(requestLogs)
+    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
+    .innerJoin(providers, eq(models.providerId, providers.id))
+    .where(gte(requestLogs.createdAt, new Date(now.getTime() - STATUS_WINDOW_MS)))
+    .groupBy(providers.id)
+    .all();
+  return rows
+    .filter((row) => row.lastFailure !== null && row.lastFailure === row.last)
+    .map((row) => row.provider);
+}
+
 export async function overview(db: Db, period: Period, keyIds: string[] | null, now = new Date()) {
   const since = periodStart(period, now);
   const previousSince = new Date(since.getTime() - (now.getTime() - since.getTime()));

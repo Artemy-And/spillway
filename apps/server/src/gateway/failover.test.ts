@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { overview } from '../admin/stats.ts';
+import { failingProviders, overview } from '../admin/stats.ts';
 import { createApp } from '../app.ts';
 import { type AppContext, RateLimiter } from '../context.ts';
 import { openDb } from '../db/client.ts';
@@ -217,4 +217,17 @@ test('failing providers show up in Needs attention', async () => {
   assert.equal(down.rescued, 2);
   assert.equal(data.activity.sharedKeys, 1);
   assert.equal(data.activity.people, 0);
+});
+
+test('a provider counts as failing until it answers again', async () => {
+  assert.ok((await failingProviders(ctx.db)).includes('Cloud down'));
+  // The same provider now answers: point its model at the local fake that always works.
+  const local = await ctx.db.query.providers.findFirst({ where: eq(providers.name, 'Ollama') });
+  await ctx.db
+    .update(providers)
+    .set({ baseUrl: local!.baseUrl, kind: 'ollama' })
+    .where(eq(providers.name, 'Cloud down'));
+  assert.equal((await ask('down-model')).status, 200);
+  await lastLog();
+  assert.ok(!(await failingProviders(ctx.db)).includes('Cloud down'));
 });

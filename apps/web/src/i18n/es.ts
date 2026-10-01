@@ -111,6 +111,12 @@ export const es: Messages = {
     closeMenu: 'Cerrar menú',
     signOut: 'Cerrar sesión',
     healthy: 'Pasarela en marcha',
+    degraded: (providers) => `Fallos: ${providers}`,
+    degradedHint:
+      'La última solicitud a este proveedor en los últimos 10 minutos falló. Cuando se puede, responde el modelo local en su lugar.',
+    offline: 'Sin conexión con la pasarela',
+    offlineBanner:
+      'Sin conexión con la pasarela. Las cifras de esta página pueden estar desactualizadas; se reintenta cada 15 segundos.',
     providers: (all, local) =>
       `${p(all, { one: '# proveedor', other: '# proveedores' })} · ${local} local`,
     selfHosted: (version) => `v${version} · autoalojado`,

@@ -91,6 +91,12 @@ export const en = {
     closeMenu: 'Close menu',
     signOut: 'Sign out',
     healthy: 'Gateway healthy',
+    degraded: (providers: string) => `Failing: ${providers}`,
+    degradedHint:
+      'The last request to this provider in the past 10 minutes failed. The local model answers in its place where it can.',
+    offline: 'No connection to the gateway',
+    offlineBanner:
+      'No connection to the gateway. Numbers on this page may be out of date; retrying every 15 seconds.',
     providers: (all: number, local: number) =>
       `${p(all, { one: '# provider', other: '# providers' })} · ${local} local`,
     selfHosted: (version: string) => `v${version} · self-hosted`,
