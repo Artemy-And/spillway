@@ -73,6 +73,28 @@ export const ru: Messages = {
     },
   },
 
+  errors: {
+    'Wrong email or password': 'Неверный email или пароль',
+    'Too many attempts. Try again in 15 minutes.':
+      'Слишком много попыток. Попробуйте через 15 минут.',
+    'Sign in to continue': 'Войдите, чтобы продолжить',
+    'Only admins can do this': 'Это может сделать только администратор',
+    'Spillway is already set up. Sign in instead.': 'Spillway уже настроен. Войдите в аккаунт.',
+    'Use at least 8 characters': 'Не короче 8 символов',
+    'Someone already uses this email': 'Этот email уже занят',
+    'The current password is wrong': 'Текущий пароль неверный',
+    'This person is already added': 'Этот человек уже добавлен',
+    'You cannot demote or disable yourself': 'Нельзя понизить или отключить самого себя',
+    'Provider not found': 'Провайдер не найден',
+    'A model with this name already exists': 'Модель с таким именем уже есть',
+    'Request not found': 'Запрос не найден',
+    'Internal error': 'Внутренняя ошибка',
+    'SSO is not configured': 'SSO не настроен',
+    'Could not reach the identity provider': 'Не удалось связаться с провайдером входа',
+    'Sign-in expired, try again': 'Время входа истекло, попробуйте ещё раз',
+    'This account is disabled': 'Этот аккаунт отключён',
+  },
+
   nav: {
     main: 'Главное меню',
     overview: 'Обзор',

@@ -73,6 +73,28 @@ export const fr: Messages = {
     },
   },
 
+  errors: {
+    'Wrong email or password': 'E-mail ou mot de passe incorrect',
+    'Too many attempts. Try again in 15 minutes.': 'Trop de tentatives. Réessayez dans 15 minutes.',
+    'Sign in to continue': 'Connectez-vous pour continuer',
+    'Only admins can do this': 'Seuls les admins peuvent faire cela',
+    'Spillway is already set up. Sign in instead.': 'Spillway est déjà configuré. Connectez-vous.',
+    'Use at least 8 characters': 'Au moins 8 caractères',
+    'Someone already uses this email': 'Cet e-mail est déjà utilisé',
+    'The current password is wrong': 'Le mot de passe actuel est incorrect',
+    'This person is already added': 'Cette personne est déjà ajoutée',
+    'You cannot demote or disable yourself':
+      'Vous ne pouvez pas vous rétrograder ni vous désactiver',
+    'Provider not found': 'Fournisseur introuvable',
+    'A model with this name already exists': 'Un modèle porte déjà ce nom',
+    'Request not found': 'Requête introuvable',
+    'Internal error': 'Erreur interne',
+    'SSO is not configured': 'Le SSO n’est pas configuré',
+    'Could not reach the identity provider': 'Impossible de joindre le fournisseur d’identité',
+    'Sign-in expired, try again': 'La connexion a expiré, réessayez',
+    'This account is disabled': 'Ce compte est désactivé',
+  },
+
   nav: {
     main: 'Menu principal',
     overview: 'Vue d’ensemble',

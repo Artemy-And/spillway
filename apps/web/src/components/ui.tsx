@@ -234,11 +234,14 @@ export function Aside({
   );
 }
 
+/** Known server messages are shown in the viewer's language; anything else as it came. */
 export function ErrorNote({ error }: { error: unknown }) {
+  const { m } = useI18n();
   if (!error) return null;
+  const message = error instanceof Error ? error.message : String(error);
   return (
     <p role="alert" className="rounded-lg bg-block-bg px-3 py-2 text-[13px] text-block-fg">
-      {error instanceof Error ? error.message : String(error)}
+      {m.errors[message] ?? message}
     </p>
   );
 }

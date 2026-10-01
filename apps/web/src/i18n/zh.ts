@@ -72,6 +72,27 @@ export const zh: Messages = {
     },
   },
 
+  errors: {
+    'Wrong email or password': '邮箱或密码错误',
+    'Too many attempts. Try again in 15 minutes.': '尝试次数过多，请 15 分钟后再试。',
+    'Sign in to continue': '请先登录',
+    'Only admins can do this': '只有管理员可以执行此操作',
+    'Spillway is already set up. Sign in instead.': 'Spillway 已完成设置，请直接登录。',
+    'Use at least 8 characters': '至少 8 个字符',
+    'Someone already uses this email': '该邮箱已被使用',
+    'The current password is wrong': '当前密码错误',
+    'This person is already added': '此人已添加',
+    'You cannot demote or disable yourself': '不能降级或停用自己',
+    'Provider not found': '找不到提供商',
+    'A model with this name already exists': '已有同名模型',
+    'Request not found': '找不到该请求',
+    'Internal error': '内部错误',
+    'SSO is not configured': '未配置 SSO',
+    'Could not reach the identity provider': '无法连接身份提供商',
+    'Sign-in expired, try again': '登录已过期，请重试',
+    'This account is disabled': '此账户已停用',
+  },
+
   nav: {
     main: '主菜单',
     overview: '概览',

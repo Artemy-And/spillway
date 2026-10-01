@@ -75,6 +75,9 @@ export const en = {
     } as Record<string, string>,
   },
 
+  /** Server messages in other languages; English shows them as they come. */
+  errors: {} as Record<string, string>,
+
   nav: {
     main: 'Main',
     overview: 'Overview',
