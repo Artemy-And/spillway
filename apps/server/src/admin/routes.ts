@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { createInvite } from '../auth/invites.ts';
 import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
-import { type AppContext, VERSION } from '../context.ts';
+import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
   apiKeys,
   KEY_KINDS,
@@ -112,6 +112,7 @@ export function adminRoutes(ctx: AppContext) {
           gateway: {
             host: new URL(ctx.env.PUBLIC_URL).host,
             version: VERSION,
+            source: SOURCE_URL,
             providers: counts?.providers ?? 0,
             localProviders: counts?.local ?? 0,
           },

@@ -122,7 +122,22 @@ export function Layout() {
             <div>
               {m.nav.providers(me?.gateway.providers ?? 0, me?.gateway.localProviders ?? 0)}
             </div>
-            <div>{m.nav.selfHosted(me?.gateway.version ?? '')}</div>
+            <div>
+              {m.nav.selfHosted(me?.gateway.version ?? '')}
+              {me?.gateway.source && (
+                <>
+                  {' · '}
+                  <a
+                    href={me.gateway.source}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-rail-muted underline-offset-2 hover:text-white"
+                  >
+                    {m.nav.source}
+                  </a>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between gap-2 px-2.5 text-xs text-rail-muted">
             <Link

@@ -145,3 +145,11 @@ not match the version in `package.json`. Every push to `main` also publishes an 
 Response caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
 wire formats (most models are reachable through one of them). Budgets count spend from the log, so
 parallel requests can overshoot a limit by the cost of the requests already in flight.
+
+## License
+
+Spillway is free software under the [GNU Affero General Public License v3.0](LICENSE)
+(AGPL-3.0-only). Run it, change it and use it in your company at no cost. If you offer a modified
+version to other people over a network, share your changes under the same license; the "Source
+code" link in the admin UI tells users where the code of the gateway they use lives. The license
+does not cover the Spillway name and logo: use your own for a fork or a hosted service.

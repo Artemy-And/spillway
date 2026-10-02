@@ -118,6 +118,7 @@ export const de: Messages = {
     closeMenu: 'Menü schließen',
     signOut: 'Abmelden',
     healthy: 'Gateway läuft',
+    source: 'Quellcode',
     degraded: (providers) => `Störung: ${providers}`,
     degradedHint:
       'Die letzte Anfrage an diesen Anbieter in den letzten 10 Minuten ist fehlgeschlagen. Wo möglich, antwortet stattdessen das lokale Modell.',

@@ -67,6 +67,7 @@ jobs:
             type=edge,branch=main
           labels: |
             org.opencontainers.image.title=Spillway
+            org.opencontainers.image.licenses=AGPL-3.0-only
             org.opencontainers.image.description=Self-hosted AI gateway: a key per person, budgets, a local-model fallback and a masked request log
 
       - id: build

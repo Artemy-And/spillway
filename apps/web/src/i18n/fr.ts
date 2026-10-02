@@ -115,6 +115,7 @@ export const fr: Messages = {
     closeMenu: 'Fermer le menu',
     signOut: 'Se déconnecter',
     healthy: 'Passerelle opérationnelle',
+    source: 'Code source',
     degraded: (providers) => `En panne : ${providers}`,
     degradedHint:
       'La dernière requête vers ce fournisseur ces 10 dernières minutes a échoué. Le modèle local répond à sa place quand c’est possible.',

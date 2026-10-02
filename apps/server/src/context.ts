@@ -5,10 +5,19 @@ import type { Env } from './env.ts';
 import type { Vault } from './lib/crypto.ts';
 import type { SettingsStore } from './settings.ts';
 
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+  version: string;
+  repository: { url: string };
+};
+
 /** From apps/server/package.json, which a release tag must match. */
-export const VERSION: string = JSON.parse(
-  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
-).version;
+export const VERSION = pkg.version;
+
+/**
+ * Where people using this gateway can get its source, as the AGPL asks of anything offered
+ * over a network. A modified build should point package.json "repository" at its own code.
+ */
+export const SOURCE_URL = pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, '');
 
 export interface AppContext {
   db: Db;

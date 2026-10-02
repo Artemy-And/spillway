@@ -115,6 +115,7 @@ export const ru: Messages = {
     closeMenu: 'Закрыть меню',
     signOut: 'Выйти',
     healthy: 'Шлюз работает',
+    source: 'Исходный код',
     degraded: (providers) => `Сбои: ${providers}`,
     degradedHint:
       'Последний запрос к этому провайдеру за 10 минут закончился сбоем. Где возможно, вместо него отвечает локальная модель.',

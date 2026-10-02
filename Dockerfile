@@ -33,6 +33,7 @@ WORKDIR /app
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=prod-deps --chown=node:node /data /data
+COPY LICENSE ./
 COPY apps/server/package.json apps/server/
 COPY apps/server/drizzle apps/server/drizzle
 COPY apps/server/src apps/server/src

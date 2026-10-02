@@ -95,6 +95,7 @@ export const en = {
     closeMenu: 'Close menu',
     signOut: 'Sign out',
     healthy: 'Gateway healthy',
+    source: 'Source code',
     degraded: (providers: string) => `Failing: ${providers}`,
     degradedHint:
       'The last request to this provider in the past 10 minutes failed. The local model answers in its place where it can.',

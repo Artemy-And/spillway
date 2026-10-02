@@ -116,6 +116,7 @@ export const es: Messages = {
     closeMenu: 'Cerrar menú',
     signOut: 'Cerrar sesión',
     healthy: 'Pasarela en marcha',
+    source: 'Código fuente',
     degraded: (providers) => `Fallos: ${providers}`,
     degradedHint:
       'La última solicitud a este proveedor en los últimos 10 minutos falló. Cuando se puede, responde el modelo local en su lugar.',

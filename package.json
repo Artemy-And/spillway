@@ -1,5 +1,10 @@
 {
   "name": "spillway",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Artemy-And/spillway.git"
+  },
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.8.1",

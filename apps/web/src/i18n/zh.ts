@@ -113,6 +113,7 @@ export const zh: Messages = {
     closeMenu: '关闭菜单',
     signOut: '退出登录',
     healthy: '网关运行正常',
+    source: '源代码',
     degraded: (providers) => `故障：${providers}`,
     degradedHint: '过去 10 分钟内发往该提供商的最近一次请求失败。可行时由本地模型代为回答。',
     offline: '无法连接网关',
