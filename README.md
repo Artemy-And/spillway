@@ -1,8 +1,23 @@
-# Spillway
+<p align="center">
+  <img src="apps/web/public/favicon.svg" alt="" width="72">
+</p>
+
+<h1 align="center">Spillway</h1>
+
+<p align="center"><b>Self-hosted AI gateway for small teams</b></p>
+
+<p align="center">
+  <a href="https://github.com/Artemy-And/spillway/actions/workflows/ci.yml?query=branch%3Adevelop"><img alt="CI" src="https://github.com/Artemy-And/spillway/actions/workflows/ci.yml/badge.svg?branch=develop"></a>
+  <a href="https://github.com/Artemy-And/spillway/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Artemy-And/spillway"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Artemy-And/spillway"></a>
+</p>
 
 A self-hosted AI gateway for companies without a DevOps team. Give every person, device and agent its
 own key, set daily and monthly limits, send over-budget traffic to a local model instead of blocking
 it, and keep a log of every request with personal data masked. Single sign-on is included and free.
+
+If you looked at LiteLLM or Portkey but have nobody to run them, Spillway is the smaller option: one
+container with an admin UI and SQLite inside.
 
 ```
  Claude Code ─┐                       ┌─ Anthropic
@@ -10,6 +25,15 @@ it, and keep a log of every request with personal data masked. Single sign-on is
  n8n, SDKs   ─┘   keys · budgets      └─ Ollama on your own GPU
                   rules · masked log
 ```
+
+Try it with one command, then open http://localhost:8080 and create the admin account:
+
+```sh
+docker run -d --name spillway -p 8080:8080 -v spillway-data:/data \
+  --add-host host.docker.internal:host-gateway ghcr.io/artemy-and/spillway
+```
+
+For a setup you keep, use [Docker Compose](#quick-start).
 
 ## What it does
 
@@ -34,6 +58,13 @@ it, and keep a log of every request with personal data masked. Single sign-on is
   provider.
 - **In six languages**: English, Russian, German, French, Spanish and Chinese, picked from the
   browser and switchable on the sign-in and Account pages.
+
+## What stays free
+
+Single sign-on, keys, budgets and limits, the routing rules (local fallback, personal data, rate
+limits, off-hours), the request log and all three API formats are free and stay in this repository
+under AGPL-3.0. If paid options come later, they will be new things around Spillway, such as a
+managed instance or support. Nothing on this list will move behind a paywall.
 
 ## Quick start
 
@@ -87,6 +118,10 @@ cosign verify ghcr.io/artemy-and/spillway:0.1.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
+The server runs on eight npm packages in production: hono, @hono/node-server, @hono/zod-validator,
+drizzle-orm, zod, openid-client, jose and oauth4webapi. Everything else comes from Node itself:
+`node:sqlite`, `node:crypto` and `fetch`.
+
 ### Build it yourself
 
 ```sh
@@ -126,7 +161,7 @@ pnpm typecheck && pnpm lint
 | `apps/server/drizzle` | SQL migrations; change `src/db/schema.ts`, then `pnpm db:generate` |
 | `apps/web` | React 19, TanStack Router and Query, Tailwind CSS 4. Calls the API through the typed Hono RPC client |
 | `apps/web/src/i18n` | Translations. `en.ts` is the source; every other language must match its shape or the build fails |
-| `.github/workflows` | `ci.yml` checks every branch and pull request; `release.yml` publishes signed images from `main` and version tags |
+| `.github/workflows` | `ci.yml` checks every branch and pull request; `release.yml` publishes signed images from `main` and version tags; `cla.yml` asks outside contributors to sign the CLA |
 
 ### Releasing
 
@@ -143,13 +178,23 @@ not match the version in `package.json`. Every push to `main` also publishes an 
 ## Not in this version
 
 Response caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
-wire formats (most models are reachable through one of them). Budgets count spend from the log, so
-parallel requests can overshoot a limit by the cost of the requests already in flight.
+wire formats (most models are reachable through one of them). If you need these today, LiteLLM or
+Bifrost cover more of them. Budgets count spend from the log, so parallel requests can overshoot a
+limit by the cost of the requests already in flight.
+
+## Using Spillway at your company
+
+Running Spillway for your team is free, for any number of people, and asks nothing of you. The
+AGPL adds one condition: if you modify Spillway and people use your modified version over a
+network, offer them its source code (the "Source code" link in the admin UI is the place for it).
+Your own apps and scripts that call Spillway through its API are not affected.
+
+Using Spillway at work? [Start a discussion](https://github.com/Artemy-And/spillway/discussions) and
+I'll help you set it up. Tell me what's missing, too.
 
 ## License
 
 Spillway is free software under the [GNU Affero General Public License v3.0](LICENSE)
-(AGPL-3.0-only). Run it, change it and use it in your company at no cost. If you offer a modified
-version to other people over a network, share your changes under the same license; the "Source
-code" link in the admin UI tells users where the code of the gateway they use lives. The license
-does not cover the Spillway name and logo: use your own for a fork or a hosted service.
+(AGPL-3.0-only). The license does not cover the Spillway name and logo: use your own for a fork or
+a hosted service. Pull requests need a signed [Contributor License Agreement](CLA.md); see
+[CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,10 +1,10 @@
 name: CI
 
 # Every branch and pull request. main and version tags run these checks from release.yml,
-# right before an image is published.
+# right before an image is published; cla-signatures only holds CLA signatures.
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, cla-signatures]
   pull_request:
   workflow_call:
     inputs:
