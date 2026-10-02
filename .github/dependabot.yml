@@ -1,5 +1,6 @@
 # Actions and the base image are pinned by digest; these weekly pull requests keep the pins
-# current, so pinning never turns into running old code.
+# current, so pinning never turns into running old code. Node stays on its LTS line (24): a new
+# Node major is a deliberate upgrade, not a weekly bump.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -14,11 +15,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
