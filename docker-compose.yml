@@ -2,8 +2,9 @@ name: spillway
 
 services:
   spillway:
-    build: .
-    image: spillway:local
+    # Signed release images; pin a version with SPILLWAY_TAG=0.1.0 in .env.
+    # To build from this checkout instead, see docker-compose.build.yml.
+    image: ghcr.io/artemy-and/spillway:${SPILLWAY_TAG:-latest}
     restart: unless-stopped
     ports:
       - "${SPILLWAY_PORT:-8080}:8080"

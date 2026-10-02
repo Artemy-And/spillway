@@ -38,10 +38,16 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 ## Quick start
 
 ```sh
-cp .env.example .env          # optional
-docker compose up -d --build
+mkdir spillway && cd spillway
+curl -fsSLO https://raw.githubusercontent.com/Artemy-And/spillway/main/docker-compose.yml
+docker compose up -d
 open http://localhost:8080
 ```
+
+This pulls the signed image `ghcr.io/artemy-and/spillway` for amd64 or arm64; nothing is built
+on your machine. `latest` follows releases. To pin one, put `SPILLWAY_TAG=0.1.0` in `.env` next
+to the compose file (`.env.example` lists every setting). Put Spillway behind your usual reverse
+proxy for HTTPS and set `PUBLIC_URL` to the address people open.
 
 The first visitor creates the admin account in the browser (with SSO configured, the first person
 to sign in from an allowed domain becomes the admin instead). A short tour and a getting-started
@@ -62,12 +68,31 @@ Docker next to Spillway instead:
 
 ```sh
 echo "OLLAMA_URL=http://ollama:11434" >> .env
-docker compose --profile ollama up -d --build
+docker compose --profile ollama up -d
 docker compose exec ollama ollama pull qwen2.5-coder:7b
 ```
 
 Then, in the UI: add providers and models (with prices per million tokens), pick the local model for
 rerouting in **Settings**, create teams in **Budgets & rules**, and hand out keys in **Keys**.
+
+### Verify the image
+
+Release images are built and signed by this repository's GitHub Actions workflow through Sigstore,
+with no long-lived signing key, and carry an SBOM and build provenance. To check one before you run
+it:
+
+```sh
+cosign verify ghcr.io/artemy-and/spillway:0.1.0 \
+  --certificate-identity https://github.com/Artemy-And/spillway/.github/workflows/release.yml@refs/tags/v0.1.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+### Build it yourself
+
+```sh
+git clone https://github.com/Artemy-And/spillway && cd spillway
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ## Connecting clients
 
@@ -101,6 +126,19 @@ pnpm typecheck && pnpm lint
 | `apps/server/drizzle` | SQL migrations; change `src/db/schema.ts`, then `pnpm db:generate` |
 | `apps/web` | React 19, TanStack Router and Query, Tailwind CSS 4. Calls the API through the typed Hono RPC client |
 | `apps/web/src/i18n` | Translations. `en.ts` is the source; every other language must match its shape or the build fails |
+| `.github/workflows` | `ci.yml` checks every branch and pull request; `release.yml` publishes signed images from `main` and version tags |
+
+### Releasing
+
+Set the version in `apps/server/package.json`, merge to `main`, then tag it:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The release workflow runs the checks, publishes `0.1.0`, `0.1` and `latest` for amd64 and arm64,
+signs them and opens a GitHub release with the compose file attached. It refuses a tag that does
+not match the version in `package.json`. Every push to `main` also publishes an `edge` image.
 
 ## Not in this version
 

@@ -144,7 +144,7 @@ const ask = (model: string, extra: Record<string, unknown> = {}) =>
   });
 
 async function lastLog() {
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => setTimeout(resolve, 100));
   const rows = await ctx.db.select().from(requestLogs).all();
   return rows.sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id),
