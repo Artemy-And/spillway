@@ -19,6 +19,8 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 If you looked at LiteLLM or Portkey but have nobody to run them, Spillway is the smaller option: one
 container with an admin UI and SQLite inside.
 
+![The Marketing team is over its budget, so rule 1 sends its requests to a local model, and the request log shows why](docs/demo.gif)
+
 ```
  Claude Code ─┐                       ┌─ Anthropic
  Open WebUI  ─┼─▶  Spillway  ─────────┼─ OpenAI-compatible APIs
@@ -140,6 +142,22 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 The `model` a client sends is the **name** you gave the model in Spillway; it maps to any upstream
 model on any provider.
+
+## Screenshots
+
+**Overview.** Spend against the budget, the share served by local models, and what needs attention.
+
+![Overview: $83.73 of an $860 budget spent this month, 13% of requests served by local models, Marketing over its budget](docs/overview.png)
+
+**Keys.** One key per person, device or agent, each with its own daily limit.
+
+![Keys: seven keys for people, a device and agents, with today's spend against each daily limit](docs/keys.png)
+
+**Request log.** Who sent each request, where it went, what it cost and why.
+
+![Request log with one entry open: Marketing is at 104% of its $60 budget, so rule 1 sent the request to Qwen Coder on a local GPU](docs/request-log.png)
+
+The GIF and screenshots show a made-up company with demo data.
 
 ## Development
 
