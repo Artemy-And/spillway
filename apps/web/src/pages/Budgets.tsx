@@ -297,7 +297,7 @@ function RuleList({
   const num =
     'mx-1 inline-block h-7 w-16 rounded-md border border-field bg-surface px-1.5 text-center font-mono text-[13px] disabled:border-transparent disabled:bg-transparent';
   const time =
-    'mx-1 inline-block h-7 w-[84px] rounded-md border border-field bg-surface px-1.5 font-mono text-[13px] disabled:border-transparent disabled:bg-transparent';
+    'mx-1 inline-block h-7 w-auto rounded-md border border-field bg-surface px-1.5 font-mono text-[13px] disabled:border-transparent disabled:bg-transparent';
 
   const items: { id: keyof RuleSet; when: React.ReactNode; action: React.ReactNode }[] = [
     {
