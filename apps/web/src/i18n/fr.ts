@@ -315,6 +315,8 @@ export const fr: Messages = {
     keyUnused: (a) =>
       `La clé ${a.key} n’a pas servi depuis ${p(a.days, { one: '# jour', other: '# jours' })}`,
     considerRevoking: 'Envisagez de la révoquer',
+    modelNoPrice: (a) =>
+      `Modèles cloud sans prix : ${a.models.length}. Leurs coûts ne comptent pas dans les budgets`,
     piiBlocked: (a) =>
       `${p(a.count, { one: '# requête', other: '# requêtes' })} vers des modèles cloud bloquée(s) : données sensibles détectées`,
     teamOverBudget: (a) =>
@@ -560,6 +562,9 @@ export const fr: Messages = {
     upstreamCol: 'Modèle chez le fournisseur',
     inputCol: 'Entrée $/1M',
     outputCol: 'Sortie $/1M',
+    cachedCol: 'Cache $/1M',
+    cachedHint:
+      'Prix des jetons d’entrée lus dans le cache du fournisseur. Vide : un dixième du prix d’entrée.',
     enabledCol: 'Activé',
     noModels: 'Pas encore de modèles. Utilisez « Ajouter des modèles » sur un fournisseur.',
     newProvider: 'Nouveau fournisseur',
@@ -587,6 +592,15 @@ export const fr: Messages = {
     displayLabel: (model) => `Nom affiché de ${model}`,
     inputLabel: (model) => `Prix d’entrée de ${model}`,
     outputLabel: (model) => `Prix de sortie de ${model}`,
+    cachedLabel: (model) => `Prix de l’entrée en cache de ${model}`,
+    notSet: 'non défini',
+    noPrice:
+      'Pas encore de prix : les requêtes comptent comme gratuites et les budgets ignorent ce modèle.',
+    applyListPrice: (input, output) =>
+      `Utiliser le prix catalogue : ${input} en entrée, ${output} en sortie`,
+    perMillion: (input, output) => `${input} / ${output} par 1M`,
+    listNote: (date) =>
+      `Les modèles de la liste de prix de Spillway (vérifiée en ${date}) reçoivent leur prix à l’ajout. Comparez-le avec la page de tarifs de votre fournisseur ; un prix vide signifie « pas encore défini ».`,
     enabledLabel: (model) => `${model} activé`,
     deleteModelConfirm: (name) => `Supprimer ${name} ?`,
   },

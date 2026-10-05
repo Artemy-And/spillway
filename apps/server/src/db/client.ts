@@ -10,7 +10,7 @@ const MIGRATIONS = join(import.meta.dirname, '../../drizzle');
  * Drizzle on top of Node's built-in SQLite, through the proxy driver:
  * no native modules to compile, one file on disk.
  */
-export async function openDb(file: string) {
+export async function openDb(file: string, migrationsFolder = MIGRATIONS) {
   const sqlite = new DatabaseSync(file);
   sqlite.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
 
@@ -34,7 +34,7 @@ export async function openDb(file: string) {
     async (queries) => {
       for (const query of queries) sqlite.exec(query);
     },
-    { migrationsFolder: MIGRATIONS },
+    { migrationsFolder },
   );
 
   return { db, close: () => sqlite.close() };

@@ -314,6 +314,8 @@ export const es: Messages = {
     keyUnused: (a) =>
       `La clave ${a.key} no se usa desde hace ${p(a.days, { one: '# día', other: '# días' })}`,
     considerRevoking: 'Quizá convenga revocarla',
+    modelNoPrice: (a) =>
+      `Modelos en la nube sin precio: ${a.models.length}. Su gasto no cuenta en los presupuestos`,
     piiBlocked: (a) =>
       `${p(a.count, { one: '# solicitud', other: '# solicitudes' })} a modelos en la nube bloqueada(s): se hallaron datos sensibles`,
     teamOverBudget: (a) =>
@@ -557,6 +559,9 @@ export const es: Messages = {
     upstreamCol: 'Modelo del proveedor',
     inputCol: 'Entrada $/1M',
     outputCol: 'Salida $/1M',
+    cachedCol: 'Caché $/1M',
+    cachedHint:
+      'Precio de los tokens de entrada leídos de la caché del proveedor. Vacío: una décima parte del precio de entrada.',
     enabledCol: 'Activo',
     noModels: 'Aún no hay modelos. Usa «Añadir modelos» en un proveedor.',
     newProvider: 'Nuevo proveedor',
@@ -583,6 +588,15 @@ export const es: Messages = {
     displayLabel: (model) => `Nombre visible de ${model}`,
     inputLabel: (model) => `Precio de entrada de ${model}`,
     outputLabel: (model) => `Precio de salida de ${model}`,
+    cachedLabel: (model) => `Precio de entrada en caché de ${model}`,
+    notSet: 'sin definir',
+    noPrice:
+      'Aún sin precio: las solicitudes cuentan como gratuitas y los presupuestos no ven este modelo.',
+    applyListPrice: (input, output) =>
+      `Usar el precio de lista: ${input} de entrada, ${output} de salida`,
+    perMillion: (input, output) => `${input} / ${output} por 1M`,
+    listNote: (date) =>
+      `Los modelos de la lista de precios de Spillway (revisada en ${date}) reciben su precio al añadirlos. Compáralo con la página de precios de tu proveedor; un precio vacío significa «aún sin definir».`,
     enabledLabel: (model) => `${model} activo`,
     deleteModelConfirm: (name) => `¿Eliminar ${name}?`,
   },

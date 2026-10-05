@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import { daysAgo, startOfDay, startOfMonth, startOfNextMonth } from '../lib/time.ts';
@@ -234,7 +234,8 @@ type Alert =
       rescued: number;
       error: string | null;
       at: number;
-    };
+    }
+  | { tone: 'warn'; code: 'modelNoPrice'; models: string[]; at: number };
 
 async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert[]> {
   const out: Alert[] = [];
@@ -333,6 +334,29 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
   }
 
   if (!keyIds) {
+    // A cloud model without a price counts as free, so budgets never see what it costs.
+    const unpriced = await db
+      .select({ name: models.name })
+      .from(models)
+      .innerJoin(providers, eq(models.providerId, providers.id))
+      .where(
+        and(
+          eq(models.enabled, true),
+          eq(providers.isLocal, false),
+          or(isNull(models.inputPrice), isNull(models.outputPrice)),
+        ),
+      )
+      .orderBy(models.name)
+      .all();
+    if (unpriced.length) {
+      out.push({
+        tone: 'warn',
+        code: 'modelNoPrice',
+        models: unpriced.map((row) => row.name),
+        at: now.getTime(),
+      });
+    }
+
     const spentByTeam = await teamSpend(db, now);
     for (const team of await db.select().from(teams).all()) {
       const spent = spentByTeam.get(team.id) ?? 0;

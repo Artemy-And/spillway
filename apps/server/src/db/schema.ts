@@ -104,9 +104,11 @@ export const models = sqliteTable('models', {
     .notNull()
     .references(() => providers.id, { onDelete: 'cascade' }),
   upstreamModel: text('upstream_model').notNull(),
-  /** USD per 1M tokens */
-  inputPrice: real('input_price').notNull().default(0),
-  outputPrice: real('output_price').notNull().default(0),
+  /** USD per 1M tokens. null = not set yet: the model is counted as free and flagged. */
+  inputPrice: real('input_price'),
+  outputPrice: real('output_price'),
+  /** USD per 1M cached input tokens; null = a tenth of the input price */
+  cacheReadPrice: real('cache_read_price'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: createdAt(),
 });

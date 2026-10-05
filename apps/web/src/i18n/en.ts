@@ -292,6 +292,11 @@ export const en = {
     keyUnused: (a: AlertOf<'keyUnused'>) =>
       `Key ${a.key} has not been used for ${p(a.days, { one: '# day', other: '# days' })}`,
     considerRevoking: 'Consider revoking it',
+    modelNoPrice: (a: AlertOf<'modelNoPrice'>) =>
+      p(a.models.length, {
+        one: '# cloud model has no price, so its spend is not counted',
+        other: '# cloud models have no price, so their spend is not counted',
+      }),
     piiBlocked: (a: AlertOf<'piiBlocked'>) =>
       p(a.count, {
         one: '# prompt to cloud models blocked: sensitive data found',
@@ -537,6 +542,9 @@ export const en = {
     upstreamCol: 'Upstream model',
     inputCol: 'Input $/1M',
     outputCol: 'Output $/1M',
+    cachedCol: 'Cached $/1M',
+    cachedHint:
+      "Price of input tokens read from the provider's prompt cache. Empty means a tenth of the input price.",
     enabledCol: 'Enabled',
     noModels: 'No models yet. Use “Add models” on a provider.',
     newProvider: 'New provider',
@@ -563,6 +571,14 @@ export const en = {
     displayLabel: (model: string) => `${model} display name`,
     inputLabel: (model: string) => `${model} input price`,
     outputLabel: (model: string) => `${model} output price`,
+    cachedLabel: (model: string) => `${model} cached input price`,
+    notSet: 'not set',
+    noPrice: 'No price yet: requests count as free and budgets do not see this model.',
+    applyListPrice: (input: string, output: string) =>
+      `Use the list price: ${input} in, ${output} out`,
+    perMillion: (input: string, output: string) => `${input} / ${output} per 1M`,
+    listNote: (date: string) =>
+      `Models on Spillway's price list (checked ${date}) get their price when you add them. Compare it with your provider's price page; an empty price means not set yet.`,
     enabledLabel: (model: string) => `${model} enabled`,
     deleteModelConfirm: (name: string) => `Delete ${name}?`,
   },

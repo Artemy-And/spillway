@@ -49,6 +49,8 @@ export interface OAIUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens?: number;
+  /** Part of prompt_tokens read from the provider's prompt cache. */
+  prompt_tokens_details?: { cached_tokens?: number | null } | null;
 }
 
 export interface OAIChatResponse {
@@ -136,6 +138,8 @@ export interface AUsage {
   output_tokens: number;
   cache_read_input_tokens?: number | null;
   cache_creation_input_tokens?: number | null;
+  /** Cache writes by lifetime; one-hour entries cost twice the input price. */
+  cache_creation?: { ephemeral_1h_input_tokens?: number | null } | null;
 }
 
 export interface AResponse {

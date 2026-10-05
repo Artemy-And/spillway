@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import type { AppContext } from '../context.ts';
 import type { Provider, ProviderKind } from '../db/schema.ts';
+import { type Price, publishedPrice } from './prices.ts';
 import { UpstreamError } from './sse.ts';
 
 export type Wire = 'openai' | 'anthropic';
@@ -81,8 +82,17 @@ export async function upstreamFailure(provider: Provider, res: Response): Promis
   return new UpstreamError(`${provider.name} returned ${res.status}: ${message}`, status);
 }
 
-/** Model ids the provider offers, for the "add models" picker. */
-export async function listUpstreamModels(ctx: AppContext, provider: Provider): Promise<string[]> {
+export interface UpstreamModel {
+  id: string;
+  /** What the provider itself publishes, if anything (OpenRouter does) */
+  price: Price | null;
+}
+
+/** Models the provider offers, for the "add models" picker. */
+export async function listUpstreamModels(
+  ctx: AppContext,
+  provider: Provider,
+): Promise<UpstreamModel[]> {
   const signal = AbortSignal.timeout(10_000);
   if (provider.kind === 'ollama') {
     const res = await fetch(`${provider.baseUrl.replace(/\/+$/, '')}/api/tags`, { signal }).catch(
@@ -92,10 +102,16 @@ export async function listUpstreamModels(ctx: AppContext, provider: Provider): P
     );
     if (!res.ok) throw await upstreamFailure(provider, res);
     const body = (await res.json()) as { models?: { name: string }[] };
-    return (body.models ?? []).map((model) => model.name).sort();
+    return (body.models ?? [])
+      .map((model) => ({ id: model.name, price: null }))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
   const res = await callUpstream(ctx, provider, '/models', { method: 'GET', signal });
   if (!res.ok) throw await upstreamFailure(provider, res);
-  const body = (await res.json()) as { data?: { id: string }[] };
-  return (body.data ?? []).map((model) => model.id).sort();
+  const body = (await res.json()) as {
+    data?: { id: string; pricing?: Record<string, unknown> }[];
+  };
+  return (body.data ?? [])
+    .map((model) => ({ id: model.id, price: publishedPrice(model) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }

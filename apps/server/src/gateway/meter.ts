@@ -1,16 +1,27 @@
 import type { Model } from '../db/schema.ts';
 import type { SSEEvent } from './sse.ts';
-import type { AResponse, AStreamEvent, AUsage, OAIChatResponse, OAIChunk } from './types.ts';
+import type {
+  AResponse,
+  AStreamEvent,
+  AUsage,
+  OAIChatResponse,
+  OAIChunk,
+  OAIUsage,
+} from './types.ts';
 import type { Wire } from './upstream.ts';
 
 const PREVIEW_LIMIT = 4000;
+
+export type Prices = Pick<Model, 'inputPrice' | 'outputPrice' | 'cacheReadPrice'>;
 
 /** Counts tokens and keeps the start of the answer while a response goes by. */
 export class Meter {
   inputTokens = 0;
   outputTokens = 0;
   cacheReadTokens = 0;
+  /** All cache writes; the one-hour ones are also counted in `cacheWrite1hTokens`. */
   cacheWriteTokens = 0;
+  cacheWrite1hTokens = 0;
   text = '';
 
   #append(text: string | null | undefined) {
@@ -25,19 +36,26 @@ export class Meter {
     if (usage.cache_creation_input_tokens != null) {
       this.cacheWriteTokens = usage.cache_creation_input_tokens;
     }
+    if (usage.cache_creation?.ephemeral_1h_input_tokens != null) {
+      this.cacheWrite1hTokens = usage.cache_creation.ephemeral_1h_input_tokens;
+    }
+  }
+
+  /** OpenAI counts cached tokens inside prompt_tokens; they are billed at the cached price. */
+  #openAIUsage(usage: OAIUsage) {
+    const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
+    this.cacheReadTokens = cached;
+    this.inputTokens = usage.prompt_tokens - cached;
+    this.outputTokens = usage.completion_tokens;
   }
 
   openAIChunk(chunk: OAIChunk) {
-    if (chunk.usage) {
-      this.inputTokens = chunk.usage.prompt_tokens;
-      this.outputTokens = chunk.usage.completion_tokens;
-    }
+    if (chunk.usage) this.#openAIUsage(chunk.usage);
     this.#append(chunk.choices[0]?.delta?.content);
   }
 
   openAIResponse(res: OAIChatResponse) {
-    this.inputTokens = res.usage?.prompt_tokens ?? 0;
-    this.outputTokens = res.usage?.completion_tokens ?? 0;
+    this.#openAIUsage(res.usage ?? { prompt_tokens: 0, completion_tokens: 0 });
     this.#append(res.choices[0]?.message?.content);
   }
 
@@ -68,13 +86,21 @@ export class Meter {
     return this.inputTokens + this.cacheReadTokens + this.cacheWriteTokens;
   }
 
-  /** USD. Cache reads bill at 10% of the input price, cache writes at 125%. */
-  cost(model: Model): number {
+  /**
+   * USD. Cache reads bill at the model's cached price (a tenth of the input price unless set),
+   * five-minute cache writes at 125% of the input price, one-hour writes at 200%.
+   * A price that is not set counts as zero.
+   */
+  cost(model: Prices): number {
+    const input = model.inputPrice ?? 0;
+    const cacheRead = model.cacheReadPrice ?? input * 0.1;
+    const write1h = Math.min(this.cacheWrite1hTokens, this.cacheWriteTokens);
     return (
-      (this.inputTokens * model.inputPrice +
-        this.cacheReadTokens * model.inputPrice * 0.1 +
-        this.cacheWriteTokens * model.inputPrice * 1.25 +
-        this.outputTokens * model.outputPrice) /
+      (this.inputTokens * input +
+        this.cacheReadTokens * cacheRead +
+        (this.cacheWriteTokens - write1h) * input * 1.25 +
+        write1h * input * 2 +
+        this.outputTokens * (model.outputPrice ?? 0)) /
       1_000_000
     );
   }

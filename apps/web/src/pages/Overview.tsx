@@ -48,6 +48,8 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
       };
     case 'providerFailing':
       return { text: m.alerts.providerFailing(alert), meta: alert.error ?? '' };
+    case 'modelNoPrice':
+      return { text: m.alerts.modelNoPrice(alert), meta: alert.models.join(', ') };
   }
 }
 

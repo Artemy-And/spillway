@@ -20,6 +20,7 @@ import {
   type User,
   users,
 } from '../db/schema.ts';
+import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { startOfMonth, startOfNextMonth } from '../lib/time.ts';
@@ -27,6 +28,8 @@ import { RULE_IDS, rulesSchema, settingsSchema } from '../settings.ts';
 import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
+/** USD per million tokens */
+const usdPerMillion = z.number().min(0).max(10_000).nullable();
 const idList = z.array(z.string()).nullable();
 
 const keyInput = z.object({
@@ -64,8 +67,10 @@ const modelInput = z.object({
     .regex(/^[\w.:/@-]+$/, 'Use letters, digits and . : / @ - _'),
   label: z.string().trim().max(64).nullable().optional(),
   upstreamModel: z.string().trim().min(1).max(256),
-  inputPrice: z.number().min(0).max(10_000).optional(),
-  outputPrice: z.number().min(0).max(10_000).optional(),
+  // null = not set: the model counts as free and is flagged until someone sets it
+  inputPrice: usdPerMillion.optional(),
+  outputPrice: usdPerMillion.optional(),
+  cacheReadPrice: usdPerMillion.optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -520,7 +525,16 @@ export function adminRoutes(ctx: AppContext) {
         });
         if (!provider) return c.json({ error: 'Provider not found' }, 404);
         try {
-          return c.json({ models: await listUpstreamModels(ctx, provider) });
+          const listed = await listUpstreamModels(ctx, provider);
+          // Prices the provider publishes beat the built-in list; local models cost nothing.
+          const prices: Record<string, Price> = {};
+          if (!provider.isLocal) {
+            for (const model of listed) {
+              const known = model.price ?? listPrice(model.id);
+              if (known) prices[model.id] = known;
+            }
+          }
+          return c.json({ models: listed.map((model) => model.id), prices });
         } catch (error) {
           return c.json(
             { error: error instanceof Error ? error.message : 'Could not list models' },
@@ -541,13 +555,41 @@ export function adminRoutes(ctx: AppContext) {
           .innerJoin(providers, eq(models.providerId, providers.id))
           .orderBy(providers.isLocal, models.name)
           .all();
-        return c.json(rows.map(({ model, ...rest }) => ({ ...model, ...rest })));
+        return c.json(
+          rows.map(({ model, ...rest }) => ({
+            ...model,
+            ...rest,
+            /** Offered when a cloud model has no price yet */
+            listPrice: rest.isLocal ? null : listPrice(model.upstreamModel),
+          })),
+        );
       })
 
+      .get('/price-list', adminOnly, (c) => c.json({ date: PRICE_LIST_DATE }))
+
       .post('/models', adminOnly, zValidator('json', modelInput), async (c) => {
+        const input = c.req.valid('json');
+        const provider = await db.query.providers.findFirst({
+          where: eq(providers.id, input.providerId),
+        });
+        if (!provider) return c.json({ error: 'Provider not found' }, 404);
+        // No price given: a cloud model on the list gets its list price, so budgets count it.
+        const known =
+          provider.isLocal || input.inputPrice !== undefined || input.outputPrice !== undefined
+            ? null
+            : listPrice(input.upstreamModel);
         const [model] = await db
           .insert(models)
-          .values(c.req.valid('json'))
+          .values({
+            ...input,
+            ...(known
+              ? {
+                  inputPrice: known.input,
+                  outputPrice: known.output,
+                  cacheReadPrice: known.cacheRead,
+                }
+              : {}),
+          })
           .onConflictDoNothing()
           .returning({ id: models.id });
         if (!model) return c.json({ error: 'A model with this name already exists' }, 409);

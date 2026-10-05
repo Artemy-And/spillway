@@ -337,6 +337,8 @@ export const ru: Messages = {
     keyUnused: (a) =>
       `Ключом ${a.key} не пользовались ${p(a.days, { one: '# день', few: '# дня', many: '# дней', other: '# дня' })}`,
     considerRevoking: 'Возможно, его стоит отозвать',
+    modelNoPrice: (a) =>
+      `Облачных моделей без цены: ${a.models.length}. Их расходы не попадают в бюджеты`,
     piiBlocked: (a) =>
       `${p(a.count, { one: '# запрос', few: '# запроса', many: '# запросов', other: '# запроса' })} к облачным моделям заблокировано: найдены личные данные`,
     teamOverBudget: (a) =>
@@ -581,6 +583,9 @@ export const ru: Messages = {
     upstreamCol: 'Модель у провайдера',
     inputCol: 'Вход $/1M',
     outputCol: 'Выход $/1M',
+    cachedCol: 'Кэш $/1M',
+    cachedHint:
+      'Цена входных токенов, прочитанных из кэша провайдера. Пусто — десятая часть цены входа.',
     enabledCol: 'Включена',
     noModels: 'Моделей пока нет. Нажмите «Добавить модели» у провайдера.',
     newProvider: 'Новый провайдер',
@@ -610,6 +615,13 @@ export const ru: Messages = {
     displayLabel: (model) => `Отображаемое имя ${model}`,
     inputLabel: (model) => `Цена входа ${model}`,
     outputLabel: (model) => `Цена выхода ${model}`,
+    cachedLabel: (model) => `Цена кэшированного входа ${model}`,
+    notSet: 'не задана',
+    noPrice: 'Цена не задана: запросы считаются бесплатными, и бюджеты эту модель не видят.',
+    applyListPrice: (input, output) => `Взять цену из списка: вход ${input}, выход ${output}`,
+    perMillion: (input, output) => `${input} / ${output} за 1M`,
+    listNote: (date) =>
+      `Моделям из прайс-листа Spillway (данные на ${date}) цена подставляется при добавлении. Сверьте её со страницей цен провайдера; пустая цена значит «ещё не задана».`,
     enabledLabel: (model) => `${model} включена`,
     deleteModelConfirm: (name) => `Удалить ${name}?`,
   },

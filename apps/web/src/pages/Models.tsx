@@ -16,10 +16,12 @@ import {
 } from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
 import { api, type ModelRow, modelsQuery, type ProviderRow, unwrap } from '../lib/api.ts';
+import { fmtDate, fmtUsd } from '../lib/format.ts';
 
 type Kind = 'openai' | 'anthropic' | 'ollama';
 
 const KIND_ORDER: Kind[] = ['openai', 'anthropic', 'ollama'];
+const MODEL_GRID = 'grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_0.8fr_90px_40px] gap-3';
 /** Names the form suggests per type, replaced when the type changes unless edited. */
 const DEFAULT_NAMES = ['Ollama', 'Anthropic', 'OpenAI', 'OpenAI-compatible'];
 
@@ -31,6 +33,11 @@ export function ModelsPage() {
     queryFn: () => unwrap(api.providers.$get()),
   });
   const { data: models = [] } = useQuery(modelsQuery);
+  const { data: priceList } = useQuery({
+    queryKey: ['price-list'],
+    queryFn: () => unwrap(api['price-list'].$get()),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
@@ -150,18 +157,28 @@ export function ModelsPage() {
 
       <Card aria-label={m.models.modelsTitle} className="overflow-x-auto px-6 py-4">
         <h2 className="mb-1 text-[15px] font-semibold">{m.models.modelsTitle}</h2>
-        <p className="mb-3 text-[13px] text-muted">
+        <p className="mb-1 text-[13px] text-muted">
           {m.models.introBefore} <code className="font-mono">model</code>
           {m.models.introAfter}
         </p>
-        <div className="min-w-[860px]">
-          <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
+        {priceList && (
+          <p className="mb-3 text-[13px] text-muted">
+            {m.models.listNote(fmtDate(priceList.date, { month: 'long', year: 'numeric' }))}
+          </p>
+        )}
+        <div className="min-w-[960px]">
+          <div
+            className={cx(MODEL_GRID, 'border-b border-line py-2.5 text-xs font-medium text-muted')}
+          >
             <div>{m.models.nameCol}</div>
             <div>{m.models.displayCol}</div>
             <div>{m.models.providerCol}</div>
             <div>{m.models.upstreamCol}</div>
             <div className="text-right">{m.models.inputCol}</div>
             <div className="text-right">{m.models.outputCol}</div>
+            <div className="text-right" title={m.models.cachedHint}>
+              {m.models.cachedCol}
+            </div>
             <div>{m.models.enabledCol}</div>
             <div />
           </div>
@@ -338,8 +355,23 @@ function ModelPicker({
       ];
       for (const upstream of names) {
         const name = upstream.replace(/[^\w.:/@-]/g, '-');
+        // Prices the provider lists go along; for the rest the server checks its price list.
+        const price = available.data?.prices[upstream];
         await unwrap(
-          api.models.$post({ json: { providerId: provider.id, name, upstreamModel: upstream } }),
+          api.models.$post({
+            json: {
+              providerId: provider.id,
+              name,
+              upstreamModel: upstream,
+              ...(price
+                ? {
+                    inputPrice: price.input,
+                    outputPrice: price.output,
+                    cacheReadPrice: price.cacheRead,
+                  }
+                : {}),
+            },
+          }),
         );
       }
     },
@@ -371,19 +403,29 @@ function ModelPicker({
       {options.length > 0 && (
         <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
           {shown.length === 0 && <p className="text-[13px] text-muted">{m.models.noMatch}</p>}
-          {shown.map((name) => (
-            <label key={name} className="flex items-center gap-2.5 font-mono text-[13px]">
-              <input
-                type="checkbox"
-                className="size-4 accent-accent"
-                checked={chosen.includes(name)}
-                onChange={(e) =>
-                  setChosen(e.target.checked ? [...chosen, name] : chosen.filter((n) => n !== name))
-                }
-              />
-              {name}
-            </label>
-          ))}
+          {shown.map((name) => {
+            const price = available.data?.prices[name];
+            return (
+              <label key={name} className="flex items-center gap-2.5 font-mono text-[13px]">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-accent"
+                  checked={chosen.includes(name)}
+                  onChange={(e) =>
+                    setChosen(
+                      e.target.checked ? [...chosen, name] : chosen.filter((n) => n !== name),
+                    )
+                  }
+                />
+                <span className="min-w-0 truncate">{name}</span>
+                {price && (
+                  <span className="ml-auto shrink-0 font-sans text-xs text-muted">
+                    {m.models.perMillion(fmtUsd(price.input), fmtUsd(price.output))}
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
       {available.isSuccess && options.length === 0 && (
@@ -419,8 +461,9 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       name?: string;
       upstreamModel?: string;
       label?: string | null;
-      inputPrice?: number;
-      outputPrice?: number;
+      inputPrice?: number | null;
+      outputPrice?: number | null;
+      cacheReadPrice?: number | null;
       enabled?: boolean;
     }) => unwrap(api.models[':id'].$patch({ param: { id: model.id }, json })),
     onSuccess: onChange,
@@ -429,22 +472,39 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
     mutationFn: () => unwrap(api.models[':id'].$delete({ param: { id: model.id } })),
     onSuccess: onChange,
   });
-  const price = (field: 'inputPrice' | 'outputPrice') => (
+  const labels = {
+    inputPrice: m.models.inputLabel,
+    outputPrice: m.models.outputLabel,
+    cacheReadPrice: m.models.cachedLabel,
+  };
+  // An empty field means "not set"; 0 means the model is free.
+  const price = (field: 'inputPrice' | 'outputPrice' | 'cacheReadPrice') => (
     <Input
-      aria-label={(field === 'inputPrice' ? m.models.inputLabel : m.models.outputLabel)(model.name)}
+      // Re-mounts when the value changes elsewhere, e.g. "Use list price".
+      key={`${field}:${model[field]}`}
+      aria-label={labels[field](model.name)}
       mono
       type="number"
       min="0"
       step="any"
       disabled={model.isLocal}
-      defaultValue={model[field]}
+      defaultValue={model[field] ?? ''}
+      placeholder={
+        model.isLocal
+          ? '0'
+          : field === 'cacheReadPrice'
+            ? String(Math.round((model.inputPrice ?? 0) * 0.1 * 1e6) / 1e6)
+            : m.models.notSet
+      }
       className="h-8 text-right"
       onBlur={(e) => {
-        const value = Number(e.target.value || 0);
+        const raw = e.target.value.trim();
+        const value = raw === '' ? null : Number(raw);
         if (value !== model[field]) update.mutate({ [field]: value });
       }}
     />
   );
+  const unpriced = !model.isLocal && (model.inputPrice === null || model.outputPrice === null);
   // Text fields save on blur; an empty value is not a valid name, so it snaps back.
   const text = (field: 'name' | 'upstreamModel', label: string, className?: string) => (
     <Input
@@ -462,7 +522,12 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
     />
   );
   return (
-    <div className="grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_90px_40px] items-center gap-3 border-b border-line-soft py-2 text-sm last:border-0">
+    <div
+      className={cx(
+        MODEL_GRID,
+        'items-center border-b border-line-soft py-2 text-sm last:border-0',
+      )}
+    >
       {text('name', m.models.nameLabel(model.name), 'text-[13px] font-medium')}
       <Input
         aria-label={m.models.displayLabel(model.name)}
@@ -481,6 +546,7 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       {text('upstreamModel', m.models.upstreamLabel(model.name), 'text-xs')}
       {price('inputPrice')}
       {price('outputPrice')}
+      {price('cacheReadPrice')}
       <input
         type="checkbox"
         aria-label={m.models.enabledLabel(model.name)}
@@ -496,6 +562,31 @@ function ModelLine({ model, onChange }: { model: ModelRow; onChange: () => void 
       >
         <TrashIcon />
       </button>
+      {unpriced && (
+        <div className="col-span-full -mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md bg-warn-bg px-3 py-1.5 text-[13px] text-warn-fg">
+          <span>{m.models.noPrice}</span>
+          {model.listPrice && (
+            <button
+              type="button"
+              disabled={update.isPending}
+              onClick={() =>
+                model.listPrice &&
+                update.mutate({
+                  inputPrice: model.listPrice.input,
+                  outputPrice: model.listPrice.output,
+                  cacheReadPrice: model.listPrice.cacheRead,
+                })
+              }
+              className="cursor-pointer font-medium underline underline-offset-2 hover:no-underline"
+            >
+              {m.models.applyListPrice(
+                fmtUsd(model.listPrice.input),
+                fmtUsd(model.listPrice.output),
+              )}
+            </button>
+          )}
+        </div>
+      )}
       {(update.error || remove.error) && (
         <div className="col-span-full">
           <ErrorNote error={update.error ?? remove.error} />

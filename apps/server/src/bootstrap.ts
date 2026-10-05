@@ -33,7 +33,7 @@ export async function bootstrap(ctx: AppContext): Promise<void> {
       .values({ name: 'Ollama', kind: 'ollama', baseUrl: env.OLLAMA_URL, isLocal: true })
       .returning();
     try {
-      const names = await listUpstreamModels(ctx, ollama!);
+      const names = (await listUpstreamModels(ctx, ollama!)).map((model) => model.id);
       for (const name of names) {
         await db
           .insert(models)

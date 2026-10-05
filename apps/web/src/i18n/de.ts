@@ -316,6 +316,8 @@ export const de: Messages = {
     keyUnused: (a) =>
       `Schlüssel ${a.key} wurde seit ${p(a.days, { one: '# Tag', other: '# Tagen' })} nicht genutzt`,
     considerRevoking: 'Eventuell widerrufen',
+    modelNoPrice: (a) =>
+      `Cloud-Modelle ohne Preis: ${a.models.length}. Ihre Kosten fließen nicht in die Budgets ein`,
     piiBlocked: (a) =>
       `${p(a.count, { one: '# Anfrage', other: '# Anfragen' })} an Cloud-Modelle blockiert: sensible Daten gefunden`,
     teamOverBudget: (a) =>
@@ -563,6 +565,9 @@ export const de: Messages = {
     upstreamCol: 'Modell beim Anbieter',
     inputCol: 'Eingabe $/1M',
     outputCol: 'Ausgabe $/1M',
+    cachedCol: 'Cache $/1M',
+    cachedHint:
+      'Preis für Eingabe-Tokens aus dem Prompt-Cache des Anbieters. Leer bedeutet ein Zehntel des Eingabepreises.',
     enabledCol: 'Aktiv',
     noModels: 'Noch keine Modelle. Nutzen Sie „Modelle hinzufügen“ bei einem Anbieter.',
     newProvider: 'Neuer Anbieter',
@@ -591,6 +596,15 @@ export const de: Messages = {
     displayLabel: (model) => `Anzeigename von ${model}`,
     inputLabel: (model) => `Eingabepreis von ${model}`,
     outputLabel: (model) => `Ausgabepreis von ${model}`,
+    cachedLabel: (model) => `Cache-Eingabepreis von ${model}`,
+    notSet: 'nicht gesetzt',
+    noPrice:
+      'Noch kein Preis: Anfragen zählen als kostenlos, und Budgets sehen dieses Modell nicht.',
+    applyListPrice: (input, output) =>
+      `Listenpreis übernehmen: ${input} Eingabe, ${output} Ausgabe`,
+    perMillion: (input, output) => `${input} / ${output} pro 1M`,
+    listNote: (date) =>
+      `Modelle aus der Spillway-Preisliste (Stand: ${date}) bekommen ihren Preis beim Hinzufügen. Vergleichen Sie ihn mit der Preisseite Ihres Anbieters; ein leerer Preis heißt „noch nicht gesetzt“.`,
     enabledLabel: (model) => `${model} aktiv`,
     deleteModelConfirm: (name) => `${name} löschen?`,
   },

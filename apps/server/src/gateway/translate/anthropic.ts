@@ -51,12 +51,15 @@ function imageSource(url: string): AImageSource {
 }
 
 function usageToOpenAI(usage: Partial<AUsage> | undefined): OAIUsage {
-  const input =
-    (usage?.input_tokens ?? 0) +
-    (usage?.cache_read_input_tokens ?? 0) +
-    (usage?.cache_creation_input_tokens ?? 0);
+  const cached = usage?.cache_read_input_tokens ?? 0;
+  const input = (usage?.input_tokens ?? 0) + cached + (usage?.cache_creation_input_tokens ?? 0);
   const output = usage?.output_tokens ?? 0;
-  return { prompt_tokens: input, completion_tokens: output, total_tokens: input + output };
+  return {
+    prompt_tokens: input,
+    completion_tokens: output,
+    total_tokens: input + output,
+    ...(cached ? { prompt_tokens_details: { cached_tokens: cached } } : {}),
+  };
 }
 
 // ── Anthropic client → OpenAI-compatible upstream ─────────────────────────────
