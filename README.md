@@ -39,12 +39,15 @@ For a setup you keep, use [Docker Compose](#quick-start).
 
 ## What it does
 
-- **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`),
-  Anthropic (`/v1/messages`) or Ollama (`/api/chat`, `/api/generate`). Spillway translates between
-  them, including streaming and tool calls, so Claude Code can run on a local Qwen when the budget
-  runs out.
+- **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
+  `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`, `/api/generate`,
+  `/api/embed`). Spillway translates between them, including streaming and tool calls, so Claude Code
+  can run on a local Qwen when the budget runs out. Providers: OpenAI, Anthropic and Ollama, plus
+  Azure OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI and OpenRouter from a list, or any
+  OpenAI-compatible API by its URL.
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
-  per team and per key.
+  per team and per key. Prices of well-known models fill in when you add them, and a cloud model
+  without a price is flagged instead of quietly counting as free.
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
 - **Team budgets and four routing rules**: switch to the local model at N% of the team budget, keep
@@ -52,6 +55,12 @@ For a setup you keep, use [Docker Compose](#quick-start).
   API keys away from cloud models, rate limit agents, and keep off-hours traffic local. Numbers that
   need context, like passports, only count next to the word itself, so timestamps and IDs in code
   never block a request.
+- **Alerts where you already are.** Slack, Microsoft Teams or email when a team nears or passes
+  its budget, a key hits its limit, or a provider goes down and comes back, plus a Monday summary
+  of spend and savings.
+- **An optional response cache.** The same key sending the same request again gets the stored
+  answer for free; handy for n8n workflows and re-indexing documents. Off by default, and it never
+  keeps prompts with personal data.
 - **Every decision explained.** Each log entry shows the steps the gateway took ("Marketing is at
   104% of its budget → sent to Qwen Coder · local"), tokens, cost, and money saved.
 - **Privacy by default.** Prompts are stored masked, text is dropped after a retention period (the
@@ -64,9 +73,9 @@ For a setup you keep, use [Docker Compose](#quick-start).
 ## What stays free
 
 Single sign-on, keys, budgets and limits, the routing rules (local fallback, personal data, rate
-limits, off-hours), the request log and all three API formats are free and stay in this repository
-under AGPL-3.0. If paid options come later, they will be new things around Spillway, such as a
-managed instance or support. Nothing on this list will move behind a paywall.
+limits, off-hours), alerts, the response cache, the request log and all three API formats are free
+and stay in this repository under AGPL-3.0. If paid options come later, they will be new things
+around Spillway, such as a managed instance or support. Nothing on this list will move behind a paywall.
 
 ## Quick start
 
@@ -105,8 +114,9 @@ docker compose --profile ollama up -d
 docker compose exec ollama ollama pull qwen2.5-coder:7b
 ```
 
-Then, in the UI: add providers and models (with prices per million tokens), pick the local model for
-rerouting in **Settings**, create teams in **Budgets & rules**, and hand out keys in **Keys**.
+Then, in the UI: add providers and models (prices of well-known models fill in), pick the local
+model for rerouting and your time zone in **Settings**, create teams in **Budgets & rules**, and
+hand out keys in **Keys**. For email alerts, set `SMTP_URL` in `.env` (see `.env.example`).
 
 ### Verify the image
 
@@ -137,7 +147,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | --- | --- |
 | OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `sw-…` |
 | Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` |
-| Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…` |
+| Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…`; document search works through either |
 | Chatbox | custom provider, OpenAI API Compatible, host `https://<gateway>/v1`, key `sw-…` |
 
 The `model` a client sends is the **name** you gave the model in Spillway; it maps to any upstream
@@ -167,7 +177,7 @@ Requires Node.js 24+ and pnpm (via `corepack enable`).
 pnpm install
 cp .env.example .env    # optional; without ADMIN_PASSWORD the UI asks for the first account
 pnpm dev                # API on :8080, UI with hot reload on :5173
-pnpm test               # gateway, failover, auth, translation and PII tests
+pnpm test               # gateway, failover, access, cache, alerts, translation and PII tests
 pnpm reset-password you@company.com
 pnpm typecheck && pnpm lint
 ```
@@ -176,6 +186,7 @@ pnpm typecheck && pnpm lint
 | --- | --- |
 | `apps/server` | Hono API and gateway. Node runs the TypeScript directly, no build step. SQLite through Node's built-in `node:sqlite` and Drizzle |
 | `apps/server/src/gateway` | Auth by key, policy (`policy.ts`), format translation, streaming, usage metering |
+| `apps/server/src/demo.ts` | The public read-only demo: `DEMO=true` fills an empty data folder with a made-up company and refreshes its traffic every hour |
 | `apps/server/drizzle` | SQL migrations; change `src/db/schema.ts`, then `pnpm db:generate` |
 | `apps/web` | React 19, TanStack Router and Query, Tailwind CSS 4. Calls the API through the typed Hono RPC client |
 | `apps/web/src/i18n` | Translations. `en.ts` is the source; every other language must match its shape or the build fails |
@@ -195,7 +206,7 @@ not match the version in `package.json`. Every push to `main` also publishes an 
 
 ## Not in this version
 
-Response caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
+Semantic caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
 wire formats (most models are reachable through one of them). If you need these today, LiteLLM or
 Bifrost cover more of them. Budgets count spend from the log, so parallel requests can overshoot a
 limit by the cost of the requests already in flight.
