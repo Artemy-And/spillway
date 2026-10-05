@@ -338,7 +338,8 @@ export async function weeklyNotice(
   const totals = await ctx.db
     .select({
       spend: sql<number>`coalesce(sum(${requestLogs.costUsd}), 0)`,
-      saved: sql<number>`coalesce(sum(${requestLogs.savedUsd}), 0)`,
+      saved: sql<number>`coalesce(sum(case when ${requestLogs.ruleId} = 'cache' then 0 else ${requestLogs.savedUsd} end), 0)`,
+      savedCache: sql<number>`coalesce(sum(case when ${requestLogs.ruleId} = 'cache' then ${requestLogs.savedUsd} else 0 end), 0)`,
       requests: sql<number>`count(*)`,
       local: sql<number>`coalesce(sum(case when ${requestLogs.servedLocal} and ${requestLogs.status} = 200 then 1 else 0 end), 0)`,
       blocked: sql<number>`coalesce(sum(case when ${requestLogs.result} like 'blocked%' or ${requestLogs.result} = 'rate_limited' then 1 else 0 end), 0)`,
@@ -375,7 +376,7 @@ export async function weeklyNotice(
       title: `Last week on Spillway: ${usd(totals.spend)} spent`,
       lines: [
         `${day(start)} – ${day(new Date(end.getTime() - 1))}: ${totals.requests.toLocaleString('en-US')} requests, ${share}% answered by local models, ${totals.blocked} blocked.`,
-        `Local models saved ${usd(totals.saved)}.`,
+        `Local models saved ${usd(totals.saved)}${totals.savedCache ? `, the cache ${usd(totals.savedCache)}` : ''}.`,
         ...(spenders.length
           ? [`Top spenders: ${spenders.map((row) => `${row.name} ${usd(row.spend)}`).join(', ')}.`]
           : []),

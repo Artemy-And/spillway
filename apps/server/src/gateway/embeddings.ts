@@ -3,6 +3,8 @@ import type { AppContext } from '../context.ts';
 import type { requestLogs } from '../db/schema.ts';
 import { shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
+import { usd } from '../lib/time.ts';
+import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { authenticate, errorResponse, PREVIEW, writeLog } from './handler.ts';
 import { Meter } from './meter.ts';
 import { decide, modelLabel, step } from './policy.ts';
@@ -126,6 +128,39 @@ export async function handleEmbeddings(
     return errorResponse(errorFormat, decision.status, decision.message);
   }
 
+  // Indexing the same documents again is the most common repeat, and vectors never change.
+  const cacheId =
+    settings.cache.enabled && decision.result === 'ok' && !base.pii && wantsCache(c.req.raw.headers)
+      ? cacheKey(caller.key.id, target.model, `embeddings:${format}`, body)
+      : null;
+  const headers = (cache: 'hit' | 'miss' | null) => ({
+    'content-type': 'application/json',
+    'x-spillway-request-id': id,
+    'x-spillway-result': decision.result,
+    'x-spillway-model': target.model.name,
+    ...(cache ? { 'x-spillway-cache': cache } : {}),
+  });
+  const hit = cacheId ? await cached(ctx, cacheId) : null;
+  if (hit) {
+    await writeLog(
+      ctx,
+      {
+        ...base,
+        ruleId: 'cache',
+        savedUsd: hit.costUsd,
+        latencyMs: Date.now() - started,
+        trace: [
+          ...(base.trace ?? []).filter((s) => s.code !== 'sentTo'),
+          step('info', `Answered from the cache: ${usd(hit.costUsd)} not spent`, 'cacheHit', {
+            saved: hit.costUsd,
+          }),
+        ],
+      },
+      caller.key.id,
+    );
+    return new Response(hit.body, { headers: headers('hit') });
+  }
+
   // Cloud providers get the usual deadline; local models run on our own hardware.
   const upstream = new AbortController();
   const client = c.req.raw.signal;
@@ -173,22 +208,19 @@ export async function handleEmbeddings(
         if (Array.isArray(item.embedding)) item.embedding = asBase64(item.embedding);
       }
     }
+    const costUsd = meter.cost(target.model);
     await writeLog(
       ctx,
-      {
-        ...base,
-        inputTokens: meter.totalInput,
-        costUsd: meter.cost(target.model),
-        latencyMs: Date.now() - started,
-      },
+      { ...base, inputTokens: meter.totalInput, costUsd, latencyMs: Date.now() - started },
       caller.key.id,
     );
     const out = format === 'openai' ? { ...json, model: target.model.name } : null;
-    const response = Response.json(out ?? fromOpenAI(format, json, target.model.name));
-    response.headers.set('x-spillway-request-id', id);
-    response.headers.set('x-spillway-result', decision.result);
-    response.headers.set('x-spillway-model', target.model.name);
-    return response;
+    const text = JSON.stringify(out ?? fromOpenAI(format, json, target.model.name));
+    if (cacheId) {
+      const entry = { id: cacheId, keyId: caller.key.id, modelId: target.model.id, body: text };
+      await remember(ctx, { ...entry, costUsd }, settings.cache.ttlHours);
+    }
+    return new Response(text, { headers: headers(cacheId ? 'miss' : null) });
   } catch (error) {
     const status = error instanceof UpstreamError ? error.status : 502;
     const message = error instanceof Error ? error.message : 'Upstream request failed';

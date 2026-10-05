@@ -273,6 +273,7 @@ export const es: Messages = {
     budgetsMonthly: 'Los presupuestos de equipo son mensuales',
     noBudgets: 'Aún no hay presupuestos de equipo',
     saved: (amount) => `${amount} ahorrados con modelos locales`,
+    savedCache: (amount) => `${amount} ahorrados con la caché`,
     requests: 'Solicitudes',
     vsPrevious: (change) => `${change} % frente al periodo anterior`,
     from: (parts) => `de ${parts}`,
@@ -528,6 +529,7 @@ export const es: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} falló: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} no disponible → enviada a ${t.model} · local`,
+    cacheHit: (t: TraceParams) => `Respondida desde la caché: ${fmtUsd(t.saved ?? 0)} sin gastar`,
   },
 
   models: {
@@ -671,6 +673,16 @@ export const es: Messages = {
     roleLabel: (email) => `Rol de ${email}`,
     teamLabel: (email) => `Equipo de ${email}`,
     activeLabel: (email) => `${email} activa`,
+    cache: 'Caché de respuestas',
+    cacheText:
+      'Si la misma clave vuelve a enviar la misma solicitud, recibe la respuesta guardada: sin llamar al proveedor y sin coste. Útil para flujos de n8n, clasificación y volver a indexar los mismos documentos.',
+    cacheOn: 'Responder a las solicitudes repetidas desde la caché',
+    cacheOnHint:
+      'Las respuestas se guardan sin enmascarar durante el tiempo indicado abajo, para devolverlas tal cual. Los prompts con datos personales y las respuestas en streaming nunca se guardan; un cliente puede saltarse la caché con Cache-Control: no-cache.',
+    cacheHours: 'Guardar respuestas, horas',
+    cacheStats: (entries, hits) =>
+      `${p(entries, { one: '# respuesta', other: '# respuestas' })} en caché, reutilizadas ${p(hits, { one: 'una vez', other: '# veces' })}`,
+    clearCache: 'Vaciar la caché',
     notifications: 'Notificaciones',
     notificationsText:
       'Avisos cuando se agota un presupuesto o falla un proveedor, y un resumen cada lunes a las 9:00, en la hora de la pasarela.',

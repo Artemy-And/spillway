@@ -263,6 +263,7 @@ export const zh: Messages = {
     budgetsMonthly: '团队预算按月计算',
     noBudgets: '尚未设置团队预算',
     saved: (amount) => `本地模型节省了 ${amount}`,
+    savedCache: (amount) => `缓存节省了 ${amount}`,
     requests: '请求数',
     vsPrevious: (change) => `较上一时段 ${change}%`,
     from: (parts) => `来自 ${parts}`,
@@ -497,6 +498,7 @@ export const zh: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} 出错：${t.message}`,
     failover: (t: TraceParams) => `${t.provider} 不可用 → 已发往 ${t.model} · 本地`,
+    cacheHit: (t: TraceParams) => `由缓存应答：未花费 ${fmtUsd(t.saved ?? 0)}`,
   },
 
   models: {
@@ -628,6 +630,16 @@ export const zh: Messages = {
     roleLabel: (email) => `${email} 的角色`,
     teamLabel: (email) => `${email} 的团队`,
     activeLabel: (email) => `${email} 已启用`,
+    cache: '响应缓存',
+    cacheText:
+      '同一密钥再次发送相同请求时，直接返回已保存的回答：不调用提供商，也不产生费用。适用于 n8n 工作流、分类任务以及重复索引相同文档。',
+    cacheOn: '用缓存回答重复请求',
+    cacheOnHint:
+      '回答会在下方设定的时间内以未脱敏的形式保存，以便原样返回。包含个人数据的提示和流式回答不会被缓存；客户端可以用 Cache-Control: no-cache 跳过缓存。',
+    cacheHours: '回答保存时长（小时）',
+    cacheStats: (entries, hits) =>
+      `已缓存 ${p(entries, { other: '# 条回答' })}，复用 ${p(hits, { other: '# 次' })}`,
+    clearCache: '清空缓存',
     notifications: '通知',
     notificationsText: '预算用完或提供商故障时发出提醒，并在每周一 9:00（网关时间）发送汇总。',
     channels: { slack: 'Slack', teams: 'Microsoft Teams', email: '邮件' },

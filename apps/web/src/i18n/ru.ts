@@ -278,6 +278,7 @@ export const ru: Messages = {
     budgetsMonthly: 'Бюджеты команд считаются по месяцам',
     noBudgets: 'Бюджеты команд пока не заданы',
     saved: (amount) => `${amount} сэкономили локальные модели`,
+    savedCache: (amount) => `${amount} сэкономил кэш`,
     requests: 'Запросы',
     vsPrevious: (change) => `${change}% к прошлому периоду`,
     from: (parts) => `от: ${parts}`,
@@ -553,6 +554,7 @@ export const ru: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} не ответил: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} недоступен → отправлен в ${t.model} · локальная`,
+    cacheHit: (t: TraceParams) => `Ответ из кэша: ${fmtUsd(t.saved ?? 0)} не потрачено`,
   },
 
   models: {
@@ -695,6 +697,16 @@ export const ru: Messages = {
     roleLabel: (email) => `Роль ${email}`,
     teamLabel: (email) => `Команда ${email}`,
     activeLabel: (email) => `${email} активен`,
+    cache: 'Кэш ответов',
+    cacheText:
+      'Если тот же ключ снова присылает такой же запрос, он получает сохранённый ответ: без обращения к провайдеру и без затрат. Полезно для сценариев n8n, классификации и повторной индексации документов.',
+    cacheOn: 'Отвечать на повторные запросы из кэша',
+    cacheOnHint:
+      'Ответы хранятся без маскировки в течение срока ниже, чтобы их можно было вернуть как есть. Запросы с личными данными и потоковые ответы не кэшируются; клиент может обойти кэш заголовком Cache-Control: no-cache.',
+    cacheHours: 'Хранить ответы, часов',
+    cacheStats: (entries, hits) =>
+      `В кэше ${p(entries, { one: '# ответ', few: '# ответа', many: '# ответов', other: '# ответа' })}, использованы ${p(hits, { one: '# раз', few: '# раза', many: '# раз', other: '# раза' })}`,
+    clearCache: 'Очистить кэш',
     notifications: 'Уведомления',
     notificationsText:
       'Предупреждения, когда кончается бюджет или падает провайдер, и сводка каждый понедельник в 9:00 по часам шлюза.',

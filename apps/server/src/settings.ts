@@ -60,6 +60,8 @@ const fields = {
   localModelId: z.string().nullable(),
   /** Answer with the local model when a cloud provider fails, times out or is rate limited */
   rerouteOnFailure: z.boolean(),
+  /** Repeated identical requests get the stored answer for free; off until an admin opts in */
+  cache: z.object({ enabled: z.boolean(), ttlHours: z.number().int().min(1).max(720) }),
 };
 
 export const settingsSchema = z.object({
@@ -68,6 +70,7 @@ export const settingsSchema = z.object({
   retentionDays: fields.retentionDays.default(30),
   localModelId: fields.localModelId.default(null),
   rerouteOnFailure: fields.rerouteOnFailure.default(true),
+  cache: fields.cache.default({ enabled: false, ttlHours: 24 }),
   rules: rulesSchema.default(rulesSchema.parse({})),
   notifications: notificationsSchema.default(notificationsSchema.parse({})),
 });

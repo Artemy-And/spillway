@@ -276,6 +276,7 @@ export const de: Messages = {
     budgetsMonthly: 'Team-Budgets gelten pro Monat',
     noBudgets: 'Noch keine Team-Budgets',
     saved: (amount) => `${amount} durch lokale Modelle gespart`,
+    savedCache: (amount) => `${amount} durch den Cache gespart`,
     requests: 'Anfragen',
     vsPrevious: (change) => `${change}% ggü. Vorperiode`,
     from: (parts) => `von ${parts}`,
@@ -535,6 +536,8 @@ export const de: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} ist ausgefallen: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} nicht erreichbar → an ${t.model} · lokal gesendet`,
+    cacheHit: (t: TraceParams) =>
+      `Aus dem Cache beantwortet: ${fmtUsd(t.saved ?? 0)} nicht ausgegeben`,
   },
 
   models: {
@@ -680,6 +683,16 @@ export const de: Messages = {
     roleLabel: (email) => `Rolle von ${email}`,
     teamLabel: (email) => `Team von ${email}`,
     activeLabel: (email) => `${email} aktiv`,
+    cache: 'Antwort-Cache',
+    cacheText:
+      'Schickt derselbe Schlüssel dieselbe Anfrage noch einmal, bekommt er die gespeicherte Antwort: kein Anbieteraufruf, keine Kosten. Nützlich für n8n-Workflows, Klassifizierung und das erneute Indexieren derselben Dokumente.',
+    cacheOn: 'Wiederholte Anfragen aus dem Cache beantworten',
+    cacheOnHint:
+      'Antworten werden für die unten angegebene Zeit unmaskiert gespeichert, damit sie unverändert zurückgegeben werden können. Prompts mit personenbezogenen Daten und gestreamte Antworten werden nie zwischengespeichert; ein Client kann den Cache mit Cache-Control: no-cache umgehen.',
+    cacheHours: 'Antworten aufbewahren, Stunden',
+    cacheStats: (entries, hits) =>
+      `${p(entries, { one: '# Antwort', other: '# Antworten' })} im Cache, ${p(hits, { one: 'einmal', other: '#-mal' })} wiederverwendet`,
+    clearCache: 'Cache leeren',
     notifications: 'Benachrichtigungen',
     notificationsText:
       'Hinweise, wenn Budgets aufgebraucht sind oder ein Anbieter ausfällt, und jeden Montag um 9:00 Uhr (Uhrzeit des Gateways) eine Zusammenfassung.',

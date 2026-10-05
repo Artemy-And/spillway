@@ -42,6 +42,7 @@ export function SettingsPage() {
       retentionDays?: number;
       localModelId?: string | null;
       rerouteOnFailure?: boolean;
+      cache?: { enabled: boolean; ttlHours: number };
     }) => unwrap(api.settings.$put({ json })),
     onSuccess: () =>
       Promise.all(
@@ -120,6 +121,13 @@ export function SettingsPage() {
             zone={settings.timeZone}
             serverZone={settings.serverZone}
             onChange={(timeZone) => save.mutate({ timeZone })}
+          />
+        )}
+        {settings && (
+          <CacheCard
+            enabled={settings.cache.enabled}
+            ttlHours={settings.cache.ttlHours}
+            onChange={(cache) => save.mutate({ cache })}
           />
         )}
         <NotificationsCard />
@@ -384,6 +392,73 @@ function TimeZoneCard({
           {m.settings.pickMine(mine.replaceAll('_', ' '))}
         </Button>
       )}
+    </Card>
+  );
+}
+
+/** Exact repeats answered from storage; off until an admin turns it on. */
+function CacheCard({
+  enabled,
+  ttlHours,
+  onChange,
+}: {
+  enabled: boolean;
+  ttlHours: number;
+  onChange: (cache: { enabled: boolean; ttlHours: number }) => void;
+}) {
+  const { m } = useI18n();
+  const queryClient = useQueryClient();
+  const [hours, setHours] = useState(String(ttlHours));
+  useEffect(() => setHours(String(ttlHours)), [ttlHours]);
+  const { data: stats } = useQuery({
+    queryKey: ['cache'],
+    queryFn: () => unwrap(api.cache.$get()),
+  });
+  const clear = useMutation({
+    mutationFn: () => unwrap(api.cache.$delete()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cache'] }),
+  });
+  const valid = Number.isInteger(Number(hours)) && Number(hours) >= 1 && Number(hours) <= 720;
+  return (
+    <Card aria-label={m.settings.cache} className="flex flex-col gap-4 px-6 py-5">
+      <h2 className="text-[15px] font-semibold">{m.settings.cache}</h2>
+      <p className="text-[13px] text-muted">{m.settings.cacheText}</p>
+      <Switch
+        checked={enabled}
+        onChange={(on) => onChange({ enabled: on, ttlHours })}
+        label={m.settings.cacheOn}
+        description={m.settings.cacheOnHint}
+      />
+      <Field label={m.settings.cacheHours}>
+        <div className="flex gap-2">
+          <Input
+            mono
+            type="number"
+            min={1}
+            max={720}
+            className="w-32"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+          />
+          <Button
+            disabled={!valid || Number(hours) === ttlHours}
+            onClick={() => onChange({ enabled, ttlHours: Number(hours) })}
+          >
+            {m.common.save}
+          </Button>
+        </div>
+      </Field>
+      {stats && (
+        <div className="flex flex-wrap items-center gap-3 text-[13px] text-ink-2">
+          {m.settings.cacheStats(stats.entries, stats.hits)}
+          {stats.entries > 0 && (
+            <Button disabled={clear.isPending} onClick={() => clear.mutate()}>
+              {m.settings.clearCache}
+            </Button>
+          )}
+        </div>
+      )}
+      <ErrorNote error={clear.error} />
     </Card>
   );
 }

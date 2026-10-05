@@ -251,6 +251,7 @@ export const en = {
     budgetsMonthly: 'Team budgets are monthly',
     noBudgets: 'No team budgets set yet',
     saved: (amount: string) => `${amount} saved by local models`,
+    savedCache: (amount: string) => `${amount} saved by the cache`,
     requests: 'Requests',
     vsPrevious: (change: string) => `${change}% vs previous period`,
     from: (parts: string) => `from ${parts}`,
@@ -513,6 +514,7 @@ export const en = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} failed: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} is unavailable → sent to ${t.model} · local`,
+    cacheHit: (t: TraceParams) => `Answered from the cache: ${fmtUsd(t.saved ?? 0)} not spent`,
   } as Record<string, (t: TraceParams) => string>,
 
   models: {
@@ -652,6 +654,16 @@ export const en = {
     roleLabel: (email: string) => `${email} role`,
     teamLabel: (email: string) => `${email} team`,
     activeLabel: (email: string) => `${email} active`,
+    cache: 'Response cache',
+    cacheText:
+      'When the same key sends the same request again, it gets the stored answer: no provider call, no cost. Useful for n8n workflows, classification and indexing the same documents again.',
+    cacheOn: 'Answer repeated requests from the cache',
+    cacheOnHint:
+      'Answers are kept unmasked for the time below so they can be returned as they were. Prompts with personal data and streamed answers are never cached; a client can skip the cache with Cache-Control: no-cache.',
+    cacheHours: 'Keep answers for, hours',
+    cacheStats: (entries: number, hits: number) =>
+      `${p(entries, { one: '# answer', other: '# answers' })} cached, reused ${p(hits, { one: '# time', other: '# times' })}`,
+    clearCache: 'Clear the cache',
     notifications: 'Notifications',
     notificationsText:
       'Alerts when budgets run out or a provider fails, and a summary every Monday at 9:00 on the gateway’s clock.',

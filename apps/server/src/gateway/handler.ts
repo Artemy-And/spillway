@@ -4,7 +4,9 @@ import type { AppContext } from '../context.ts';
 import { apiKeys, models, requestLogs, type TraceStep, teams, users } from '../db/schema.ts';
 import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
+import { usd } from '../lib/time.ts';
 import type { Settings } from '../settings.ts';
+import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
 import {
   type Caller,
@@ -494,6 +496,45 @@ export async function handleGateway(
     return errorResponse(format, decision.status, decision.message);
   }
 
+  // With the cache on, a repeated request gets the stored answer. Only whole answers from the
+  // model that was asked for are kept, and never for prompts with personal data in them.
+  const cacheId =
+    settings.cache.enabled &&
+    !stream &&
+    decision.result === 'ok' &&
+    !base.pii &&
+    wantsCache(c.req.raw.headers)
+      ? cacheKey(caller.key.id, decision.target.model, format, body)
+      : null;
+  const hit = cacheId ? await cached(ctx, cacheId) : null;
+  if (hit) {
+    await writeLog(
+      ctx,
+      {
+        ...base,
+        ruleId: 'cache',
+        savedUsd: hit.costUsd,
+        latencyMs: Date.now() - started,
+        trace: [
+          ...decision.trace.filter((s) => s.code !== 'sentTo'),
+          step('info', `Answered from the cache: ${usd(hit.costUsd)} not spent`, 'cacheHit', {
+            saved: hit.costUsd,
+          }),
+        ],
+      },
+      caller.key.id,
+    );
+    return new Response(hit.body, {
+      headers: {
+        'content-type': 'application/json',
+        'x-spillway-request-id': id,
+        'x-spillway-result': decision.result,
+        'x-spillway-model': decision.target.model.name,
+        'x-spillway-cache': 'hit',
+      },
+    });
+  }
+
   let target = decision.target;
   let result = decision.result;
   let trace: TraceStep[] = decision.trace;
@@ -562,7 +603,20 @@ export async function handleGateway(
       forwarded = await forward(ctx, c, format, body, local, stream, meter);
     }
     const { response, done } = forwarded;
-    void done.then((error) => finish(200, error));
+    // An answer the local model gave in a provider's place is not what was asked for.
+    const fresh = cacheId && !outage ? await response.clone().text() : null;
+    void done.then(async (error) => {
+      await finish(200, error);
+      if (cacheId && fresh && error === undefined) {
+        const entry = { id: cacheId, keyId: caller.key.id, modelId: target.model.id, body: fresh };
+        await remember(
+          ctx,
+          { ...entry, costUsd: meter.cost(target.model) },
+          settings.cache.ttlHours,
+        );
+      }
+    });
+    if (cacheId) response.headers.set('x-spillway-cache', 'miss');
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);

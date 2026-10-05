@@ -171,6 +171,32 @@ export const requestLogs = sqliteTable(
   ],
 );
 
+/**
+ * Answers to repeated identical requests, per key. Kept unmasked so they can be returned as they
+ * were, which is why caching is off by default and skips prompts with personal data.
+ */
+export const responseCache = sqliteTable(
+  'response_cache',
+  {
+    /** sha256 of the key, model, client format and request */
+    id: text('id').primaryKey(),
+    keyId: text('key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    modelId: text('model_id')
+      .notNull()
+      .references(() => models.id, { onDelete: 'cascade' }),
+    /** The response exactly as the client got it */
+    body: text('body').notNull(),
+    /** What the first answer cost, which a cache hit saves */
+    costUsd: real('cost_usd').notNull().default(0),
+    hits: integer('hits').notNull().default(0),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (t) => [index('response_cache_expires_idx').on(t.expiresAt)],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).notNull(),

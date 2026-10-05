@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { createInvite } from '../auth/invites.ts';
@@ -15,6 +15,7 @@ import {
   RESULTS,
   ROLES,
   requestLogs,
+  responseCache,
   sessions,
   teams,
   type User,
@@ -741,6 +742,7 @@ export function adminRoutes(ctx: AppContext) {
           retentionDays: settings.retentionDays,
           localModelId: settings.localModelId,
           rerouteOnFailure: settings.rerouteOnFailure,
+          cache: settings.cache,
           sso: ctx.oidc
             ? {
                 issuer: ctx.oidc.issuer,
@@ -795,6 +797,24 @@ export function adminRoutes(ctx: AppContext) {
           path: '/settings',
         });
         return c.json({ deliveries });
+      })
+
+      // ── Response cache ──────────────────────────────────────────────────────
+      .get('/cache', adminOnly, async (c) => {
+        const row = await db
+          .select({
+            entries: sql<number>`count(*)`,
+            hits: sql<number>`coalesce(sum(${responseCache.hits}), 0)`,
+          })
+          .from(responseCache)
+          .where(gt(responseCache.expiresAt, new Date()))
+          .get();
+        return c.json({ entries: row?.entries ?? 0, hits: row?.hits ?? 0 });
+      })
+
+      .delete('/cache', adminOnly, async (c) => {
+        await db.delete(responseCache);
+        return c.json({ ok: true });
       })
   );
 }

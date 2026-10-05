@@ -139,6 +139,11 @@ export function OverviewPage() {
               {m.overview.saved(fmtUsd(data.saved))}
             </div>
           )}
+          {!!data?.savedCache && (
+            <div className="text-[13px] font-medium text-accent-strong">
+              {m.overview.savedCache(fmtUsd(data.savedCache))}
+            </div>
+          )}
         </Tile>
         <Tile label={m.overview.requests} value={fmtNumber(data?.requests ?? 0)}>
           {change !== null && (

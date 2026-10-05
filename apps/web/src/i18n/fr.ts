@@ -274,6 +274,7 @@ export const fr: Messages = {
     budgetsMonthly: 'Les budgets d’équipe sont mensuels',
     noBudgets: 'Aucun budget d’équipe pour l’instant',
     saved: (amount) => `${amount} économisés grâce aux modèles locaux`,
+    savedCache: (amount) => `${amount} économisés grâce au cache`,
     requests: 'Requêtes',
     vsPrevious: (change) => `${change} % par rapport à la période précédente`,
     from: (parts) => `de ${parts}`,
@@ -532,6 +533,7 @@ export const fr: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} a échoué : ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} indisponible → envoyée à ${t.model} · local`,
+    cacheHit: (t: TraceParams) => `Réponse tirée du cache : ${fmtUsd(t.saved ?? 0)} non dépensés`,
   },
 
   models: {
@@ -676,6 +678,16 @@ export const fr: Messages = {
     roleLabel: (email) => `Rôle de ${email}`,
     teamLabel: (email) => `Équipe de ${email}`,
     activeLabel: (email) => `${email} actif`,
+    cache: 'Cache des réponses',
+    cacheText:
+      'Quand la même clé renvoie la même requête, elle reçoit la réponse enregistrée : pas d’appel au fournisseur, pas de coût. Utile pour les workflows n8n, la classification et la réindexation des mêmes documents.',
+    cacheOn: 'Répondre aux requêtes répétées depuis le cache',
+    cacheOnHint:
+      'Les réponses sont conservées sans masquage pendant la durée ci-dessous, pour être renvoyées telles quelles. Les prompts contenant des données personnelles et les réponses en streaming ne sont jamais mis en cache ; un client peut ignorer le cache avec Cache-Control: no-cache.',
+    cacheHours: 'Conserver les réponses, heures',
+    cacheStats: (entries, hits) =>
+      `${p(entries, { one: '# réponse', other: '# réponses' })} en cache, réutilisées ${p(hits, { one: '# fois', other: '# fois' })}`,
+    clearCache: 'Vider le cache',
     notifications: 'Notifications',
     notificationsText:
       'Des alertes quand un budget est épuisé ou qu’un fournisseur tombe en panne, et un résumé chaque lundi à 9 h, à l’heure de la passerelle.',

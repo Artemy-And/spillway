@@ -94,7 +94,13 @@ export async function overview(
   const totals = await db
     .select({
       spend: sum(sql`${requestLogs.costUsd}`),
-      saved: sum(sql`${requestLogs.savedUsd}`),
+      // What local models saved, and apart from it what answers from the cache saved
+      saved: sum(
+        sql`case when ${requestLogs.ruleId} = 'cache' then 0 else ${requestLogs.savedUsd} end`,
+      ),
+      savedCache: sum(
+        sql`case when ${requestLogs.ruleId} = 'cache' then ${requestLogs.savedUsd} else 0 end`,
+      ),
       requests: sql<number>`count(*)`,
       local: sum(
         sql`case when ${requestLogs.servedLocal} and ${requestLogs.status} = 200 then 1 else 0 end`,
@@ -203,6 +209,7 @@ export async function overview(
     timeZone: cal.zone,
     spend: totals?.spend ?? 0,
     saved: totals?.saved ?? 0,
+    savedCache: totals?.savedCache ?? 0,
     budget: budget?.total ?? null,
     requests: totals?.requests ?? 0,
     previousRequests: previous?.requests ?? 0,
