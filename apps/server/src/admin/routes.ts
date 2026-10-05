@@ -149,17 +149,18 @@ export function adminRoutes(ctx: AppContext) {
             const taken = await db.query.users.findFirst({ where: eq(users.email, email) });
             if (taken) return c.json({ error: 'Someone already uses this email' }, 409);
           }
-          await db
-            .update(users)
-            .set({
-              ...(name === undefined ? {} : { name }),
-              ...(email === undefined ? {} : { email }),
-              ...(welcomed === undefined ? {} : { welcomedAt: welcomed ? new Date() : null }),
-              ...(checklistHidden === undefined
-                ? {}
-                : { checklistHiddenAt: checklistHidden ? new Date() : null }),
-            })
-            .where(eq(users.id, user.id));
+          const patch = {
+            ...(name === undefined ? {} : { name }),
+            ...(email === undefined ? {} : { email }),
+            ...(welcomed === undefined ? {} : { welcomedAt: welcomed ? new Date() : null }),
+            ...(checklistHidden === undefined
+              ? {}
+              : { checklistHiddenAt: checklistHidden ? new Date() : null }),
+          };
+          // Unknown fields (a role, say) are dropped, which can leave nothing to save.
+          if (Object.keys(patch).length) {
+            await db.update(users).set(patch).where(eq(users.id, user.id));
+          }
           return c.json({ ok: true });
         },
       )
