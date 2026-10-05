@@ -565,7 +565,7 @@ export const ru: Messages = {
     kinds: {
       openai: {
         label: 'Совместимый с OpenAI',
-        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio и другие API с /v1/chat/completions',
+        hint: 'OpenAI или любой API с /v1/chat/completions: vLLM, LM Studio, LiteLLM, Together и другие',
       },
       anthropic: { label: 'Anthropic', hint: 'Модели Claude через Messages API' },
       ollama: {
@@ -597,6 +597,16 @@ export const ru: Messages = {
     newProvider: 'Новый провайдер',
     baseUrl: 'Base URL',
     baseUrlHint: 'Оставьте пустым, чтобы использовать адрес по умолчанию.',
+    service: 'Сервис',
+    otherService: 'Другой API, совместимый с OpenAI',
+    presetHints: {
+      azure:
+        'Замените YOUR-RESOURCE на имя ресурса в Azure, а модели добавляйте по именам развёртываний.',
+      gemini: 'Нужен ключ API из Google AI Studio.',
+      openrouter: 'Один ключ на сотни моделей; цены берутся из OpenRouter.',
+      custom: 'vLLM, LM Studio, LiteLLM, Together и другие API с /v1/chat/completions.',
+    },
+    fillIn: (part: string) => `Сначала замените ${part} в адресе.`,
     apiKey: 'API-ключ',
     keySaved: 'Ключ сохранён. Оставьте поле пустым, чтобы его не менять, или вставьте новый.',
     keyEncrypted: 'Хранится зашифрованным секретом шлюза.',

@@ -508,7 +508,7 @@ export const zh: Messages = {
     kinds: {
       openai: {
         label: 'OpenAI 兼容',
-        hint: 'OpenAI、OpenRouter、Mistral、Groq、DeepSeek、vLLM、LM Studio 及其他 /v1/chat/completions API',
+        hint: 'OpenAI 或任何支持 /v1/chat/completions 的 API：vLLM、LM Studio、LiteLLM、Together 等',
       },
       anthropic: { label: 'Anthropic', hint: '通过 Messages API 使用 Claude 模型' },
       ollama: {
@@ -539,6 +539,15 @@ export const zh: Messages = {
     newProvider: '新提供商',
     baseUrl: 'Base URL',
     baseUrlHint: '留空则使用默认地址。',
+    service: '服务',
+    otherService: '其他兼容 OpenAI 的 API',
+    presetHints: {
+      azure: '将 YOUR-RESOURCE 替换为你的 Azure 资源名称，然后按部署名称添加模型。',
+      gemini: '使用 Google AI Studio 中的 API 密钥。',
+      openrouter: '一个密钥即可使用数百个模型；价格来自 OpenRouter。',
+      custom: 'vLLM、LM Studio、LiteLLM、Together 及其他支持 /v1/chat/completions 的 API。',
+    },
+    fillIn: (part: string) => `请先替换地址中的 ${part}。`,
     apiKey: 'API 密钥',
     keySaved: '已保存密钥。留空则保持不变，或粘贴新密钥。',
     keyEncrypted: '使用网关密钥加密存储。',

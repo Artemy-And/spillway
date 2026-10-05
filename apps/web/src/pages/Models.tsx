@@ -20,10 +20,41 @@ import { fmtDate, fmtUsd } from '../lib/format.ts';
 
 type Kind = 'openai' | 'anthropic' | 'ollama';
 
-const KIND_ORDER: Kind[] = ['openai', 'anthropic', 'ollama'];
 const MODEL_GRID = 'grid grid-cols-[1.4fr_1.2fr_1fr_1.4fr_0.8fr_0.8fr_0.8fr_90px_40px] gap-3';
-/** Names the form suggests per type, replaced when the type changes unless edited. */
-const DEFAULT_NAMES = ['Ollama', 'Anthropic', 'OpenAI', 'OpenAI-compatible'];
+
+/** Placeholder in a base URL the admin has to replace, like Azure's resource name. */
+const FILL_IN = 'YOUR-RESOURCE';
+
+/**
+ * Services the new-provider form fills in. Everything but Anthropic and Ollama is reached
+ * through its OpenAI-compatible API; Azure's v1 API needs no api-version.
+ */
+const PRESETS = {
+  ollama: { kind: 'ollama', name: 'Ollama', baseUrl: '' },
+  openai: { kind: 'openai', name: 'OpenAI', baseUrl: '' },
+  anthropic: { kind: 'anthropic', name: 'Anthropic', baseUrl: '' },
+  azure: {
+    kind: 'openai',
+    name: 'Azure OpenAI',
+    baseUrl: `https://${FILL_IN}.openai.azure.com/openai/v1`,
+  },
+  gemini: {
+    kind: 'openai',
+    name: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  },
+  mistral: { kind: 'openai', name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1' },
+  groq: { kind: 'openai', name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1' },
+  deepseek: { kind: 'openai', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+  xai: { kind: 'openai', name: 'xAI', baseUrl: 'https://api.x.ai/v1' },
+  openrouter: { kind: 'openai', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
+  custom: { kind: 'openai', name: 'OpenAI-compatible', baseUrl: '' },
+} satisfies Record<string, { kind: Kind; name: string; baseUrl: string }>;
+
+type Preset = keyof typeof PRESETS;
+const PRESET_ORDER = Object.keys(PRESETS) as Preset[];
+/** Names the form suggests, replaced when the service changes unless edited. */
+const DEFAULT_NAMES = Object.values(PRESETS).map((preset) => preset.name);
 
 export function ModelsPage() {
   const { m } = useI18n();
@@ -208,9 +239,11 @@ function ProviderForm({
     queryFn: () => unwrap(api['provider-defaults'].$get()),
     staleTime: Number.POSITIVE_INFINITY,
   });
-  const [kind, setKind] = useState<Kind>(provider?.kind ?? 'ollama');
+  const [preset, setPreset] = useState<Preset>('ollama');
+  const kind: Kind = provider?.kind ?? PRESETS[preset].kind;
   const [name, setName] = useState(provider?.name ?? 'Ollama');
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? '');
+  const unfinished = baseUrl.includes(FILL_IN);
   const [apiKey, setApiKey] = useState('');
   const [removeKey, setRemoveKey] = useState(false);
   const [isLocal, setIsLocal] = useState(provider?.isLocal ?? true);
@@ -252,33 +285,46 @@ function ProviderForm({
       <h2 className={cx('text-[17px] font-semibold', wide)}>
         {provider ? m.common.edit(provider.name) : m.models.newProvider}
       </h2>
-      <Field label={m.common.type} hint={m.models.kinds[kind].hint}>
-        <Select
-          disabled={!!provider}
-          value={kind}
-          onChange={(e) => {
-            const next = e.target.value as Kind;
-            setKind(next);
-            setIsLocal(next === 'ollama');
-            if (!name.trim() || DEFAULT_NAMES.includes(name)) {
-              setName(next === 'openai' ? 'OpenAI' : m.models.kinds[next].label);
-            }
-          }}
+      {provider ? (
+        <Field label={m.common.type} hint={m.models.kinds[kind].hint}>
+          <Select disabled value={kind}>
+            <option value={kind}>{m.models.kinds[kind].label}</option>
+          </Select>
+        </Field>
+      ) : (
+        <Field
+          label={m.models.service}
+          hint={m.models.presetHints[preset] ?? m.models.kinds[kind].hint}
         >
-          {KIND_ORDER.map((k) => (
-            <option key={k} value={k}>
-              {m.models.kinds[k].label}
-            </option>
-          ))}
-        </Select>
-      </Field>
+          <Select
+            value={preset}
+            onChange={(e) => {
+              const next = e.target.value as Preset;
+              setPreset(next);
+              setIsLocal(next === 'ollama');
+              setBaseUrl(PRESETS[next].baseUrl);
+              if (!name.trim() || DEFAULT_NAMES.includes(name)) setName(PRESETS[next].name);
+            }}
+          >
+            {PRESET_ORDER.map((id) => (
+              <option key={id} value={id}>
+                {id === 'custom' ? m.models.otherService : PRESETS[id].name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <Field label={m.common.name}>
         <Input required value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label={m.models.baseUrl} hint={m.models.baseUrlHint}>
+      <Field
+        label={m.models.baseUrl}
+        hint={unfinished ? m.models.fillIn(FILL_IN) : m.models.baseUrlHint}
+      >
         <Input
           mono
-          placeholder={defaults?.[kind]}
+          required={preset === 'custom' && !provider}
+          placeholder={preset === 'custom' ? 'http://vllm:8000/v1' : defaults?.[kind]}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
         />
@@ -316,7 +362,7 @@ function ProviderForm({
       </div>
       <div className={cx('flex justify-end gap-2.5', wide)}>
         <Button onClick={onCancel}>{m.common.cancel}</Button>
-        <Button type="submit" variant="primary" disabled={save.isPending}>
+        <Button type="submit" variant="primary" disabled={save.isPending || unfinished}>
           {provider ? m.common.save : m.models.addProvider}
         </Button>
       </div>

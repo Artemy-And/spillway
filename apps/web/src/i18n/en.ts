@@ -524,7 +524,7 @@ export const en = {
     kinds: {
       openai: {
         label: 'OpenAI-compatible',
-        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio and other /v1/chat/completions APIs',
+        hint: 'OpenAI or any API with /v1/chat/completions: vLLM, LM Studio, LiteLLM, Together and others',
       },
       anthropic: { label: 'Anthropic', hint: 'Claude models through the Messages API' },
       ollama: {
@@ -556,6 +556,16 @@ export const en = {
     newProvider: 'New provider',
     baseUrl: 'Base URL',
     baseUrlHint: 'Leave empty for the default.',
+    service: 'Service',
+    otherService: 'Other OpenAI-compatible API',
+    presetHints: {
+      azure:
+        'Replace YOUR-RESOURCE with your Azure resource name, then add models by their deployment names.',
+      gemini: 'Use an API key from Google AI Studio.',
+      openrouter: 'One key for hundreds of models; their prices come from OpenRouter.',
+      custom: 'vLLM, LM Studio, LiteLLM, Together and other APIs with /v1/chat/completions.',
+    } as Record<string, string | undefined>,
+    fillIn: (part: string) => `Replace ${part} in the address first.`,
     apiKey: 'API key',
     keySaved: 'A key is saved. Leave empty to keep it, or paste a new one.',
     keyEncrypted: 'Encrypted at rest with the gateway secret.',

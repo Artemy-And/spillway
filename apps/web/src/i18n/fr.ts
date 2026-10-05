@@ -545,7 +545,7 @@ export const fr: Messages = {
     kinds: {
       openai: {
         label: 'Compatible OpenAI',
-        hint: 'OpenAI, OpenRouter, Mistral, Groq, DeepSeek, vLLM, LM Studio et autres API /v1/chat/completions',
+        hint: 'OpenAI ou toute API avec /v1/chat/completions : vLLM, LM Studio, LiteLLM, Together et d’autres',
       },
       anthropic: { label: 'Anthropic', hint: 'Modèles Claude via l’API Messages' },
       ollama: {
@@ -577,6 +577,16 @@ export const fr: Messages = {
     newProvider: 'Nouveau fournisseur',
     baseUrl: 'URL de base',
     baseUrlHint: 'Laissez vide pour l’adresse par défaut.',
+    service: 'Service',
+    otherService: 'Autre API compatible OpenAI',
+    presetHints: {
+      azure:
+        'Remplacez YOUR-RESOURCE par le nom de votre ressource Azure, puis ajoutez les modèles par leurs noms de déploiement.',
+      gemini: 'Utilisez une clé d’API de Google AI Studio.',
+      openrouter: 'Une seule clé pour des centaines de modèles ; leurs prix viennent d’OpenRouter.',
+      custom: 'vLLM, LM Studio, LiteLLM, Together et d’autres API avec /v1/chat/completions.',
+    },
+    fillIn: (part: string) => `Remplacez d’abord ${part} dans l’adresse.`,
     apiKey: 'Clé API',
     keySaved: 'Une clé est enregistrée. Laissez vide pour la garder, ou collez-en une nouvelle.',
     keyEncrypted: 'Chiffrée au repos avec le secret de la passerelle.',
