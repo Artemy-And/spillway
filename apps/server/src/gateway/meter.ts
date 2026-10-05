@@ -59,6 +59,11 @@ export class Meter {
     this.#append(res.choices[0]?.message?.content);
   }
 
+  /** Embeddings bill their input only. */
+  embeddingsResponse(res: { usage?: { prompt_tokens?: number } | null }) {
+    this.inputTokens = res.usage?.prompt_tokens ?? 0;
+  }
+
   anthropicEvent(event: AStreamEvent) {
     if (event.type === 'message_start') this.#anthropicUsage(event.message?.usage);
     if (event.type === 'message_delta') this.#anthropicUsage(event.usage);

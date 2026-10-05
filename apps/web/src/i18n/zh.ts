@@ -475,6 +475,9 @@ export const zh: Messages = {
     offHours: (t: TraceParams) => `不在工作时间 ${t.from}–${t.to} 内`,
     blockedKeyNoFallback: () => '请求被拦截：此密钥设置为拦截，而不切换到本地模型',
     blockedNoLocalModel: () => '请求被拦截：未配置本地模型',
+    embeddings: (t: TraceParams) => `为 ${p(t.count ?? 1, { other: '# 段文本' })}生成向量`,
+    ruleSkippedEmbeddings: (t: TraceParams) => `已跳过规则 ${t.rule}：向量请求保持原模型`,
+    blockedEmbeddings: () => '请求被拦截：向量请求不能切换到其他模型',
     sentToLocal: (t: TraceParams) =>
       `${t.rule ? `命中规则 ${t.rule} → ` : ''}已发往 ${t.model} · 本地`,
     withinBudget: (t: TraceParams) =>

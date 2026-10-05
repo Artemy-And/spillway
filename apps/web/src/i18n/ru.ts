@@ -526,6 +526,11 @@ export const ru: Messages = {
     blockedKeyNoFallback: () =>
       'Запрос заблокирован: этот ключ не переключается на локальную модель',
     blockedNoLocalModel: () => 'Запрос заблокирован: локальная модель не выбрана',
+    embeddings: (t: TraceParams) =>
+      `Эмбеддинги для ${p(t.count ?? 1, { one: '# текста', few: '# текстов', many: '# текстов', other: '# текста' })}`,
+    ruleSkippedEmbeddings: (t: TraceParams) =>
+      `Правило ${t.rule} пропущено: эмбеддинги остаются на своей модели`,
+    blockedEmbeddings: () => 'Запрос заблокирован: эмбеддинги нельзя перевести на другую модель',
     sentToLocal: (t: TraceParams) =>
       `${t.rule ? `Сработало правило ${t.rule} → ` : ''}отправлен в ${t.model} · локальная`,
     withinBudget: (t: TraceParams) =>

@@ -44,6 +44,7 @@ export interface TraceParams {
   local?: boolean;
   provider?: string;
   message?: string;
+  count?: number;
 }
 
 /** "card numbers ×2, emails ×1" with the language's own labels. */

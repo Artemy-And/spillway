@@ -47,7 +47,7 @@ import { callUpstream, upstreamFailure, type Wire, wireOf } from './upstream.ts'
 
 export type Format = 'openai' | 'anthropic' | 'ollama-chat' | 'ollama-generate';
 
-const PREVIEW = 2000;
+export const PREVIEW = 2000;
 
 const isOllama = (format: Format) => format === 'ollama-chat' || format === 'ollama-generate';
 
@@ -416,7 +416,7 @@ async function forward(
   }
 }
 
-async function writeLog(
+export async function writeLog(
   ctx: AppContext,
   row: typeof requestLogs.$inferInsert,
   keyId: string,

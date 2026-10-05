@@ -487,6 +487,11 @@ export const en = {
     blockedKeyNoFallback: () =>
       'Request blocked: this key blocks instead of switching to a local model',
     blockedNoLocalModel: () => 'Request blocked: no local model is configured',
+    embeddings: (t: TraceParams) =>
+      `Embeddings for ${p(t.count ?? 1, { one: '# text', other: '# texts' })}`,
+    ruleSkippedEmbeddings: (t: TraceParams) =>
+      `Rule ${t.rule} skipped: embeddings stay on their model`,
+    blockedEmbeddings: () => 'Request blocked: embeddings cannot switch to another model',
     sentToLocal: (t: TraceParams) =>
       `${t.rule ? `Rule ${t.rule} matched → ` : ''}sent to ${t.model} · local`,
     withinBudget: (t: TraceParams) =>

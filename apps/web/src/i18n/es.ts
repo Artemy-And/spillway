@@ -502,6 +502,11 @@ export const es: Messages = {
     blockedKeyNoFallback: () =>
       'Solicitud bloqueada: esta clave bloquea en lugar de pasar a un modelo local',
     blockedNoLocalModel: () => 'Solicitud bloqueada: no hay un modelo local configurado',
+    embeddings: (t: TraceParams) =>
+      `Embeddings para ${p(t.count ?? 1, { one: '# texto', other: '# textos' })}`,
+    ruleSkippedEmbeddings: (t: TraceParams) =>
+      `Regla ${t.rule} omitida: los embeddings se quedan en su modelo`,
+    blockedEmbeddings: () => 'Solicitud bloqueada: los embeddings no pueden pasar a otro modelo',
     sentToLocal: (t: TraceParams) =>
       `${t.rule ? `Se activó la regla ${t.rule} → ` : ''}enviada a ${t.model} · local`,
     withinBudget: (t: TraceParams) =>

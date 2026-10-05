@@ -4,6 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { type AppContext, VERSION } from '../context.ts';
 import { models, providers } from '../db/schema.ts';
+import { handleEmbeddings } from './embeddings.ts';
 import { authenticate, errorResponse, type Format, handleGateway } from './handler.ts';
 import { findModel } from './policy.ts';
 import { callUpstream, upstreamFailure } from './upstream.ts';
@@ -42,6 +43,13 @@ export function gatewayRoutes(ctx: AppContext) {
   app.post('/api/chat', guarded('ollama-chat'), (c) => handleGateway(ctx, c, 'ollama-chat'));
   app.post('/api/generate', guarded('ollama-generate'), (c) =>
     handleGateway(ctx, c, 'ollama-generate'),
+  );
+
+  // Embeddings, for document search in Open WebUI, n8n and RAG code.
+  app.post('/v1/embeddings', guarded('openai'), (c) => handleEmbeddings(ctx, c, 'openai'));
+  app.post('/api/embed', guarded('ollama-chat'), (c) => handleEmbeddings(ctx, c, 'ollama-embed'));
+  app.post('/api/embeddings', guarded('ollama-chat'), (c) =>
+    handleEmbeddings(ctx, c, 'ollama-embeddings'),
   );
 
   // One list that satisfies both OpenAI and Anthropic SDKs.

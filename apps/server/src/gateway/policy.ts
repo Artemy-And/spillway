@@ -98,11 +98,14 @@ interface Input {
   requestedName: string;
   pii: PiiCounts;
   settings: Settings;
+  /** Embeddings never switch to another model, see below. */
+  purpose?: 'chat' | 'embeddings';
   now?: Date;
 }
 
 export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   const { caller, requestedName, pii, settings } = input;
+  const embeddings = input.purpose === 'embeddings';
   const { key, team } = caller;
   const now = input.now ?? new Date();
   const cal = calendarOf(settings);
@@ -183,7 +186,13 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   if (requested.provider.isLocal) {
     trace.push(step('info', 'Local model: no API cost, budgets do not apply', 'localNoBudget'));
   } else {
-    let reroute: { reason: TraceStep; ruleId: RuleId | null; allowed: boolean } | null = null;
+    /** `hard` is a limit that is used up; the others are rules that save money early. */
+    let reroute: {
+      reason: TraceStep;
+      ruleId: RuleId | null;
+      allowed: boolean;
+      hard: boolean;
+    } | null = null;
 
     const keyDay =
       key.dailyLimitUsd != null
@@ -208,6 +217,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
+        hard: true,
       };
     } else if (key.monthlyLimitUsd != null && keyMonth >= key.monthlyLimitUsd) {
       reroute = {
@@ -219,6 +229,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
+        hard: true,
       };
     } else if (team?.monthlyBudgetUsd != null && team.monthlyBudgetUsd >= 0) {
       const percent = team.monthlyBudgetUsd > 0 ? (teamMonth / team.monthlyBudgetUsd) * 100 : 100;
@@ -234,6 +245,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
           ),
           ruleId: threshold ? 'budgetThreshold' : null,
           allowed: true,
+          hard: over,
         };
       }
     }
@@ -247,10 +259,40 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         reason: step('warn', `Outside working hours ${from}–${to}`, 'offHours', { from, to }),
         ruleId: 'offHours',
         allowed: true,
+        hard: false,
       };
     }
 
-    if (reroute) {
+    // Vectors from another model do not match the ones already stored, so embeddings never
+    // switch: a rule that would save money early lets them through, a used-up limit blocks them.
+    if (reroute && embeddings) {
+      trace.push(reroute.reason);
+      if (reroute.hard) {
+        return stop(
+          'blocked_budget',
+          429,
+          step(
+            'block',
+            'Request blocked: embeddings cannot switch to another model',
+            'blockedEmbeddings',
+          ),
+          requested,
+          reroute.ruleId,
+        );
+      }
+      const rule = ruleNumber(reroute.ruleId!);
+      trace.push(
+        step(
+          'info',
+          `Rule ${rule} skipped: embeddings stay on their model`,
+          'ruleSkippedEmbeddings',
+          {
+            rule,
+          },
+        ),
+      );
+      reroute = null;
+    } else if (reroute) {
       trace.push(reroute.reason);
       const local = settings.localModelId
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
