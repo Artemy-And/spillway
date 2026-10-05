@@ -167,6 +167,17 @@ export function Layout() {
             {m.nav.offlineBanner}
           </p>
         )}
+        {me?.gateway.demo && (
+          <p role="status" className="rounded-lg bg-info-bg px-4 py-2.5 text-[13px] text-info-fg">
+            {m.nav.demoBanner}{' '}
+            <a
+              href={`${me.gateway.source}#quick-start`}
+              className="font-medium whitespace-nowrap text-info-fg underline underline-offset-2"
+            >
+              {m.nav.demoInstall}
+            </a>
+          </p>
+        )}
         <Outlet />
       </main>
       {me && !me.user.welcomed && <Welcome admin={isAdmin} />}

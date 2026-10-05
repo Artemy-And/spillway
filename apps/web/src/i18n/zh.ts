@@ -77,6 +77,8 @@ export const zh: Messages = {
   },
 
   errors: {
+    'This is a read-only demo with made-up data. Install Spillway to try changes.':
+      '这是一个只读演示，数据均为虚构。要尝试修改，请安装 Spillway。',
     'A team with this name already exists': '已有同名团队',
     'This invite link is invalid or has expired': '邀请链接无效或已过期',
     'Person not found': '找不到此人',
@@ -118,6 +120,8 @@ export const zh: Messages = {
     degradedHint: '过去 10 分钟内发往该提供商的最近一次请求失败。可行时由本地模型代为回答。',
     offline: '无法连接网关',
     offlineBanner: '无法连接网关。本页数据可能已过时，每 15 秒重试一次。',
+    demoBanner: '只读演示：虚构的公司和生成的流量。所有会改动数据的操作都已关闭。',
+    demoInstall: '安装 Spillway →',
     providers: (all, local) => `${p(all, { other: '# 个提供商' })} · ${local} 个本地`,
     selfHosted: (version) => `v${version} · 自托管`,
   },

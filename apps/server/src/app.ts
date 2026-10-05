@@ -9,6 +9,7 @@ import { authRoutes } from './auth/routes.ts';
 import { type AuthEnv, requireUser } from './auth/session.ts';
 import type { AppContext } from './context.ts';
 import { apiKeys, requestLogs } from './db/schema.ts';
+import { demoGuard } from './demo.ts';
 import { gatewayRoutes } from './gateway/routes.ts';
 
 /** The typed API the admin UI calls through the Hono RPC client. */
@@ -82,6 +83,7 @@ export function createApp(ctx: AppContext) {
   const app = new Hono();
 
   app.get('/healthz', (c) => c.json({ ok: true }));
+  if (ctx.env.DEMO) app.use('*', demoGuard);
   app.route('/', gatewayRoutes(ctx));
   app.use('/auth/*', secureHeaders());
   app.use('/admin/*', secureHeaders());

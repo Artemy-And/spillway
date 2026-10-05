@@ -6,6 +6,7 @@ import { Oidc } from './auth/oidc.ts';
 import { bootstrap, cleanup } from './bootstrap.ts';
 import { type AppContext, RateLimiter, VERSION } from './context.ts';
 import { openDb } from './db/client.ts';
+import { seedDemo } from './demo.ts';
 import { loadEnv } from './env.ts';
 import { loadSecret, Vault } from './lib/crypto.ts';
 import { watch } from './notify.ts';
@@ -28,6 +29,12 @@ const ctx: AppContext = {
   publicDir: process.env.PUBLIC_DIR ?? resolve(import.meta.dirname, '../public'),
 };
 
+// The demo has its own company and refreshes its traffic every hour.
+let demoTimer: NodeJS.Timeout | undefined;
+if (env.DEMO) {
+  await seedDemo(ctx);
+  demoTimer = setInterval(() => seedDemo(ctx).catch(console.error), 3_600_000);
+}
 await bootstrap(ctx);
 await cleanup(ctx);
 const cleanupTimer = setInterval(() => cleanup(ctx).catch(console.error), 3_600_000);
@@ -45,6 +52,7 @@ const server = serve(
 function shutdown() {
   clearInterval(cleanupTimer);
   clearInterval(notifyTimer);
+  clearInterval(demoTimer);
   server.close(() => {
     close();
     process.exit(0);

@@ -102,6 +102,9 @@ export const en = {
     offline: 'No connection to the gateway',
     offlineBanner:
       'No connection to the gateway. Numbers on this page may be out of date; retrying every 15 seconds.',
+    demoBanner:
+      'Read-only demo: a made-up company with generated traffic. Anything that would change it is switched off.',
+    demoInstall: 'Install Spillway →',
     providers: (all: number, local: number) =>
       `${p(all, { one: '# provider', other: '# providers' })} · ${local} local`,
     selfHosted: (version: string) => `v${version} · self-hosted`,

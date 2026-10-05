@@ -4,6 +4,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import type { AppContext } from '../context.ts';
 import { sessions, type User, users } from '../db/schema.ts';
+import { DEMO_EMAIL } from '../demo.ts';
 import { randomToken, sha256 } from '../lib/crypto.ts';
 
 export type AuthEnv = { Variables: { user: User } };
@@ -47,8 +48,14 @@ export function requireUser(ctx: AppContext) {
           .where(and(eq(sessions.id, sha256(token)), gt(sessions.expiresAt, new Date())))
           .get()
       : undefined;
-    if (!row || row.user.disabledAt) return c.json({ error: 'Sign in to continue' }, 401);
-    c.set('user', row.user);
+    // In the demo everyone looks around as its admin; the demo guard refuses changes.
+    const user =
+      row?.user ??
+      (ctx.env.DEMO
+        ? await ctx.db.query.users.findFirst({ where: eq(users.email, DEMO_EMAIL) })
+        : null);
+    if (!user || user.disabledAt) return c.json({ error: 'Sign in to continue' }, 401);
+    c.set('user', user);
     await next();
   });
 }

@@ -78,6 +78,8 @@ export const ru: Messages = {
   },
 
   errors: {
+    'This is a read-only demo with made-up data. Install Spillway to try changes.':
+      'Это демо только для просмотра, данные выдуманы. Чтобы что-то менять, установите Spillway.',
     'A team with this name already exists': 'Команда с таким названием уже есть',
     'This invite link is invalid or has expired': 'Ссылка недействительна или устарела',
     'Person not found': 'Человек не найден',
@@ -122,6 +124,9 @@ export const ru: Messages = {
     offline: 'Нет связи со шлюзом',
     offlineBanner:
       'Нет связи со шлюзом. Цифры на странице могут быть устаревшими; повторяем попытку каждые 15 секунд.',
+    demoBanner:
+      'Демо только для просмотра: выдуманная компания и сгенерированный трафик. Всё, что могло бы его изменить, отключено.',
+    demoInstall: 'Установить Spillway →',
     providers: (all, local) =>
       `${p(all, { one: '# провайдер', few: '# провайдера', many: '# провайдеров', other: '# провайдера' })} · ${local} локальн.`,
     selfHosted: (version) => `v${version} · на своём сервере`,

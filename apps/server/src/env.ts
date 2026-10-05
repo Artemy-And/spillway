@@ -39,6 +39,9 @@ const schema = z.object({
   /** Sender address; defaults to the SMTP user */
   SMTP_FROM: z.string().optional(),
 
+  /** The public read-only demo: made-up data, no sign-in, no changes, no gateway. */
+  DEMO: z.stringbool().default(false),
+
   /** Seed providers on first start. */
   OLLAMA_URL: z.url().optional(),
   OPENAI_API_KEY: z.string().optional(),

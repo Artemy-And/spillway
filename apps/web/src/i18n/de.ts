@@ -78,6 +78,8 @@ export const de: Messages = {
   },
 
   errors: {
+    'This is a read-only demo with made-up data. Install Spillway to try changes.':
+      'Dies ist eine schreibgeschützte Demo mit erfundenen Daten. Installieren Sie Spillway, um Änderungen auszuprobieren.',
     'A team with this name already exists': 'Ein Team mit diesem Namen gibt es bereits',
     'This invite link is invalid or has expired':
       'Dieser Einladungslink ist ungültig oder abgelaufen',
@@ -125,6 +127,9 @@ export const de: Messages = {
     offline: 'Keine Verbindung zum Gateway',
     offlineBanner:
       'Keine Verbindung zum Gateway. Die Zahlen auf dieser Seite sind womöglich veraltet; neuer Versuch alle 15 Sekunden.',
+    demoBanner:
+      'Schreibgeschützte Demo: eine erfundene Firma mit generiertem Verkehr. Alles, was etwas ändern würde, ist abgeschaltet.',
+    demoInstall: 'Spillway installieren →',
     providers: (all, local) =>
       `${p(all, { one: '# Anbieter', other: '# Anbieter' })} · ${local} lokal`,
     selfHosted: (version) => `v${version} · selbst gehostet`,

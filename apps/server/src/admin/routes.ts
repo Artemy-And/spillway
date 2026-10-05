@@ -128,6 +128,7 @@ export function adminRoutes(ctx: AppContext) {
             source: SOURCE_URL,
             providers: counts?.providers ?? 0,
             localProviders: counts?.local ?? 0,
+            demo: ctx.env.DEMO,
           },
         });
       })
