@@ -12,6 +12,7 @@ import { openDb } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs } from '../db/schema.ts';
 import { loadEnv } from '../env.ts';
 import { newGatewayKey, Vault } from '../lib/crypto.ts';
+import { calendar } from '../lib/time.ts';
 import { SettingsStore } from '../settings.ts';
 
 // Cloud providers that fail in every way we have seen, and a local model that always answers.
@@ -208,7 +209,7 @@ test('keys that must not fall back get the error', async () => {
 });
 
 test('failing providers show up in Needs attention', async () => {
-  const data = await overview(ctx.db, 'month', null);
+  const data = await overview(ctx.db, 'month', null, calendar('UTC'));
   const down = data.alerts.find(
     (alert) => alert.code === 'providerFailing' && alert.provider === 'Cloud down',
   );

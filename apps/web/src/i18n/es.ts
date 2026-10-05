@@ -425,6 +425,7 @@ export const es: Messages = {
     startLabel: 'Inicio de la jornada',
     endLabel: 'Fin de la jornada',
     offThen: 'Solo modelos locales',
+    zoneHint: 'Zona horaria de la pasarela. Se cambia en Ajustes.',
     matched: (n) => `Se activó ${times(n)} este mes`,
     discard: 'Descartar',
     saveRules: 'Guardar reglas',
@@ -616,6 +617,12 @@ export const es: Messages = {
       'Presupuestos y reglas envían aquí las solicitudes en lugar de bloquearlas. Sin modelo, esas solicitudes reciben un error claro.',
     noneBlock: 'Ninguno: bloquear',
     addOllama: 'Añade primero un proveedor Ollama y sus modelos.',
+    timeZone: 'Zona horaria',
+    timeZoneText:
+      'Con este reloj los límites diarios se reinician a medianoche y se comprueba el horario laboral, esté donde esté el servidor.',
+    serverZone: (zone) => `Zona del servidor (${zone})`,
+    pickMine: (zone) => `Usar mi zona horaria (${zone})`,
+    nowThere: (time) => `Allí son las ${time}.`,
     onFailure: 'Responder también aquí cuando falle un proveedor en la nube',
     onFailureHint:
       'Caídas, tiempos de espera y límites de frecuencia reciben respuesta del modelo local en lugar de un error.',

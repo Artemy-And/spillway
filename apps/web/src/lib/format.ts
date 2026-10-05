@@ -71,3 +71,15 @@ export const fmtMonth = (date: Date, withYear = false) =>
 
 export const pct = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 100) : 0;
+
+/** The viewer's time zone, e.g. "Europe/Berlin". */
+export const browserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/** Every IANA zone the browser knows, for the time zone picker. */
+export function allZones(): string[] {
+  try {
+    return Intl.supportedValuesOf('timeZone');
+  } catch {
+    return [browserZone(), 'UTC'];
+  }
+}

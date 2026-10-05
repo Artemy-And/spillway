@@ -15,8 +15,8 @@ import {
   type User,
 } from '../db/schema.ts';
 import { describePii, type PiiCounts, type PiiKind } from '../lib/pii.ts';
-import { isWithin, startOfDay, startOfMonth, usd } from '../lib/time.ts';
-import { RULE_IDS, type RuleId, type Settings } from '../settings.ts';
+import { usd } from '../lib/time.ts';
+import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
 
 export interface Caller {
   key: ApiKey;
@@ -105,6 +105,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   const { caller, requestedName, pii, settings } = input;
   const { key, team } = caller;
   const now = input.now ?? new Date();
+  const cal = calendarOf(settings);
   const rules = settings.rules;
   const trace: TraceStep[] = [];
 
@@ -186,15 +187,15 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
 
     const keyDay =
       key.dailyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, startOfDay(now))
+        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
         : 0;
     const keyMonth =
       key.monthlyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, startOfMonth(now))
+        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now))
         : 0;
     const teamMonth =
       team?.monthlyBudgetUsd != null
-        ? await spent(ctx.db, requestLogs.teamId, team.id, startOfMonth(now))
+        ? await spent(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
         : 0;
 
     if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
@@ -239,7 +240,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     if (
       !reroute &&
       rules.offHours.enabled &&
-      !isWithin(rules.offHours.from, rules.offHours.to, now)
+      !cal.isWithin(rules.offHours.from, rules.offHours.to, now)
     ) {
       const { from, to } = rules.offHours;
       reroute = {

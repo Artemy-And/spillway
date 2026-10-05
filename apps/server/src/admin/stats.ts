@@ -1,29 +1,31 @@
 import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
-import { daysAgo, startOfDay, startOfMonth, startOfNextMonth } from '../lib/time.ts';
+import type { Calendar } from '../lib/time.ts';
 
 export type Period = '7d' | '30d' | 'month';
 
 const DAY = 86_400_000;
 
-export function periodStart(period: Period, now = new Date()): Date {
-  if (period === '7d') return daysAgo(6, now);
-  if (period === '30d') return daysAgo(29, now);
-  return startOfMonth(now);
+export function periodStart(period: Period, cal: Calendar, now = new Date()): Date {
+  if (period === '7d') return cal.daysAgo(6, now);
+  if (period === '30d') return cal.daysAgo(29, now);
+  return cal.startOfMonth(now);
 }
 
 const BLOCKED = ['blocked_pii', 'blocked_budget', 'blocked_model', 'rate_limited'] as const;
 const sum = (expr: SQL) => sql<number>`coalesce(sum(${expr}), 0)`;
-const day = sql<string>`date(${requestLogs.createdAt} / 1000, 'unixepoch', 'localtime')`;
+/** Quarter hours: days are cut in JavaScript, in the gateway's zone, half-hour offsets included. */
+const QUARTER = 900_000;
+const quarter = sql<number>`${requestLogs.createdAt} / ${QUARTER}`;
 
 /** Spend per key for today and this month. */
-export async function keySpend(db: Db, keyIds: string[] | null, now = new Date()) {
+export async function keySpend(db: Db, keyIds: string[] | null, cal: Calendar, now = new Date()) {
   const rows = await db
     .select({
       keyId: requestLogs.keyId,
       today: sum(
-        sql`case when ${requestLogs.createdAt} >= ${startOfDay(now).getTime()} then ${requestLogs.costUsd} end`,
+        sql`case when ${requestLogs.createdAt} >= ${cal.startOfDay(now).getTime()} then ${requestLogs.costUsd} end`,
       ),
       month: sum(sql`${requestLogs.costUsd}`),
       requests: sql<number>`count(*)`,
@@ -31,7 +33,7 @@ export async function keySpend(db: Db, keyIds: string[] | null, now = new Date()
     .from(requestLogs)
     .where(
       and(
-        gte(requestLogs.createdAt, startOfMonth(now)),
+        gte(requestLogs.createdAt, cal.startOfMonth(now)),
         keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
       ),
     )
@@ -40,11 +42,11 @@ export async function keySpend(db: Db, keyIds: string[] | null, now = new Date()
   return new Map(rows.map((row) => [row.keyId, row]));
 }
 
-export async function teamSpend(db: Db, now = new Date()) {
+export async function teamSpend(db: Db, cal: Calendar, now = new Date()) {
   const rows = await db
     .select({ teamId: requestLogs.teamId, month: sum(sql`${requestLogs.costUsd}`) })
     .from(requestLogs)
-    .where(gte(requestLogs.createdAt, startOfMonth(now)))
+    .where(gte(requestLogs.createdAt, cal.startOfMonth(now)))
     .groupBy(requestLogs.teamId)
     .all();
   return new Map(rows.map((row) => [row.teamId, row.month]));
@@ -77,8 +79,14 @@ export async function failingProviders(db: Db, now = new Date()) {
     .map((row) => row.provider);
 }
 
-export async function overview(db: Db, period: Period, keyIds: string[] | null, now = new Date()) {
-  const since = periodStart(period, now);
+export async function overview(
+  db: Db,
+  period: Period,
+  keyIds: string[] | null,
+  cal: Calendar,
+  now = new Date(),
+) {
+  const since = periodStart(period, cal, now);
   const previousSince = new Date(since.getTime() - (now.getTime() - since.getTime()));
   const scope = keyIds ? inArray(requestLogs.keyId, keyIds) : undefined;
   const inPeriod = and(gte(requestLogs.createdAt, since), scope);
@@ -126,22 +134,26 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
     agents: byKind('agent')?.keys ?? 0,
   };
 
-  const dailyRows = await db
+  const quarterRows = await db
     .select({
-      day,
+      quarter,
       cloud: sum(
         sql`case when not ${requestLogs.servedLocal} and ${requestLogs.servedModelId} is not null then 1 else 0 end`,
       ),
       local: sum(sql`case when ${requestLogs.servedLocal} then 1 else 0 end`),
     })
     .from(requestLogs)
-    .where(and(gte(requestLogs.createdAt, daysAgo(13, now)), scope))
-    .groupBy(day)
+    .where(and(gte(requestLogs.createdAt, cal.daysAgo(13, now)), scope))
+    .groupBy(quarter)
     .all();
-  const byDay = new Map(dailyRows.map((row) => [row.day, row]));
+  const byDay = new Map<string, { cloud: number; local: number }>();
+  for (const row of quarterRows) {
+    const key = cal.dayKey(new Date(row.quarter * QUARTER));
+    const total = byDay.get(key) ?? { cloud: 0, local: 0 };
+    byDay.set(key, { cloud: total.cloud + row.cloud, local: total.local + row.local });
+  }
   const daily = Array.from({ length: 14 }, (_, i) => {
-    const date = daysAgo(13 - i, now);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const key = cal.dayKey(cal.daysAgo(13 - i, now));
     const row = byDay.get(key);
     return { date: key, cloud: row?.cloud ?? 0, local: row?.local ?? 0 };
   });
@@ -187,7 +199,8 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
   return {
     period,
     since: since.toISOString(),
-    resetsAt: startOfNextMonth(now).toISOString(),
+    resetsAt: cal.startOfNextMonth(now).toISOString(),
+    timeZone: cal.zone,
     spend: totals?.spend ?? 0,
     saved: totals?.saved ?? 0,
     budget: budget?.total ?? null,
@@ -201,7 +214,7 @@ export async function overview(db: Db, period: Period, keyIds: string[] | null, 
     spenders,
     models: byModel.filter((row) => !row.local).slice(0, 5),
     localModels: byModel.filter((row) => row.local),
-    alerts: await alerts(db, keyIds, now),
+    alerts: await alerts(db, keyIds, cal, now),
   };
 }
 
@@ -237,7 +250,7 @@ type Alert =
     }
   | { tone: 'warn'; code: 'modelNoPrice'; models: string[]; at: number };
 
-async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert[]> {
+async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date): Promise<Alert[]> {
   const out: Alert[] = [];
   const keyScope = keyIds ? inArray(apiKeys.id, keyIds) : undefined;
   const lastDay = new Date(now.getTime() - DAY);
@@ -248,7 +261,7 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
     .leftJoin(teams, eq(apiKeys.teamId, teams.id))
     .where(and(isNull(apiKeys.revokedAt), keyScope))
     .all();
-  const spend = await keySpend(db, keyIds, now);
+  const spend = await keySpend(db, keyIds, cal, now);
 
   for (const { key, team } of keys) {
     const today = spend.get(key.id)?.today ?? 0;
@@ -357,7 +370,7 @@ async function alerts(db: Db, keyIds: string[] | null, now: Date): Promise<Alert
       });
     }
 
-    const spentByTeam = await teamSpend(db, now);
+    const spentByTeam = await teamSpend(db, cal, now);
     for (const team of await db.select().from(teams).all()) {
       const spent = spentByTeam.get(team.id) ?? 0;
       if (team.monthlyBudgetUsd != null && spent >= team.monthlyBudgetUsd) {

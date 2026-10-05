@@ -23,8 +23,8 @@ import {
 import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
-import { startOfMonth, startOfNextMonth } from '../lib/time.ts';
-import { RULE_IDS, rulesSchema, settingsSchema } from '../settings.ts';
+import { SERVER_ZONE } from '../lib/time.ts';
+import { calendarOf, RULE_IDS, rulesSchema, settingsPatch } from '../settings.ts';
 import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
@@ -222,7 +222,8 @@ export function adminRoutes(ctx: AppContext) {
         zValidator('query', z.object({ period: z.enum(['7d', '30d', 'month']).default('month') })),
         async (c) => {
           const keyIds = await ownKeyIds(ctx, c.get('user'));
-          return c.json(await overview(db, c.req.valid('query').period as Period, keyIds));
+          const cal = calendarOf(await ctx.settings.get());
+          return c.json(await overview(db, c.req.valid('query').period as Period, keyIds, cal));
         },
       )
 
@@ -241,7 +242,7 @@ export function adminRoutes(ctx: AppContext) {
             desc(apiKeys.createdAt),
           )
           .all();
-        const spend = await keySpend(db, keyIds);
+        const spend = await keySpend(db, keyIds, calendarOf(await ctx.settings.get()));
         return c.json(
           rows.map(({ key, owner, ownerEmail, team }) => {
             const { hash: _hash, ...safe } = key;
@@ -300,16 +301,17 @@ export function adminRoutes(ctx: AppContext) {
       // ── Teams, budgets and rules ────────────────────────────────────────────
       .get('/teams', async (c) => {
         const now = new Date();
+        const cal = calendarOf(await ctx.settings.get());
         const rows = await db.select().from(teams).orderBy(teams.name).all();
-        const spend = await teamSpend(db, now);
+        const spend = await teamSpend(db, cal, now);
         const keyCounts = await db
           .select({ teamId: apiKeys.teamId, count: sql<number>`count(*)` })
           .from(apiKeys)
           .where(isNull(apiKeys.revokedAt))
           .groupBy(apiKeys.teamId)
           .all();
-        const monthStart = startOfMonth(now).getTime();
-        const monthLength = startOfNextMonth(now).getTime() - monthStart;
+        const monthStart = cal.startOfMonth(now).getTime();
+        const monthLength = cal.startOfNextMonth(now).getTime() - monthStart;
         const elapsed = Math.max(now.getTime() - monthStart, 3_600_000);
         return c.json(
           rows.map((team) => {
@@ -359,7 +361,10 @@ export function adminRoutes(ctx: AppContext) {
           .select({ ruleId: requestLogs.ruleId, count: sql<number>`count(*)` })
           .from(requestLogs)
           .where(
-            and(gte(requestLogs.createdAt, startOfMonth()), sql`${requestLogs.ruleId} is not null`),
+            and(
+              gte(requestLogs.createdAt, calendarOf(settings).startOfMonth()),
+              sql`${requestLogs.ruleId} is not null`,
+            ),
           )
           .groupBy(requestLogs.ruleId)
           .all();
@@ -371,6 +376,7 @@ export function adminRoutes(ctx: AppContext) {
             number
           >,
           localModelId: settings.localModelId,
+          timeZone: calendarOf(settings).zone,
         });
       })
 
@@ -720,6 +726,9 @@ export function adminRoutes(ctx: AppContext) {
       .get('/settings', adminOnly, async (c) => {
         const settings = await ctx.settings.get();
         return c.json({
+          timeZone: settings.timeZone,
+          /** Used while no zone is chosen: TZ of the container */
+          serverZone: SERVER_ZONE,
           storePrompts: settings.storePrompts,
           retentionDays: settings.retentionDays,
           localModelId: settings.localModelId,
@@ -735,24 +744,9 @@ export function adminRoutes(ctx: AppContext) {
         });
       })
 
-      .put(
-        '/settings',
-        adminOnly,
-        zValidator(
-          'json',
-          settingsSchema
-            .pick({
-              storePrompts: true,
-              retentionDays: true,
-              localModelId: true,
-              rerouteOnFailure: true,
-            })
-            .partial(),
-        ),
-        async (c) => {
-          const settings = await ctx.settings.update(c.req.valid('json'));
-          return c.json({ ok: true, localModelId: settings.localModelId });
-        },
-      )
+      .put('/settings', adminOnly, zValidator('json', settingsPatch), async (c) => {
+        const settings = await ctx.settings.update(c.req.valid('json'));
+        return c.json({ ok: true, localModelId: settings.localModelId });
+      })
   );
 }

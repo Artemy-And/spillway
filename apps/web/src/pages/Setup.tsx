@@ -5,6 +5,7 @@ import { Logo } from '../components/Layout.tsx';
 import { Button, ErrorNote, Field, Input } from '../components/ui.tsx';
 import { LanguageSelect, useI18n } from '../i18n/index.tsx';
 import { auth, unwrap } from '../lib/api.ts';
+import { browserZone } from '../lib/format.ts';
 
 /** First start: whoever opens Spillway first creates the admin account. */
 export function SetupPage() {
@@ -22,7 +23,13 @@ export function SetupPage() {
   });
 
   const create = useMutation({
-    mutationFn: () => unwrap(auth.setup.$post({ json: { name: name.trim(), email, password } })),
+    mutationFn: () =>
+      unwrap(
+        auth.setup.$post({
+          // The browser's zone becomes the gateway's, so budgets reset on the team's midnight.
+          json: { name: name.trim(), email, password, timeZone: browserZone() },
+        }),
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries();
       await navigate({ to: '/' });

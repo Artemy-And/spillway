@@ -117,6 +117,7 @@ export function BudgetsPage() {
             <RuleList
               rules={rules.rules}
               hits={rules.hits}
+              timeZone={rules.timeZone}
               localName={
                 localModel
                   ? m.budgets.localName(localModel.label ?? localModel.name)
@@ -281,12 +282,15 @@ function TeamBudget({
 function RuleList({
   rules,
   hits,
+  timeZone,
   localName,
   editable,
   onChange,
 }: {
   rules: RuleSet;
   hits: Record<string, number>;
+  /** The gateway's zone: working hours are checked on its clock */
+  timeZone: string;
   localName: string;
   editable: boolean;
   onChange: (next: RuleSet) => void;
@@ -380,6 +384,9 @@ function RuleList({
               setDraft({ ...draft, offHours: { ...draft.offHours, to: e.target.value } })
             }
           />
+          <span className="ml-1 text-xs text-muted" title={m.budgets.zoneHint}>
+            {timeZone.replaceAll('_', ' ')}
+          </span>
         </>
       ),
       action: m.budgets.offThen,

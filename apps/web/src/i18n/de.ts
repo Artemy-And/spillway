@@ -428,6 +428,7 @@ export const de: Messages = {
     startLabel: 'Arbeitsbeginn',
     endLabel: 'Arbeitsende',
     offThen: 'Nur lokale Modelle',
+    zoneHint: 'Zeitzone des Gateways. Änderbar in den Einstellungen.',
     matched: (n) => `Diesen Monat ${times(n)} ausgelöst`,
     discard: 'Verwerfen',
     saveRules: 'Regeln speichern',
@@ -624,6 +625,12 @@ export const de: Messages = {
       'Budgets und Regeln schicken Anfragen hierher, statt sie zu blockieren. Ohne Modell bekommen diese Anfragen eine klare Fehlermeldung.',
     noneBlock: 'Keins: stattdessen blockieren',
     addOllama: 'Fügen Sie zuerst einen Ollama-Anbieter und seine Modelle hinzu.',
+    timeZone: 'Zeitzone',
+    timeZoneText:
+      'Nach dieser Uhr werden Tageslimits um Mitternacht zurückgesetzt und Arbeitszeiten geprüft, egal wo der Server läuft.',
+    serverZone: (zone) => `Zeitzone des Servers (${zone})`,
+    pickMine: (zone) => `Meine Zeitzone verwenden (${zone})`,
+    nowThere: (time) => `Dort ist es jetzt ${time}.`,
     onFailure: 'Auch antworten, wenn ein Cloud-Anbieter ausfällt',
     onFailureHint:
       'Bei Ausfällen, Zeitüberschreitungen und Ratenlimits antwortet das lokale Modell statt eines Fehlers.',

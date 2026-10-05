@@ -409,6 +409,7 @@ export const en = {
     startLabel: 'Working hours start',
     endLabel: 'Working hours end',
     offThen: 'Local models only',
+    zoneHint: "The gateway's time zone. Change it in Settings.",
     matched: (n: number) =>
       p(n, { one: 'Matched # time this month', other: 'Matched # times this month' }),
     discard: 'Discard',
@@ -597,6 +598,12 @@ export const en = {
       'Budgets and rules send requests here instead of blocking them. Without one, those requests are refused with a clear error.',
     noneBlock: 'None: block instead',
     addOllama: 'Add an Ollama provider and its models first.',
+    timeZone: 'Time zone',
+    timeZoneText:
+      'Daily limits reset at midnight and working hours are checked on this clock, wherever the server runs.',
+    serverZone: (zone: string) => `Server time zone (${zone})`,
+    pickMine: (zone: string) => `Use my time zone (${zone})`,
+    nowThere: (time: string) => `It is ${time} there now.`,
     onFailure: 'Also answer here when a cloud provider fails',
     onFailureHint:
       'Outages, timeouts and rate limits get an answer from the local model instead of an error.',

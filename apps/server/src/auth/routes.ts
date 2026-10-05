@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { invites, sessions, users } from '../db/schema.ts';
 import { hashPassword, verifyPassword } from '../lib/crypto.ts';
+import { isTimeZone } from '../lib/time.ts';
 import { findInvite } from './invites.ts';
 import type { OidcChecks } from './oidc.ts';
 import { endSession, startSession } from './session.ts';
@@ -46,17 +47,22 @@ export function authRoutes(ctx: AppContext) {
           name: z.string().trim().min(1).max(128),
           email: z.email().transform((email) => email.toLowerCase()),
           password: passwordSchema,
+          /** The admin's browser zone, so budgets reset on the team's midnight from day one */
+          timeZone: z.string().optional(),
         }),
       ),
       async (c) => {
         if (!(await needsSetup(ctx))) {
           return c.json({ error: 'Spillway is already set up. Sign in instead.' }, 409);
         }
-        const { name, email, password } = c.req.valid('json');
+        const { name, email, password, timeZone } = c.req.valid('json');
         const [user] = await ctx.db
           .insert(users)
           .values({ email, name, role: 'admin', passwordHash: await hashPassword(password) })
           .returning();
+        if (timeZone && isTimeZone(timeZone) && !(await ctx.settings.get()).timeZone) {
+          await ctx.settings.update({ timeZone });
+        }
         await startSession(ctx, c, user!);
         return c.json({ ok: true }, 201);
       },

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CloseIcon, LinkIcon } from '../components/icons.tsx';
 import {
   Button,
@@ -16,7 +16,7 @@ import {
 } from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, modelsQuery, teamsQuery, unwrap } from '../lib/api.ts';
-import { fmtAgo, fmtDate } from '../lib/format.ts';
+import { allZones, browserZone, fmtAgo, fmtDate } from '../lib/format.ts';
 
 export function SettingsPage() {
   const { m } = useI18n();
@@ -37,6 +37,7 @@ export function SettingsPage() {
 
   const save = useMutation({
     mutationFn: (json: {
+      timeZone?: string | null;
       storePrompts?: boolean;
       retentionDays?: number;
       localModelId?: string | null;
@@ -44,7 +45,9 @@ export function SettingsPage() {
     }) => unwrap(api.settings.$put({ json })),
     onSuccess: () =>
       Promise.all(
-        ['settings', 'rules'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+        ['settings', 'rules', 'overview', 'teams', 'keys'].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
       ),
   });
 
@@ -111,6 +114,14 @@ export function SettingsPage() {
             description={m.settings.onFailureHint}
           />
         </Card>
+
+        {settings && (
+          <TimeZoneCard
+            zone={settings.timeZone}
+            serverZone={settings.serverZone}
+            onChange={(timeZone) => save.mutate({ timeZone })}
+          />
+        )}
       </div>
 
       <Card aria-label={m.settings.sso} className="flex flex-col gap-3 px-6 py-5">
@@ -330,6 +341,48 @@ function People() {
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/** Where "today" and "this month" begin, and the clock working hours are checked against. */
+function TimeZoneCard({
+  zone,
+  serverZone,
+  onChange,
+}: {
+  zone: string | null;
+  serverZone: string;
+  onChange: (zone: string | null) => void;
+}) {
+  const { m, locale } = useI18n();
+  const zones = useMemo(allZones, []);
+  const mine = browserZone();
+  const effective = zone ?? serverZone;
+  const now = new Date().toLocaleTimeString(locale === 'en' ? 'en-GB' : locale, {
+    timeZone: effective,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return (
+    <Card aria-label={m.settings.timeZone} className="flex flex-col gap-4 px-6 py-5">
+      <h2 className="text-[15px] font-semibold">{m.settings.timeZone}</h2>
+      <p className="text-[13px] text-muted">{m.settings.timeZoneText}</p>
+      <Field label={m.settings.timeZone} hint={m.settings.nowThere(now)}>
+        <Select value={zone ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+          <option value="">{m.settings.serverZone(serverZone)}</option>
+          {zones.map((name) => (
+            <option key={name} value={name}>
+              {name.replaceAll('_', ' ')}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {mine !== effective && (
+        <Button className="self-start" onClick={() => onChange(mine)}>
+          {m.settings.pickMine(mine.replaceAll('_', ' '))}
+        </Button>
+      )}
     </Card>
   );
 }

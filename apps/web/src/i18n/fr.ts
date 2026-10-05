@@ -427,6 +427,7 @@ export const fr: Messages = {
     startLabel: 'Début de journée',
     endLabel: 'Fin de journée',
     offThen: 'Modèles locaux uniquement',
+    zoneHint: 'Fuseau horaire de la passerelle. Modifiable dans les paramètres.',
     matched: (n) => `Déclenchée ${times(n)} ce mois-ci`,
     discard: 'Annuler les changements',
     saveRules: 'Enregistrer les règles',
@@ -620,6 +621,12 @@ export const fr: Messages = {
       'Budgets et règles envoient les requêtes ici au lieu de les bloquer. Sans modèle, ces requêtes reçoivent une erreur claire.',
     noneBlock: 'Aucun : bloquer',
     addOllama: 'Ajoutez d’abord un fournisseur Ollama et ses modèles.',
+    timeZone: 'Fuseau horaire',
+    timeZoneText:
+      'Les limites quotidiennes repartent à minuit et les heures de travail sont vérifiées selon cette horloge, où que tourne le serveur.',
+    serverZone: (zone) => `Fuseau du serveur (${zone})`,
+    pickMine: (zone) => `Utiliser mon fuseau (${zone})`,
+    nowThere: (time) => `Il y est ${time}.`,
     onFailure: 'Répondre aussi ici quand un fournisseur cloud échoue',
     onFailureHint:
       'Pannes, délais dépassés et limites de débit reçoivent une réponse du modèle local plutôt qu’une erreur.',
