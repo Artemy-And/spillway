@@ -681,7 +681,7 @@ export const ru: Messages = {
       'Добавьте человека и отправьте ему ссылку-приглашение или дайте войти через SSO. Потом он сможет создавать свои ключи.',
     linkTitle: (email) => `Ссылка для ${email}`,
     linkHint: (date) =>
-      `Одноразовая, действует до ${date}. Отправьте её в любом мессенджере: Spillway не рассылает письма.`,
+      `Одноразовая, действует до ${date}. Отправьте её в любом мессенджере: Spillway не рассылает приглашения по почте.`,
     copyLink: 'Скопировать ссылку',
     newLink: 'Новая ссылка',
     newLinkHint: 'Создать новую ссылку для приглашения или сброса пароля',
@@ -695,5 +695,34 @@ export const ru: Messages = {
     roleLabel: (email) => `Роль ${email}`,
     teamLabel: (email) => `Команда ${email}`,
     activeLabel: (email) => `${email} активен`,
+    notifications: 'Уведомления',
+    notificationsText:
+      'Предупреждения, когда кончается бюджет или падает провайдер, и сводка каждый понедельник в 9:00 по часам шлюза.',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: 'Почта' },
+    webhook: (channel) => `Адрес вебхука ${channel}`,
+    slackHint:
+      'В Slack: приложение с Incoming Webhooks. Подойдут и вебхуки Mattermost и Rocket.Chat.',
+    teamsHint: 'В Teams: Workflows → «Post to a channel when a webhook request is received».',
+    removeWebhook: 'Удалить',
+    emailsTo: 'Кому писать',
+    emailsHint: (from) => `Через запятую. Отправитель: ${from}.`,
+    emailsOff: 'Чтобы отправлять письма, укажите SMTP_URL в .env и перезапустите Spillway.',
+    sendTest: 'Отправить пробное',
+    noChannels: 'Сначала добавьте вебхук или адрес почты.',
+    delivered: 'доставлено',
+    alerts: {
+      budget: {
+        label: 'Бюджеты и лимиты',
+        hint: 'Команда дошла до порога или исчерпала бюджет, ключ — дневной или месячный лимит.',
+      },
+      outages: {
+        label: 'Сбои провайдеров',
+        hint: 'Облачный провайдер перестал отвечать, а потом снова заработал.',
+      },
+      weekly: {
+        label: 'Сводка по понедельникам',
+        hint: 'Расходы и экономия за прошлую неделю, кто тратит больше всех, бюджеты команд.',
+      },
+    },
   },
 };

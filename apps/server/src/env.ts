@@ -34,6 +34,11 @@ const schema = z.object({
   /** People who become admins on their first SSO sign-in. */
   ADMIN_EMAILS: list,
 
+  /** Mail server for notifications: smtp://user:pass@host:587 (STARTTLS) or smtps://…:465 */
+  SMTP_URL: z.url().optional(),
+  /** Sender address; defaults to the SMTP user */
+  SMTP_FROM: z.string().optional(),
+
   /** Seed providers on first start. */
   OLLAMA_URL: z.url().optional(),
   OPENAI_API_KEY: z.string().optional(),

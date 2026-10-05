@@ -122,6 +122,7 @@ export function SettingsPage() {
             onChange={(timeZone) => save.mutate({ timeZone })}
           />
         )}
+        <NotificationsCard />
       </div>
 
       <Card aria-label={m.settings.sso} className="flex flex-col gap-3 px-6 py-5">
@@ -383,6 +384,161 @@ function TimeZoneCard({
           {m.settings.pickMine(mine.replaceAll('_', ' '))}
         </Button>
       )}
+    </Card>
+  );
+}
+
+type Channel = 'slack' | 'teams' | 'email';
+
+/** Where alerts go: Slack, Teams and email, and which alerts. */
+function NotificationsCard() {
+  const { m } = useI18n();
+  const queryClient = useQueryClient();
+  const { data: saved } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => unwrap(api.notifications.$get()),
+  });
+  const [slackUrl, setSlackUrl] = useState('');
+  const [teamsUrl, setTeamsUrl] = useState('');
+  const [emails, setEmails] = useState('');
+  const [deliveries, setDeliveries] = useState<
+    { channel: Channel; ok: boolean; error?: string }[] | null
+  >(null);
+
+  useEffect(() => {
+    if (saved) setEmails(saved.emails.join(', '));
+  }, [saved]);
+
+  const save = useMutation({
+    mutationFn: (json: {
+      slackUrl?: string | null;
+      teamsUrl?: string | null;
+      emails?: string[];
+      budget?: boolean;
+      outages?: boolean;
+      weekly?: boolean;
+    }) => unwrap(api.notifications.$put({ json })),
+    onSuccess: async () => {
+      setSlackUrl('');
+      setTeamsUrl('');
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+  const test = useMutation({
+    mutationFn: () => unwrap(api.notifications.test.$post()),
+    onSuccess: (result) => setDeliveries(result.deliveries),
+  });
+
+  const list = emails
+    .split(/[,;\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean);
+  const anyChannel = saved && (saved.slack || saved.teams || (saved.mailFrom && list.length));
+  const channelName = (channel: Channel) => m.settings.channels[channel];
+
+  const webhook = (
+    channel: 'slack' | 'teams',
+    value: string,
+    setValue: (value: string) => void,
+  ) => (
+    <Field
+      label={m.settings.webhook(channelName(channel))}
+      hint={channel === 'slack' ? m.settings.slackHint : m.settings.teamsHint}
+    >
+      <div className="flex gap-2">
+        <Input
+          mono
+          type="url"
+          autoComplete="off"
+          className="min-w-0 flex-1"
+          placeholder={
+            saved?.[channel]
+              ? m.models.savedPlaceholder
+              : channel === 'slack'
+                ? 'https://hooks.slack.com/services/…'
+                : 'https://….logic.azure.com/workflows/…'
+          }
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        {saved?.[channel] && (
+          <Button
+            onClick={() =>
+              save.mutate(channel === 'slack' ? { slackUrl: null } : { teamsUrl: null })
+            }
+          >
+            {m.settings.removeWebhook}
+          </Button>
+        )}
+      </div>
+    </Field>
+  );
+
+  return (
+    <Card aria-label={m.settings.notifications} className="flex flex-col gap-4 px-6 py-5">
+      <h2 className="text-[15px] font-semibold">{m.settings.notifications}</h2>
+      <p className="text-[13px] text-muted">{m.settings.notificationsText}</p>
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate({
+            ...(slackUrl.trim() ? { slackUrl: slackUrl.trim() } : {}),
+            ...(teamsUrl.trim() ? { teamsUrl: teamsUrl.trim() } : {}),
+            ...(saved?.mailFrom ? { emails: list } : {}),
+          });
+        }}
+      >
+        {webhook('slack', slackUrl, setSlackUrl)}
+        {webhook('teams', teamsUrl, setTeamsUrl)}
+        <Field
+          label={m.settings.emailsTo}
+          hint={saved?.mailFrom ? m.settings.emailsHint(saved.mailFrom) : m.settings.emailsOff}
+        >
+          <Input
+            disabled={!saved?.mailFrom}
+            placeholder="it@company.com, cfo@company.com"
+            value={emails}
+            onChange={(e) => setEmails(e.target.value)}
+          />
+        </Field>
+        <div className="flex flex-wrap gap-2.5">
+          <Button type="submit" variant="primary" disabled={save.isPending}>
+            {m.common.save}
+          </Button>
+          <Button
+            disabled={!anyChannel || test.isPending}
+            onClick={() => test.mutate()}
+            title={anyChannel ? undefined : m.settings.noChannels}
+          >
+            {m.settings.sendTest}
+          </Button>
+        </div>
+      </form>
+      <ErrorNote error={save.error ?? test.error} />
+      {deliveries && (
+        <ul className="flex flex-col gap-1 text-[13px]">
+          {deliveries.map((delivery) => (
+            <li key={delivery.channel} className="flex items-start gap-2">
+              <Status tone={delivery.ok ? 'ok' : 'block'}>{channelName(delivery.channel)}</Status>
+              <span className="min-w-0 break-words text-ink-2">
+                {delivery.ok ? m.settings.delivered : delivery.error}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-col gap-3 border-t border-line-soft pt-4">
+        {(['budget', 'outages', 'weekly'] as const).map((kind) => (
+          <Switch
+            key={kind}
+            checked={saved?.[kind] ?? true}
+            onChange={(on) => save.mutate({ [kind]: on })}
+            label={m.settings.alerts[kind].label}
+            description={m.settings.alerts[kind].hint}
+          />
+        ))}
+      </div>
     </Card>
   );
 }

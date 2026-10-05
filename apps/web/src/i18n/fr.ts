@@ -662,7 +662,7 @@ export const fr: Messages = {
       'Ajoutez quelqu’un et envoyez-lui le lien d’invitation, ou laissez-le se connecter par SSO. Il pourra ensuite créer ses propres clés.',
     linkTitle: (email) => `Lien pour ${email}`,
     linkHint: (date) =>
-      `Valable une fois, jusqu’au ${date}. Envoyez-le par messagerie ; Spillway n’envoie pas d’e-mails.`,
+      `Valable une fois, jusqu’au ${date}. Envoyez-le par messagerie ; Spillway n’envoie pas les invitations par e-mail.`,
     copyLink: 'Copier le lien',
     newLink: 'Nouveau lien',
     newLinkHint: 'Créer un nouveau lien d’invitation ou de réinitialisation',
@@ -676,5 +676,34 @@ export const fr: Messages = {
     roleLabel: (email) => `Rôle de ${email}`,
     teamLabel: (email) => `Équipe de ${email}`,
     activeLabel: (email) => `${email} actif`,
+    notifications: 'Notifications',
+    notificationsText:
+      'Des alertes quand un budget est épuisé ou qu’un fournisseur tombe en panne, et un résumé chaque lundi à 9 h, à l’heure de la passerelle.',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: 'E-mail' },
+    webhook: (channel) => `URL du webhook ${channel}`,
+    slackHint:
+      'Dans Slack : une app avec Incoming Webhooks. Les webhooks Mattermost et Rocket.Chat fonctionnent aussi.',
+    teamsHint: 'Dans Teams : Workflows → « Post to a channel when a webhook request is received ».',
+    removeWebhook: 'Supprimer',
+    emailsTo: 'E-mail à',
+    emailsHint: (from) => `Séparées par des virgules. Envoyé depuis ${from}.`,
+    emailsOff: 'Pour envoyer des e-mails, définissez SMTP_URL dans .env et redémarrez Spillway.',
+    sendTest: 'Envoyer un test',
+    noChannels: 'Ajoutez d’abord un webhook ou une adresse e-mail.',
+    delivered: 'remis',
+    alerts: {
+      budget: {
+        label: 'Budgets et limites',
+        hint: 'Une équipe atteint son seuil ou son budget, une clé sa limite quotidienne ou mensuelle.',
+      },
+      outages: {
+        label: 'Pannes des fournisseurs',
+        hint: 'Un fournisseur cloud tombe en panne, puis répond à nouveau.',
+      },
+      weekly: {
+        label: 'Résumé du lundi',
+        hint: 'Dépenses et économies de la semaine passée, plus gros consommateurs et budgets des équipes.',
+      },
+    },
   },
 };

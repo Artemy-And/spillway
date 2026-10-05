@@ -638,7 +638,7 @@ export const en = {
       'Add someone and send them the invite link, or let them sign in with SSO. They can then create their own keys.',
     linkTitle: (email: string) => `Link for ${email}`,
     linkHint: (date: string) =>
-      `Works once, until ${date}. Send it in any messenger; Spillway does not send email.`,
+      `Works once, until ${date}. Send it in any messenger; Spillway does not email invites.`,
     copyLink: 'Copy link',
     newLink: 'New link',
     newLinkHint: 'Create a new invite or password reset link',
@@ -652,6 +652,35 @@ export const en = {
     roleLabel: (email: string) => `${email} role`,
     teamLabel: (email: string) => `${email} team`,
     activeLabel: (email: string) => `${email} active`,
+    notifications: 'Notifications',
+    notificationsText:
+      'Alerts when budgets run out or a provider fails, and a summary every Monday at 9:00 on the gateway’s clock.',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: 'Email' },
+    webhook: (channel: string) => `${channel} webhook URL`,
+    slackHint:
+      'In Slack: an app with Incoming Webhooks. Mattermost and Rocket.Chat webhooks work too.',
+    teamsHint: 'In Teams: Workflows → “Post to a channel when a webhook request is received”.',
+    removeWebhook: 'Remove',
+    emailsTo: 'Email to',
+    emailsHint: (from: string) => `Comma-separated. Sent from ${from}.`,
+    emailsOff: 'To send email, set SMTP_URL in .env and restart Spillway.',
+    sendTest: 'Send a test',
+    noChannels: 'Add a webhook or an email address first.',
+    delivered: 'delivered',
+    alerts: {
+      budget: {
+        label: 'Budgets and limits',
+        hint: 'A team reaches its threshold or budget, or a key its daily or monthly limit.',
+      },
+      outages: {
+        label: 'Provider outages',
+        hint: 'A cloud provider starts failing, and later answers again.',
+      },
+      weekly: {
+        label: 'Monday summary',
+        hint: 'Last week’s spend, savings, top spenders and team budgets.',
+      },
+    },
   },
 };
 

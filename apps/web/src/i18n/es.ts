@@ -657,7 +657,7 @@ export const es: Messages = {
       'Añade a alguien y envíale el enlace de invitación, o deja que entre con SSO. Después podrá crear sus propias claves.',
     linkTitle: (email) => `Enlace para ${email}`,
     linkHint: (date) =>
-      `Sirve una vez, hasta el ${date}. Envíalo por cualquier mensajería; Spillway no envía correos.`,
+      `Sirve una vez, hasta el ${date}. Envíalo por cualquier mensajería; Spillway no envía las invitaciones por correo.`,
     copyLink: 'Copiar enlace',
     newLink: 'Nuevo enlace',
     newLinkHint: 'Crear un nuevo enlace de invitación o de cambio de contraseña',
@@ -671,5 +671,34 @@ export const es: Messages = {
     roleLabel: (email) => `Rol de ${email}`,
     teamLabel: (email) => `Equipo de ${email}`,
     activeLabel: (email) => `${email} activa`,
+    notifications: 'Notificaciones',
+    notificationsText:
+      'Avisos cuando se agota un presupuesto o falla un proveedor, y un resumen cada lunes a las 9:00, en la hora de la pasarela.',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: 'Correo' },
+    webhook: (channel) => `URL del webhook de ${channel}`,
+    slackHint:
+      'En Slack: una app con Incoming Webhooks. También sirven los webhooks de Mattermost y Rocket.Chat.',
+    teamsHint: 'En Teams: Workflows → «Post to a channel when a webhook request is received».',
+    removeWebhook: 'Quitar',
+    emailsTo: 'Correo a',
+    emailsHint: (from) => `Separados por comas. Se envía desde ${from}.`,
+    emailsOff: 'Para enviar correos, define SMTP_URL en .env y reinicia Spillway.',
+    sendTest: 'Enviar una prueba',
+    noChannels: 'Primero añade un webhook o una dirección de correo.',
+    delivered: 'entregado',
+    alerts: {
+      budget: {
+        label: 'Presupuestos y límites',
+        hint: 'Un equipo llega a su umbral o a su presupuesto, o una clave a su límite diario o mensual.',
+      },
+      outages: {
+        label: 'Caídas de proveedores',
+        hint: 'Un proveedor en la nube empieza a fallar y luego vuelve a responder.',
+      },
+      weekly: {
+        label: 'Resumen del lunes',
+        hint: 'Gasto y ahorro de la semana pasada, quién más gasta y los presupuestos de los equipos.',
+      },
+    },
   },
 };

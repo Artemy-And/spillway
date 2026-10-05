@@ -19,6 +19,38 @@ export const rulesSchema = z.object({
     .default({ enabled: false, from: '08:00', to: '20:00' }),
 });
 
+/** Where alerts go and which ones. Webhook URLs are secrets: they are kept sealed by the vault. */
+export const notificationsSchema = z.object({
+  slackUrl: z.string().nullable().default(null),
+  teamsUrl: z.string().nullable().default(null),
+  emails: z.array(z.email()).max(20).default([]),
+  /** A team reaches its threshold or budget, a key its limit */
+  budget: z.boolean().default(true),
+  /** A cloud provider starts failing, and answers again */
+  outages: z.boolean().default(true),
+  /** Monday morning: last week's spend, savings and top spenders */
+  weekly: z.boolean().default(true),
+});
+
+export type Notifications = z.infer<typeof notificationsSchema>;
+
+const webhook = z
+  .url({ protocol: /^https?$/ })
+  .or(z.literal(''))
+  .nullable();
+
+/** What the Settings page sends: plain webhook URLs, '' or null to remove one. */
+export const notificationsPatch = z
+  .object({
+    slackUrl: webhook,
+    teamsUrl: webhook,
+    emails: z.array(z.email()).max(20),
+    budget: z.boolean(),
+    outages: z.boolean(),
+    weekly: z.boolean(),
+  })
+  .partial();
+
 const fields = {
   /** Budgets reset and working hours run on this zone's clock; null = the server's zone */
   timeZone: z.string().refine(isTimeZone, 'Unknown time zone').nullable(),
@@ -37,6 +69,7 @@ export const settingsSchema = z.object({
   localModelId: fields.localModelId.default(null),
   rerouteOnFailure: fields.rerouteOnFailure.default(true),
   rules: rulesSchema.default(rulesSchema.parse({})),
+  notifications: notificationsSchema.default(notificationsSchema.parse({})),
 });
 
 /**

@@ -24,7 +24,14 @@ import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { SERVER_ZONE } from '../lib/time.ts';
-import { calendarOf, RULE_IDS, rulesSchema, settingsPatch } from '../settings.ts';
+import { mailFrom, send } from '../notify.ts';
+import {
+  calendarOf,
+  notificationsPatch,
+  RULE_IDS,
+  rulesSchema,
+  settingsPatch,
+} from '../settings.ts';
 import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
@@ -748,6 +755,46 @@ export function adminRoutes(ctx: AppContext) {
       .put('/settings', adminOnly, zValidator('json', settingsPatch), async (c) => {
         const settings = await ctx.settings.update(c.req.valid('json'));
         return c.json({ ok: true, localModelId: settings.localModelId });
+      })
+
+      // ── Notifications ───────────────────────────────────────────────────────
+      // Webhook URLs are secrets: they go in, but only "set or not" comes back out.
+      .get('/notifications', adminOnly, async (c) => {
+        const { slackUrl, teamsUrl, ...rest } = (await ctx.settings.get()).notifications;
+        return c.json({
+          ...rest,
+          slack: slackUrl !== null,
+          teams: teamsUrl !== null,
+          /** Email needs SMTP_URL in the environment */
+          mailFrom: ctx.env.SMTP_URL ? mailFrom(ctx) : null,
+        });
+      })
+
+      .put('/notifications', adminOnly, zValidator('json', notificationsPatch), async (c) => {
+        const { slackUrl, teamsUrl, ...rest } = c.req.valid('json');
+        const saved = (await ctx.settings.get()).notifications;
+        const seal = (url: string | null | undefined, current: string | null) =>
+          url === undefined ? current : url ? ctx.vault.encrypt(url) : null;
+        await ctx.settings.update({
+          notifications: {
+            ...saved,
+            ...rest,
+            slackUrl: seal(slackUrl, saved.slackUrl),
+            teamsUrl: seal(teamsUrl, saved.teamsUrl),
+          },
+        });
+        return c.json({ ok: true });
+      })
+
+      .post('/notifications/test', adminOnly, async (c) => {
+        const deliveries = await send(ctx, {
+          title: 'Test from Spillway',
+          lines: [
+            'Alerts about budgets, provider outages and the Monday summary will arrive here.',
+          ],
+          path: '/settings',
+        });
+        return c.json({ deliveries });
       })
   );
 }

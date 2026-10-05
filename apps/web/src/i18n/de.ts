@@ -666,7 +666,7 @@ export const de: Messages = {
       'Fügen Sie eine Person hinzu und schicken Sie ihr den Einladungslink, oder lassen Sie sie per SSO anmelden. Danach kann sie eigene Schlüssel erstellen.',
     linkTitle: (email) => `Link für ${email}`,
     linkHint: (date) =>
-      `Einmal gültig, bis ${date}. Per Messenger verschicken; Spillway versendet keine E-Mails.`,
+      `Einmal gültig, bis ${date}. Per Messenger verschicken; Spillway verschickt keine Einladungen per E-Mail.`,
     copyLink: 'Link kopieren',
     newLink: 'Neuer Link',
     newLinkHint: 'Neuen Einladungs- oder Passwort-Reset-Link erstellen',
@@ -680,5 +680,34 @@ export const de: Messages = {
     roleLabel: (email) => `Rolle von ${email}`,
     teamLabel: (email) => `Team von ${email}`,
     activeLabel: (email) => `${email} aktiv`,
+    notifications: 'Benachrichtigungen',
+    notificationsText:
+      'Hinweise, wenn Budgets aufgebraucht sind oder ein Anbieter ausfällt, und jeden Montag um 9:00 Uhr (Uhrzeit des Gateways) eine Zusammenfassung.',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: 'E-Mail' },
+    webhook: (channel) => `${channel}-Webhook-URL`,
+    slackHint:
+      'In Slack: eine App mit Incoming Webhooks. Webhooks von Mattermost und Rocket.Chat funktionieren auch.',
+    teamsHint: 'In Teams: Workflows → „Post to a channel when a webhook request is received“.',
+    removeWebhook: 'Entfernen',
+    emailsTo: 'E-Mail an',
+    emailsHint: (from) => `Durch Kommas getrennt. Absender: ${from}.`,
+    emailsOff: 'Für E-Mails SMTP_URL in .env setzen und Spillway neu starten.',
+    sendTest: 'Test senden',
+    noChannels: 'Fügen Sie zuerst einen Webhook oder eine E-Mail-Adresse hinzu.',
+    delivered: 'zugestellt',
+    alerts: {
+      budget: {
+        label: 'Budgets und Limits',
+        hint: 'Ein Team erreicht seine Schwelle oder sein Budget, ein Schlüssel sein Tages- oder Monatslimit.',
+      },
+      outages: {
+        label: 'Ausfälle von Anbietern',
+        hint: 'Ein Cloud-Anbieter fällt aus und antwortet später wieder.',
+      },
+      weekly: {
+        label: 'Montagszusammenfassung',
+        hint: 'Ausgaben und Ersparnis der Vorwoche, die größten Verbraucher und die Team-Budgets.',
+      },
+    },
   },
 };

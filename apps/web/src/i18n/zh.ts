@@ -614,7 +614,7 @@ export const zh: Messages = {
     peopleIntro: '添加人员并把邀请链接发给他，或让他通过 SSO 登录。之后他可以自己创建密钥。',
     linkTitle: (email) => `${email} 的链接`,
     linkHint: (date) =>
-      `仅可使用一次，${date} 前有效。可通过任意聊天工具发送；Spillway 不会发送邮件。`,
+      `仅可使用一次，${date} 前有效。可通过任意聊天工具发送；Spillway 不会通过邮件发送邀请。`,
     copyLink: '复制链接',
     newLink: '新链接',
     newLinkHint: '生成新的邀请或重置密码链接',
@@ -628,5 +628,33 @@ export const zh: Messages = {
     roleLabel: (email) => `${email} 的角色`,
     teamLabel: (email) => `${email} 的团队`,
     activeLabel: (email) => `${email} 已启用`,
+    notifications: '通知',
+    notificationsText: '预算用完或提供商故障时发出提醒，并在每周一 9:00（网关时间）发送汇总。',
+    channels: { slack: 'Slack', teams: 'Microsoft Teams', email: '邮件' },
+    webhook: (channel) => `${channel} Webhook 地址`,
+    slackHint:
+      '在 Slack 中：创建带 Incoming Webhooks 的应用。Mattermost 和 Rocket.Chat 的 Webhook 也可以。',
+    teamsHint: '在 Teams 中：Workflows →“Post to a channel when a webhook request is received”。',
+    removeWebhook: '移除',
+    emailsTo: '收件人',
+    emailsHint: (from) => `用逗号分隔。发件人：${from}。`,
+    emailsOff: '要发送邮件，请在 .env 中设置 SMTP_URL 并重启 Spillway。',
+    sendTest: '发送测试',
+    noChannels: '请先添加 Webhook 或邮箱地址。',
+    delivered: '已送达',
+    alerts: {
+      budget: {
+        label: '预算和限额',
+        hint: '团队达到阈值或用完预算，或密钥达到每日或每月限额。',
+      },
+      outages: {
+        label: '提供商故障',
+        hint: '云提供商开始出错，以及之后恢复响应。',
+      },
+      weekly: {
+        label: '周一汇总',
+        hint: '上周的花费、节省、花费最多的密钥和各团队预算。',
+      },
+    },
   },
 };

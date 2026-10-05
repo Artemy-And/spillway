@@ -8,6 +8,7 @@ import { type AppContext, RateLimiter, VERSION } from './context.ts';
 import { openDb } from './db/client.ts';
 import { loadEnv } from './env.ts';
 import { loadSecret, Vault } from './lib/crypto.ts';
+import { watch } from './notify.ts';
 import { SettingsStore } from './settings.ts';
 
 const env = loadEnv();
@@ -30,6 +31,7 @@ const ctx: AppContext = {
 await bootstrap(ctx);
 await cleanup(ctx);
 const cleanupTimer = setInterval(() => cleanup(ctx).catch(console.error), 3_600_000);
+const notifyTimer = setInterval(() => watch(ctx).catch(console.error), 60_000);
 
 const server = serve(
   { fetch: createApp(ctx).fetch, port: env.PORT, hostname: env.HOST },
@@ -42,6 +44,7 @@ const server = serve(
 
 function shutdown() {
   clearInterval(cleanupTimer);
+  clearInterval(notifyTimer);
   server.close(() => {
     close();
     process.exit(0);
