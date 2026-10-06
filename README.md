@@ -114,6 +114,11 @@ docker compose --profile ollama up -d
 docker compose exec ollama ollama pull qwen2.5-coder:7b
 ```
 
+Claude Code and Codex send 10–30 thousand tokens with every request. Ollama's default context is
+4096 tokens, and it drops the start of a longer prompt without an error, so a rerouted agent would
+lose its instructions. The Ollama service above starts with `OLLAMA_CONTEXT_LENGTH=32768`; set the
+same on an Ollama you run yourself.
+
 Then, in the UI: add providers and models (prices of well-known models fill in), pick the local
 model for rerouting and your time zone in **Settings**, create teams in **Budgets & rules**, and
 hand out keys in **Keys**. For email alerts, set `SMTP_URL` in `.env` (see `.env.example`).

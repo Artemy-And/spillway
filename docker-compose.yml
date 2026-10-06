@@ -23,6 +23,10 @@ services:
     image: ollama/ollama:latest
     profiles: [ollama]
     restart: unless-stopped
+    environment:
+      # Claude Code and Codex send 10–30k tokens a request; at its default of 4096 Ollama
+      # silently drops the start of the prompt.
+      OLLAMA_CONTEXT_LENGTH: 32768
     volumes:
       - ollama-data:/root/.ollama
 
