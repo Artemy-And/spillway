@@ -19,7 +19,11 @@ import type {
 } from '../types.ts';
 import { parseArguments, textOf } from './common.ts';
 
-const DEFAULT_MAX_TOKENS = 4096;
+/**
+ * Anthropic requires max_tokens, and OpenAI-format clients (Codex, Open WebUI) usually leave it
+ * out. Current models write up to 32k or more; the 3.x ones before 3.7 stop at 4k–8k.
+ */
+const defaultMaxTokens = (model: string) => (/claude-3-(?!7)/.test(model) ? 4096 : 32_000);
 
 const STOP_TO_OPENAI: Record<string, string> = {
   end_turn: 'stop',
@@ -361,7 +365,7 @@ export function openAIRequestToAnthropic(req: OAIChatRequest): ARequest {
   const out: ARequest = {
     model: req.model,
     messages,
-    max_tokens: req.max_completion_tokens ?? req.max_tokens ?? DEFAULT_MAX_TOKENS,
+    max_tokens: req.max_completion_tokens ?? req.max_tokens ?? defaultMaxTokens(req.model),
   };
   const systemText = system.filter(Boolean).join('\n\n');
   if (systemText) out.system = systemText;
