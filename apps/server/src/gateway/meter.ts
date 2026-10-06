@@ -7,6 +7,9 @@ import type {
   OAIChatResponse,
   OAIChunk,
   OAIUsage,
+  RResponse,
+  RStreamEvent,
+  RUsage,
 } from './types.ts';
 import type { Wire } from './upstream.ts';
 
@@ -23,6 +26,8 @@ export class Meter {
   cacheWriteTokens = 0;
   cacheWrite1hTokens = 0;
   text = '';
+  /** Why a stream the provider sent untouched ended in failure, if it did. */
+  failure: string | null = null;
 
   #append(text: string | null | undefined) {
     if (text && this.text.length < PREVIEW_LIMIT) this.text += text;
@@ -47,6 +52,15 @@ export class Meter {
     this.cacheReadTokens = cached;
     this.inputTokens = usage.prompt_tokens - cached;
     this.outputTokens = usage.completion_tokens;
+  }
+
+  /** The Responses API counts cached tokens inside input_tokens, like chat completions. */
+  #responsesUsage(usage: RUsage | null | undefined) {
+    if (!usage) return;
+    const cached = usage.input_tokens_details?.cached_tokens ?? 0;
+    this.cacheReadTokens = cached;
+    this.inputTokens = usage.input_tokens - cached;
+    this.outputTokens = usage.output_tokens;
   }
 
   openAIChunk(chunk: OAIChunk) {
@@ -77,11 +91,32 @@ export class Meter {
     for (const block of res.content) if (block.type === 'text') this.#append(block.text);
   }
 
+  responsesEvent(event: RStreamEvent) {
+    if (event.type === 'response.output_text.delta') this.#append(event.delta);
+    if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+      this.#responsesUsage(event.response?.usage);
+    }
+    if (event.type === 'response.failed') {
+      this.#responsesUsage(event.response?.usage);
+      this.failure = event.response?.error?.message ?? 'The provider reported a failed response';
+    }
+  }
+
+  responsesResponse(res: RResponse) {
+    this.#responsesUsage(res.usage);
+    for (const item of res.output ?? []) {
+      if (item.type !== 'message' || typeof item.content === 'string') continue;
+      for (const part of item.content ?? [])
+        if (part.type === 'output_text') this.#append(part.text);
+    }
+  }
+
   sseEvent(wire: Wire, event: SSEEvent) {
     if (event.data === '[DONE]') return;
     try {
       const data: unknown = JSON.parse(event.data);
       if (wire === 'openai') this.openAIChunk(data as OAIChunk);
+      else if (wire === 'responses') this.responsesEvent(data as RStreamEvent);
       else this.anthropicEvent(data as AStreamEvent);
     } catch {}
   }

@@ -22,7 +22,8 @@ container with an admin UI and SQLite inside.
 ![The Marketing team is over its budget, so rule 1 sends its requests to a local model, and the request log shows why](docs/demo.gif)
 
 ```
- Claude Code ─┐                       ┌─ Anthropic
+ Claude Code ─┐
+ Codex       ─┤                       ┌─ Anthropic
  Open WebUI  ─┼─▶  Spillway  ─────────┼─ OpenAI-compatible APIs
  n8n, SDKs   ─┘   keys · budgets      └─ Ollama on your own GPU
                   rules · masked log
@@ -40,11 +41,11 @@ For a setup you keep, use [Docker Compose](#quick-start).
 ## What it does
 
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
-  `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`, `/api/generate`,
-  `/api/embed`). Spillway translates between them, including streaming and tool calls, so Claude Code
-  can run on a local Qwen when the budget runs out. Providers: OpenAI, Anthropic and Ollama, plus
-  Azure OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI and OpenRouter from a list, or any
-  OpenAI-compatible API by its URL.
+  `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
+  `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool
+  calls, so Claude Code and Codex can run on a local Qwen when the budget runs out. Providers:
+  OpenAI, Anthropic and Ollama, plus Azure OpenAI, Gemini, Mistral, Groq, DeepSeek, xAI and
+  OpenRouter from a list, or any OpenAI-compatible API by its URL.
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
   per team and per key. Prices of well-known models fill in when you add them, and a cloud model
   without a price is flagged instead of quietly counting as free.
@@ -152,11 +153,29 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | --- | --- |
 | OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `sw-…` |
 | Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` |
+| Codex | a provider in `~/.codex/config.toml` with `base_url = "https://<gateway>/v1"`, `wire_api = "responses"` and the key in its `env_key` variable (below) |
 | Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…`; document search works through either |
 | Chatbox | custom provider, OpenAI API Compatible, host `https://<gateway>/v1`, key `sw-…` |
 
 The `model` a client sends is the **name** you gave the model in Spillway; it maps to any upstream
 model on any provider.
+
+Codex, in `~/.codex/config.toml`; the dialog of a new key shows the same with your address and key:
+
+```toml
+model = "<model name>"
+model_provider = "spillway"
+
+[model_providers.spillway]
+name = "Spillway"
+base_url = "https://<gateway>/v1"
+env_key = "SPILLWAY_API_KEY"   # export SPILLWAY_API_KEY=sw-…
+wire_api = "responses"
+```
+
+Codex speaks OpenAI's Responses API. Spillway passes it to OpenAI and Azure OpenAI as it is, so
+Responses-only models such as `gpt-5.1-codex` work, and translates it for every other provider, so
+the same Codex can run on Claude or on the local model.
 
 ## Screenshots
 

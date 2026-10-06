@@ -26,7 +26,10 @@ async function visibleModels(ctx: AppContext, headers: Headers) {
   );
 }
 
-/** OpenAI (/v1/chat/completions), Anthropic (/v1/messages) and Ollama (/api/*) endpoints. */
+/**
+ * OpenAI (/v1/chat/completions, and /v1/responses for Codex), Anthropic (/v1/messages) and
+ * Ollama (/api/*) endpoints.
+ */
 export function gatewayRoutes(ctx: AppContext) {
   const app = new Hono();
   const guarded = (format: Format) =>
@@ -39,6 +42,7 @@ export function gatewayRoutes(ctx: AppContext) {
   app.use('/api/*', cors());
 
   app.post('/v1/chat/completions', guarded('openai'), (c) => handleGateway(ctx, c, 'openai'));
+  app.post('/v1/responses', guarded('responses'), (c) => handleGateway(ctx, c, 'responses'));
   app.post('/v1/messages', guarded('anthropic'), (c) => handleGateway(ctx, c, 'anthropic'));
   app.post('/api/chat', guarded('ollama-chat'), (c) => handleGateway(ctx, c, 'ollama-chat'));
   app.post('/api/generate', guarded('ollama-generate'), (c) =>

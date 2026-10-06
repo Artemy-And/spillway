@@ -123,7 +123,7 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <fieldset className="flex rounded-lg border-0 bg-track p-[3px]">
+    <fieldset className="flex flex-wrap rounded-lg border-0 bg-track p-[3px]">
       <legend className="sr-only">{label}</legend>
       {options.map((option) => (
         <button

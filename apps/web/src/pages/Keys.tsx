@@ -512,13 +512,14 @@ function CreatedKey({
   onClose: () => void;
 }) {
   const { m } = useI18n();
-  const [tab, setTab] = useState<'curl' | 'chatbox' | 'claude' | 'webui'>('curl');
+  const [tab, setTab] = useState<'curl' | 'chatbox' | 'claude' | 'codex' | 'webui'>('curl');
   const origin = window.location.origin;
   const model = m.keys.modelPlaceholder;
   const snippets = {
     chatbox: `Chatbox → Settings → Model provider → Add custom provider\n\nAPI mode:  OpenAI API Compatible\nAPI host:  ${origin}/v1\nAPI key:   ${value}`,
     curl: `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer ${value}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "${model}", "messages": [{"role": "user", "content": "Hi"}]}'`,
     claude: `export ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=${model}\nclaude`,
+    codex: `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "spillway"\n\n[model_providers.spillway]\nname = "Spillway"\nbase_url = "${origin}/v1"\nenv_key = "SPILLWAY_API_KEY"\nwire_api = "responses"\n\n# then, in the terminal\nexport SPILLWAY_API_KEY=${value}\ncodex`,
     webui: `Open WebUI → Settings → Connections\n\nOpenAI API:  ${origin}/v1\nOllama API:  ${origin}\nKey:         ${value}`,
   };
   return (
@@ -547,6 +548,7 @@ function CreatedKey({
             { value: 'curl', label: 'curl / SDK' },
             { value: 'chatbox', label: 'Chatbox' },
             { value: 'claude', label: 'Claude Code' },
+            { value: 'codex', label: 'Codex' },
             { value: 'webui', label: 'Open WebUI' },
           ]}
         />

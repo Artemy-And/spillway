@@ -4,11 +4,27 @@ import type { Provider, ProviderKind } from '../db/schema.ts';
 import { type Price, publishedPrice } from './prices.ts';
 import { UpstreamError } from './sse.ts';
 
-export type Wire = 'openai' | 'anthropic';
+/** `responses` is OpenAI's Responses API, used only for clients that send it themselves. */
+export type Wire = 'openai' | 'anthropic' | 'responses';
 
 /** Ollama is reached through its OpenAI-compatible endpoint. */
 export function wireOf(kind: ProviderKind): Wire {
   return kind === 'anthropic' ? 'anthropic' : 'openai';
+}
+
+// Where the Responses API is the real thing. It is the only way to some models (the Codex ones)
+// and keeps reasoning between steps; every other provider gets it translated to chat completions.
+const RESPONSES_HOSTS = [
+  /^api\.openai\.com$/,
+  /\.openai\.azure\.com$/,
+  /\.cognitiveservices\.azure\.com$/,
+  /\.services\.ai\.azure\.com$/,
+];
+
+export function speaksResponses(provider: Provider): boolean {
+  if (provider.kind !== 'openai') return false;
+  const host = URL.parse(provider.baseUrl)?.hostname ?? '';
+  return RESPONSES_HOSTS.some((pattern) => pattern.test(host));
 }
 
 // Inside Docker, "localhost" is the container itself; Ollama usually runs on the host.

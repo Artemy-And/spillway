@@ -13,9 +13,45 @@ import { loadEnv } from '../env.ts';
 import { newGatewayKey, Vault } from '../lib/crypto.ts';
 import { SettingsStore } from '../settings.ts';
 
-// A fake upstream that speaks both OpenAI (/v1/chat/completions) and Anthropic (/v1/messages).
+// A fake upstream that speaks OpenAI (/v1/chat/completions, /v1/responses) and Anthropic
+// (/v1/messages).
 const seen: { path: string; body: Record<string, unknown> }[] = [];
 const upstream = new Hono()
+  .post('/v1/responses', async (c) => {
+    const body = await c.req.json();
+    seen.push({ path: c.req.path, body });
+    return streamSSE(c, async (stream) => {
+      const send = (data: Record<string, unknown>) =>
+        stream.writeSSE({ event: data.type as string, data: JSON.stringify(data) });
+      const response = { id: 'resp_1', object: 'response', model: body.model, output: [] };
+      await send({ type: 'response.created', response: { ...response, status: 'in_progress' } });
+      if (body.input === 'fail') {
+        await send({
+          type: 'response.failed',
+          response: {
+            ...response,
+            status: 'failed',
+            error: { code: 'server_error', message: 'Model overloaded' },
+          },
+        });
+        return;
+      }
+      await send({ type: 'response.output_text.delta', delta: 'native answer' });
+      await send({
+        type: 'response.completed',
+        response: {
+          ...response,
+          status: 'completed',
+          usage: {
+            input_tokens: 2000,
+            input_tokens_details: { cached_tokens: 1000 },
+            output_tokens: 100,
+            total_tokens: 2100,
+          },
+        },
+      });
+    });
+  })
   .post('/v1/chat/completions', async (c) => {
     const body = await c.req.json();
     seen.push({ path: c.req.path, body });
@@ -81,6 +117,7 @@ let ctx: AppContext;
 let app: ReturnType<typeof createApp>;
 let key: string;
 let keyId: string;
+let restoreFetch = () => {};
 
 before(async () => {
   server = serve({ fetch: upstream.fetch, port: 0 });
@@ -151,6 +188,30 @@ before(async () => {
     .returning();
   await ctx.settings.update({ localModelId: local!.id });
 
+  // OpenAI itself answers the Responses API; its address leads to the fake upstream here.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) =>
+    realFetch(String(input).replace('https://api.openai.com', url), init)) as typeof fetch;
+  restoreFetch = () => {
+    globalThis.fetch = realFetch;
+  };
+  const [platform] = await db
+    .insert(providers)
+    .values({
+      name: 'OpenAI Platform',
+      kind: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKeyEnc: ctx.vault.encrypt('sk-platform'),
+    })
+    .returning();
+  await db.insert(models).values({
+    name: 'gpt-codex',
+    providerId: platform!.id,
+    upstreamModel: 'gpt-5.1-codex',
+    inputPrice: 1.25,
+    outputPrice: 10,
+  });
+
   const [team] = await db
     .insert(teams)
     .values({ name: 'Engineering', monthlyBudgetUsd: 1000 })
@@ -171,7 +232,10 @@ before(async () => {
   keyId = row!.id;
 });
 
-after(() => server.close());
+after(() => {
+  restoreFetch();
+  server.close();
+});
 
 // biome-ignore lint/suspicious/noExplicitAny: tests assert on response fields directly
 const json = (res: Response): Promise<any> => res.json();
@@ -311,7 +375,125 @@ test('lists models in a shape both SDKs accept', async () => {
   const body = await json(res);
   assert.deepEqual(body.data.map((m: { id: string }) => m.id).sort(), [
     'claude-sonnet',
+    'gpt-codex',
     'gpt-mini',
     'qwen-coder',
   ]);
+});
+
+// What Codex sends: instructions, typed input items and Responses-style tools.
+const codexRequest = (model: string, extra: Record<string, unknown> = {}) => ({
+  model,
+  instructions: 'You are Codex.',
+  input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'List files' }] }],
+  tools: [
+    { type: 'function', name: 'exec_command', parameters: { type: 'object' } },
+    {
+      type: 'namespace',
+      name: 'multi_agent_v1',
+      tools: [{ type: 'function', name: 'spawn_agent', parameters: { type: 'object' } }],
+    },
+    { type: 'web_search' },
+  ],
+  store: false,
+  ...extra,
+});
+
+/** The events of a Responses stream, parsed. */
+async function responseEvents(res: Response) {
+  return (await res.text())
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice(6)));
+}
+
+test('Responses client to an OpenAI-compatible provider: translated both ways', async () => {
+  const res = await call('/v1/responses', codexRequest('gpt-mini', { stream: true }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'text/event-stream');
+  const events = await responseEvents(res);
+  const completed = events.at(-1);
+  assert.equal(completed.type, 'response.completed');
+  assert.equal(completed.response.output[0].content[0].text, 'hello there');
+  assert.equal(completed.response.usage.input_tokens, 1000);
+
+  const sent = seen.at(-1)!;
+  assert.equal(sent.path, '/v1/chat/completions');
+  assert.deepEqual(sent.body.messages, [
+    { role: 'system', content: 'You are Codex.' },
+    { role: 'user', content: 'List files' },
+  ]);
+  assert.deepEqual(
+    (sent.body.tools as { function: { name: string } }[]).map((tool) => tool.function.name),
+    ['exec_command', 'spawn_agent'],
+  );
+  const log = await lastLog();
+  assert.equal(log.format, 'responses');
+  assert.equal(log.promptPreview, 'List files');
+  assert.equal(log.outputTokens, 500);
+});
+
+test('Responses client to Anthropic: a whole answer, with room to write', async () => {
+  const res = await call('/v1/responses', codexRequest('claude-sonnet'));
+  const body = await json(res);
+  assert.equal(body.object, 'response');
+  assert.equal(body.status, 'completed');
+  assert.equal(body.output[0].content[0].text, 'hi from claude');
+  assert.equal(seen.at(-1)?.path, '/v1/messages');
+  assert.equal(seen.at(-1)?.body.max_tokens, 32_000);
+});
+
+test('Responses client to OpenAI itself: passed through untouched and metered', async () => {
+  const request = codexRequest('gpt-codex', { stream: true });
+  const res = await call('/v1/responses', request);
+  assert.equal(res.status, 200);
+  const events = await responseEvents(res);
+  assert.equal(events.at(-1).type, 'response.completed');
+  const sent = seen.at(-1)!;
+  assert.equal(sent.path, '/v1/responses');
+  assert.deepEqual(sent.body, { ...request, model: 'gpt-5.1-codex' });
+  const log = await lastLog();
+  assert.equal(log.format, 'responses');
+  assert.equal(log.responsePreview, 'native answer');
+  // 1000 fresh input tokens, 1000 cached at a tenth of the price, 100 output tokens.
+  assert.equal(log.costUsd, (1000 * 1.25 + 1000 * 0.125 + 100 * 10) / 1e6);
+});
+
+test('Responses client: a stream OpenAI fails is logged as an error', async () => {
+  const res = await call('/v1/responses', { model: 'gpt-codex', input: 'fail', stream: true });
+  const events = await responseEvents(res);
+  assert.equal(events.at(-1).type, 'response.failed');
+  const log = await lastLog();
+  assert.match(log.error ?? '', /Model overloaded/);
+});
+
+test('Responses client: refusals are final, so Codex shows them instead of retrying', async () => {
+  const pii = await call('/v1/responses', {
+    model: 'gpt-mini',
+    input: 'Charge 4111 1111 1111 1111',
+  });
+  assert.equal(pii.status, 400);
+  assert.equal((await json(pii)).error.code, 'invalid_prompt');
+
+  const missing = await call('/v1/responses', { model: 'no-such-model', input: 'Hi' });
+  assert.equal(missing.status, 400);
+  assert.equal((await json(missing)).error.code, 'model_not_found');
+
+  await ctx.db
+    .update(apiKeys)
+    .set({ fallbackToLocal: false, dailyLimitUsd: 0.000001 })
+    .where(eq(apiKeys.id, keyId));
+  const broke = await call('/v1/responses', { model: 'gpt-mini', input: 'Hi' });
+  assert.equal(broke.status, 429);
+  assert.equal((await json(broke)).error.code, 'insufficient_quota');
+  await ctx.db
+    .update(apiKeys)
+    .set({ fallbackToLocal: true, dailyLimitUsd: null })
+    .where(eq(apiKeys.id, keyId));
+});
+
+test('Responses client without input gets a clear error', async () => {
+  const res = await call('/v1/responses', { model: 'gpt-mini' });
+  assert.equal(res.status, 400);
+  assert.match((await json(res)).error.message, /"input"/);
 });

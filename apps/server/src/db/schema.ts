@@ -13,7 +13,8 @@ const timestamp = (name: string) => integer(name, { mode: 'timestamp_ms' });
 export const PROVIDER_KINDS = ['openai', 'anthropic', 'ollama'] as const;
 export const KEY_KINDS = ['person', 'device', 'agent'] as const;
 export const ROLES = ['admin', 'member'] as const;
-export const CLIENT_FORMATS = ['openai', 'anthropic', 'ollama'] as const;
+/** `openai` is chat completions; `responses` is OpenAI's Responses API, which Codex speaks. */
+export const CLIENT_FORMATS = ['openai', 'anthropic', 'ollama', 'responses'] as const;
 export const RESULTS = [
   'ok',
   'rerouted',

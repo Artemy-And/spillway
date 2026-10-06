@@ -1,4 +1,4 @@
-// Minimal shapes of the three wire formats. Only the fields the gateway reads or
+// Minimal shapes of the four wire formats. Only the fields the gateway reads or
 // translates are typed; everything else passes through untouched.
 
 // OpenAI chat completions — also the internal canonical format.
@@ -161,6 +161,95 @@ export interface AStreamEvent {
   delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string | null };
   usage?: Partial<AUsage>;
   error?: { type: string; message: string };
+}
+
+// OpenAI Responses API (/v1/responses), the format Codex speaks. It has dozens of item and tool
+// types; one loose shape each is enough, since the gateway reads only a few fields of them.
+export interface RContentPart {
+  /** input_text, output_text, refusal, input_image, input_file, … */
+  type: string;
+  text?: string;
+  refusal?: string;
+  image_url?: string;
+  annotations?: unknown[];
+}
+
+export interface RItem {
+  /** message (when missing), function_call, function_call_output, reasoning, … */
+  type?: string;
+  id?: string;
+  role?: 'user' | 'assistant' | 'system' | 'developer';
+  content?: string | RContentPart[];
+  call_id?: string;
+  name?: string;
+  /** Set on calls of a tool that came inside a namespace */
+  namespace?: string;
+  /** function_call: JSON text */
+  arguments?: string;
+  /** custom_tool_call: the freeform text */
+  input?: string;
+  /** function_call_output and custom_tool_call_output */
+  output?: string | RContentPart[];
+  /** local_shell_call */
+  action?: unknown;
+  /** agent_message */
+  author?: string;
+  recipient?: string;
+}
+
+export interface RTool {
+  /** function, custom (freeform text), namespace, web_search, tool_search, … */
+  type: string;
+  name?: string;
+  description?: string;
+  parameters?: unknown;
+  /** custom: plain text, or a grammar the text must follow */
+  format?: { type: string; syntax?: string; definition?: string };
+  /** namespace: the tools inside it */
+  tools?: RTool[];
+}
+
+export type RToolChoice = 'auto' | 'none' | 'required' | { type: string; name?: string };
+
+export interface RRequest {
+  model: string;
+  input: string | RItem[];
+  instructions?: string | null;
+  tools?: RTool[];
+  tool_choice?: RToolChoice;
+  stream?: boolean;
+  max_output_tokens?: number | null;
+  temperature?: number | null;
+  top_p?: number | null;
+  text?: { format?: { type: string; name?: string; schema?: unknown; strict?: boolean } };
+  previous_response_id?: string | null;
+}
+
+export interface RUsage {
+  /** Includes the cached tokens */
+  input_tokens: number;
+  input_tokens_details?: { cached_tokens?: number | null } | null;
+  output_tokens: number;
+  output_tokens_details?: { reasoning_tokens?: number | null } | null;
+  total_tokens?: number;
+}
+
+export interface RResponse {
+  id: string;
+  object: 'response';
+  created_at: number;
+  status: string;
+  model: string;
+  output: (RItem & { status?: string })[];
+  usage: RUsage | null;
+  error: { code: string; message: string } | null;
+  incomplete_details: { reason: string } | null;
+}
+
+export interface RStreamEvent {
+  type: string;
+  delta?: string;
+  response?: Partial<RResponse>;
 }
 
 // Ollama native API

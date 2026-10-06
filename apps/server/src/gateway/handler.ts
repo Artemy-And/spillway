@@ -1,7 +1,15 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { AppContext } from '../context.ts';
-import { apiKeys, models, requestLogs, type TraceStep, teams, users } from '../db/schema.ts';
+import {
+  apiKeys,
+  models,
+  type Result,
+  requestLogs,
+  type TraceStep,
+  teams,
+  users,
+} from '../db/schema.ts';
 import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
@@ -33,6 +41,12 @@ import {
   openAIResponseToOllama,
   openAIStreamToOllama,
 } from './translate/ollama.ts';
+import {
+  openAIResponseToResponses,
+  openAIStreamToResponses,
+  responsesFailure,
+  responsesRequestToOpenAI,
+} from './translate/responses.ts';
 import type {
   ABlock,
   AMessage,
@@ -44,10 +58,15 @@ import type {
   OAIMessage,
   OllamaChatRequest,
   OllamaGenerateRequest,
+  RContentPart,
+  RItem,
+  RRequest,
+  RResponse,
 } from './types.ts';
-import { callUpstream, upstreamFailure, type Wire, wireOf } from './upstream.ts';
+import { callUpstream, speaksResponses, upstreamFailure, type Wire, wireOf } from './upstream.ts';
 
-export type Format = 'openai' | 'anthropic' | 'ollama-chat' | 'ollama-generate';
+/** `responses` is OpenAI's Responses API (/v1/responses), which Codex speaks. */
+export type Format = 'openai' | 'anthropic' | 'ollama-chat' | 'ollama-generate' | 'responses';
 
 export const PREVIEW = 2000;
 
@@ -61,21 +80,41 @@ const ANTHROPIC_ERROR_TYPES: Record<number, string> = {
   429: 'rate_limit_error',
 };
 
-export function errorResponse(format: Format, status: number, message: string): Response {
+/** OpenAI's error codes for the gateway's refusals. */
+const OPENAI_ERROR_CODES: Partial<Record<Result, string>> = {
+  blocked_budget: 'insufficient_quota',
+  blocked_model: 'model_not_found',
+  blocked_pii: 'invalid_prompt',
+  rate_limited: 'rate_limit_exceeded',
+};
+
+/** An error in the client's format; `result` says why the gateway refused, if it did. */
+export function errorResponse(
+  format: Format,
+  status: number,
+  message: string,
+  result?: Result,
+): Response {
   if (format === 'anthropic') {
     const type = ANTHROPIC_ERROR_TYPES[status] ?? 'api_error';
     return Response.json({ type: 'error', error: { type, message } }, { status });
   }
   if (isOllama(format)) return Response.json({ error: message }, { status });
+  const code = (result && OPENAI_ERROR_CODES[result]) ?? null;
+  // Codex retries any status it has no special case for, as if the connection had dropped. A 400
+  // is final, and with `invalid_prompt` it shows the message as it is.
+  const sent = format === 'responses' && (status === 403 || status === 404) ? 400 : status;
   const type =
-    status === 401
-      ? 'authentication_error'
-      : status === 429
-        ? 'rate_limit_error'
-        : status >= 500
-          ? 'api_error'
-          : 'invalid_request_error';
-  return Response.json({ error: { message, type, code: null } }, { status });
+    code === 'insufficient_quota'
+      ? code
+      : sent === 401
+        ? 'authentication_error'
+        : sent === 429
+          ? 'rate_limit_error'
+          : sent >= 500
+            ? 'api_error'
+            : 'invalid_request_error';
+  return Response.json({ error: { message, type, code } }, { status: sent });
 }
 
 export async function authenticate(ctx: AppContext, headers: Headers): Promise<Caller | null> {
@@ -91,6 +130,14 @@ export async function authenticate(ctx: AppContext, headers: Headers): Promise<C
     .get();
   if (!row || row.user?.disabledAt) return null;
   return row;
+}
+
+function responsesText(content: string | RContentPart[] | undefined): string {
+  if (typeof content === 'string') return content;
+  return (content ?? [])
+    .map((part) => part.text ?? part.refusal ?? '')
+    .filter(Boolean)
+    .join('\n');
 }
 
 /** All text that would leave the building, plus the latest user turn for the log. */
@@ -121,6 +168,20 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
     const req = body as unknown as OllamaGenerateRequest;
     parts.push(req.system ?? '', req.prompt ?? '');
     last = req.prompt ?? '';
+  } else if (format === 'responses') {
+    const req = body as unknown as RRequest;
+    parts.push(req.instructions ?? '');
+    const input: RItem[] =
+      typeof req.input === 'string' ? [{ role: 'user', content: req.input }] : req.input;
+    for (const item of input) {
+      const message = (item.type ?? 'message') === 'message';
+      // What tools return (files read, command output) goes to the model as well.
+      const output =
+        item.type === 'function_call_output' || item.type === 'custom_tool_call_output';
+      const text = responsesText(message ? item.content : output ? item.output : undefined);
+      parts.push(text);
+      if (message && item.role === 'user' && text.trim()) last = text;
+    }
   } else {
     const messages = (body.messages ?? []) as (
       | OAIMessage
@@ -143,12 +204,20 @@ function toOpenAIRequest(format: Format, body: Record<string, unknown>): OAIChat
       return ollamaChatToOpenAI(body as unknown as OllamaChatRequest);
     case 'ollama-generate':
       return ollamaGenerateToOpenAI(body as unknown as OllamaGenerateRequest);
+    case 'responses':
+      return responsesRequestToOpenAI(body as unknown as RRequest);
     default:
       return body as unknown as OAIChatRequest;
   }
 }
 
-function fromOpenAIResponse(format: Format, res: OAIChatResponse, model: string): unknown {
+/** `body` is the client's request; the Responses API answers in terms of the tools it declared. */
+function fromOpenAIResponse(
+  format: Format,
+  res: OAIChatResponse,
+  model: string,
+  body: Record<string, unknown>,
+): unknown {
   switch (format) {
     case 'anthropic':
       return openAIResponseToAnthropic(res, model);
@@ -156,6 +225,8 @@ function fromOpenAIResponse(format: Format, res: OAIChatResponse, model: string)
       return openAIResponseToOllama(res, model, 'chat');
     case 'ollama-generate':
       return openAIResponseToOllama(res, model, 'generate');
+    case 'responses':
+      return openAIResponseToResponses(res, model, body as unknown as RRequest);
     default:
       return { ...res, model };
   }
@@ -169,7 +240,12 @@ async function* openAIToSSE(
   yield 'data: [DONE]\n\n';
 }
 
-function fromOpenAIStream(format: Format, chunks: AsyncIterable<OAIChunk>, model: string) {
+function fromOpenAIStream(
+  format: Format,
+  chunks: AsyncIterable<OAIChunk>,
+  model: string,
+  body: Record<string, unknown>,
+) {
   switch (format) {
     case 'anthropic':
       return openAIStreamToAnthropic(chunks, model);
@@ -177,6 +253,8 @@ function fromOpenAIStream(format: Format, chunks: AsyncIterable<OAIChunk>, model
       return openAIStreamToOllama(chunks, model, 'chat');
     case 'ollama-generate':
       return openAIStreamToOllama(chunks, model, 'generate');
+    case 'responses':
+      return openAIStreamToResponses(chunks, model, body as unknown as RRequest);
     default:
       return openAIToSSE(chunks, model);
   }
@@ -194,6 +272,7 @@ async function* withStreamErrors(
     if (format === 'anthropic')
       yield sse({ type: 'error', error: { type: 'api_error', message } }, 'error');
     else if (isOllama(format)) yield `${JSON.stringify({ error: message })}\n`;
+    else if (format === 'responses') yield responsesFailure(message);
     else yield sse({ error: { message, type: 'api_error' } });
     throw error;
   }
@@ -316,7 +395,8 @@ async function forward(
   meter: Meter,
 ): Promise<Forwarded> {
   const { model, provider } = target;
-  const wire = wireOf(provider.kind);
+  const wire: Wire =
+    format === 'responses' && speaksResponses(provider) ? 'responses' : wireOf(provider.kind);
   const incoming = c.req.raw.headers;
   const streamHeaders = {
     'content-type': isOllama(format) ? 'application/x-ndjson' : 'text/event-stream',
@@ -352,21 +432,28 @@ async function forward(
       if (wire === 'openai' && stream) {
         upstreamBody.stream_options = { ...(body.stream_options as object), include_usage: true };
       }
-      const path = wire === 'openai' ? '/chat/completions' : '/messages';
+      const path = { openai: '/chat/completions', anthropic: '/messages', responses: '/responses' }[
+        wire
+      ];
       const res = await callUpstream(ctx, provider, path, { body: upstreamBody, incoming, signal });
       if (!res.ok) throw await upstreamFailure(provider, res);
       if (!stream || !res.body) {
-        const json = (await res.json()) as OAIChatResponse & AResponse & { error?: unknown };
+        const json: unknown = await res.json();
         if (wire === 'openai') {
-          assertAnswer(provider, json);
-          meter.openAIResponse(json);
-        } else meter.anthropicResponse(json);
+          const answer = json as OAIChatResponse & { error?: unknown };
+          assertAnswer(provider, answer);
+          meter.openAIResponse(answer);
+        } else if (wire === 'responses') meter.responsesResponse(json as RResponse);
+        else meter.anthropicResponse(json as AResponse);
         resolveDone();
         return { response: Response.json(json), done };
       }
       const source = await primed(tapped(res.body, wire, meter));
+      // A Responses stream reports failure in an event, after the 200 has gone out.
+      const ended = (error?: unknown) =>
+        resolveDone(error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined));
       return {
-        response: new Response(toBody(source, resolveDone), { headers: streamHeaders }),
+        response: new Response(toBody(source, ended), { headers: streamHeaders }),
         done,
       };
     }
@@ -406,11 +493,14 @@ async function forward(
     if (result) {
       meter.openAIResponse(result);
       resolveDone();
-      return { response: Response.json(fromOpenAIResponse(format, result, model.name)), done };
+      return {
+        response: Response.json(fromOpenAIResponse(format, result, model.name, body)),
+        done,
+      };
     }
     const out = withStreamErrors(
       format,
-      fromOpenAIStream(format, metered(chunks!, meter), model.name),
+      fromOpenAIStream(format, metered(chunks!, meter), model.name, body),
     );
     return { response: new Response(toBody(out, resolveDone), { headers: streamHeaders }), done };
   } finally {
@@ -455,9 +545,13 @@ export async function handleGateway(
   if (typeof body.model !== 'string' || !body.model) {
     return errorResponse(format, 400, 'Field "model" is required');
   }
-  const messages = format === 'ollama-generate' ? [] : body.messages;
-  if (!Array.isArray(messages))
+  if (format === 'responses') {
+    if (typeof body.input !== 'string' && !Array.isArray(body.input)) {
+      return errorResponse(format, 400, 'Field "input" must be a string or an array');
+    }
+  } else if (format !== 'ollama-generate' && !Array.isArray(body.messages)) {
     return errorResponse(format, 400, 'Field "messages" must be an array');
+  }
 
   const settings = await ctx.settings.get();
   const text = promptText(format, body);
@@ -475,7 +569,7 @@ export async function handleGateway(
     id,
     keyId: caller.key.id,
     teamId: caller.key.teamId,
-    format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic'),
+    format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
     requestedModel: body.model,
     requestedModelId: decision.requested?.model.id ?? null,
     servedModelId: decision.target?.model.id ?? null,
@@ -493,7 +587,7 @@ export async function handleGateway(
 
   if (!decision.target) {
     await writeLog(ctx, { ...base, latencyMs: Date.now() - started }, caller.key.id);
-    return errorResponse(format, decision.status, decision.message);
+    return errorResponse(format, decision.status, decision.message, decision.result);
   }
 
   // With the cache on, a repeated request gets the stored answer. Only whole answers from the

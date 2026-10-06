@@ -21,6 +21,14 @@ import { fmtNumber, fmtTime, fmtUsd } from '../lib/format.ts';
 
 type Period = '24h' | '7d' | '30d';
 
+/** The API a request came in through; Codex uses OpenAI's Responses API. */
+const CLIENT_NAMES: Record<LogDetail['format'], string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  ollama: 'Ollama',
+  responses: 'OpenAI Responses',
+};
+
 const STEP_TONE: Record<string, string> = {
   ok: 'bg-ok-bg text-ok-fg',
   warn: 'bg-warn-bg text-warn-fg',
@@ -199,8 +207,7 @@ function Details({ log }: { log: LogDetail }) {
     : '—';
   const outage = log.result === 'rerouted' && log.trace.some((s) => s.code === 'failover');
   const title = m.logs.titles[outage ? 'outage' : log.result] ?? log.result;
-  const client =
-    log.format === 'openai' ? 'OpenAI' : log.format === 'anthropic' ? 'Anthropic' : 'Ollama';
+  const client = CLIENT_NAMES[log.format];
   return (
     <Aside label={m.logs.details}>
       <div>
