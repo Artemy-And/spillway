@@ -255,7 +255,8 @@ type Alert =
       error: string | null;
       at: number;
     }
-  | { tone: 'warn'; code: 'modelNoPrice'; models: string[]; at: number };
+  | { tone: 'warn'; code: 'modelNoPrice'; models: string[]; at: number }
+  | { tone: 'warn'; code: 'promptCut'; model: string; count: number; at: number };
 
 async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date): Promise<Alert[]> {
   const out: Alert[] = [];
@@ -374,6 +375,35 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
         code: 'modelNoPrice',
         models: unpriced.map((row) => row.name),
         at: now.getTime(),
+      });
+    }
+
+    // Ollama dropped the start of long prompts because its context is too small (the gateway
+    // marks such requests with a promptCut step); rerouted agents then lose their instructions.
+    const cuts = await db
+      .select({
+        model: sql<string>`coalesce(${models.label}, ${models.name})`,
+        count: sql<number>`count(*)`,
+        last: sql<number>`max(${requestLogs.createdAt})`,
+      })
+      .from(requestLogs)
+      .innerJoin(models, eq(requestLogs.servedModelId, models.id))
+      .where(
+        and(
+          gte(requestLogs.createdAt, lastDay),
+          eq(requestLogs.servedLocal, true),
+          sql`exists (select 1 from json_each(${requestLogs.trace}) where json_extract(value, '$.code') = 'promptCut')`,
+        ),
+      )
+      .groupBy(models.id)
+      .all();
+    for (const row of cuts) {
+      out.push({
+        tone: 'warn',
+        code: 'promptCut',
+        model: row.model,
+        count: row.count,
+        at: row.last,
       });
     }
 

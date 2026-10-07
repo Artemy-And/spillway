@@ -1,4 +1,4 @@
-import { fmtLimit, fmtUsd } from '../lib/format.ts';
+import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -309,6 +309,8 @@ export const zh: Messages = {
     piiBlocked: (a) => `${a.count} 个发往云端模型的请求被拦截：发现敏感数据`,
     teamOverBudget: (a) => `${a.team} 已超出月度预算，请求将发往本地模型`,
     spentOf: (spent, budget) => `${spent} / ${budget}`,
+    promptCut: (a) =>
+      `${a.model} 在过去 24 小时内有 ${a.count} 个长提示的开头被截掉：Ollama 的上下文太小`,
     providerFailing: (a) =>
       `${a.provider} 在过去 24 小时内失败 ${a.failed + a.rescued} 次` +
       (a.rescued ? `，其中 ${a.rescued} 次由本地模型代为回答` : ''),
@@ -502,6 +504,8 @@ export const zh: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} 出错：${t.message}`,
     failover: (t: TraceParams) => `${t.provider} 不可用 → 已发往 ${t.model} · 本地`,
+    promptCut: (t: TraceParams) =>
+      `Ollama 只保留了约 ${fmtNumber(t.sent ?? 0)} 个提示词元中的 ${fmtNumber(t.kept ?? 0)} 个，开头被丢弃：上下文太小。请用 OLLAMA_CONTEXT_LENGTH=32768 启动 Ollama。`,
     cacheHit: (t: TraceParams) => `由缓存应答：未花费 ${fmtUsd(t.saved ?? 0)}`,
   },
 

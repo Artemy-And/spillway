@@ -46,6 +46,9 @@ export interface TraceParams {
   message?: string;
   count?: number;
   saved?: number;
+  /** promptCut: tokens sent, about, and tokens Ollama kept */
+  sent?: number;
+  kept?: number;
 }
 
 /** "card numbers ×2, emails ×1" with the language's own labels. */

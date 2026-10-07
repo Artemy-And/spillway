@@ -1,5 +1,5 @@
 import type { Overview } from '../lib/api.ts';
-import { fmtLimit, fmtUsd } from '../lib/format.ts';
+import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('en');
@@ -309,6 +309,8 @@ export const en = {
     teamOverBudget: (a: AlertOf<'teamOverBudget'>) =>
       `${a.team} is over its monthly budget; requests go to local models`,
     spentOf: (spent: string, budget: string) => `${spent} of ${budget}`,
+    promptCut: (a: AlertOf<'promptCut'>) =>
+      `${a.model} lost the start of ${p(a.count, { one: '# long prompt', other: '# long prompts' })} in the last 24 hours: Ollama's context is too small`,
     providerFailing: (a: AlertOf<'providerFailing'>) =>
       `${a.provider} failed ${p(a.failed + a.rescued, { one: 'once', other: '# times' })} in the last 24 hours` +
       (a.rescued
@@ -517,6 +519,8 @@ export const en = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} failed: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} is unavailable → sent to ${t.model} · local`,
+    promptCut: (t: TraceParams) =>
+      `Ollama kept ${fmtNumber(t.kept ?? 0)} of about ${fmtNumber(t.sent ?? 0)} prompt tokens and dropped the start: its context is too small. Start Ollama with OLLAMA_CONTEXT_LENGTH=32768.`,
     cacheHit: (t: TraceParams) => `Answered from the cache: ${fmtUsd(t.saved ?? 0)} not spent`,
   } as Record<string, (t: TraceParams) => string>,
 

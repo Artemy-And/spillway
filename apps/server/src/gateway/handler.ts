@@ -140,6 +140,25 @@ function responsesText(content: string | RContentPart[] | undefined): string {
     .join('\n');
 }
 
+/**
+ * Ollama drops the start of a prompt longer than its context (4096 tokens unless set otherwise)
+ * without an error, and reports only the tokens it kept. Coding agents lose their instructions
+ * that way, so a report far below the size of the request counts as a cut. The size is estimated
+ * at four characters a token, leaving out inline images.
+ */
+export function promptCut(
+  body: Record<string, unknown>,
+  kept: number,
+): { sent: number; kept: number } | null {
+  const json = JSON.stringify(body, (key, value) =>
+    key === 'images' || (typeof value === 'string' && value.startsWith('data:'))
+      ? undefined
+      : value,
+  );
+  const sent = Math.round(json.length / 4);
+  return kept > 0 && sent >= kept * 1.5 && sent - kept >= 2000 ? { sent, kept } : null;
+}
+
 /** All text that would leave the building, plus the latest user turn for the log. */
 function promptText(format: Format, body: Record<string, unknown>): { all: string; last: string } {
   const parts: string[] = [];
@@ -639,6 +658,8 @@ export async function handleGateway(
     const requestedCost = decision.requested ? meter.cost(decision.requested.model) : cost;
     const failed = error !== undefined;
     const message = failed ? (error instanceof Error ? error.message : String(error)) : null;
+    const cut =
+      !failed && target.provider.kind === 'ollama' ? promptCut(body, meter.totalInput) : null;
     await writeLog(
       ctx,
       {
@@ -663,7 +684,17 @@ export async function handleGateway(
         error: message,
         trace: failed
           ? [...trace, step('block', message!, 'upstreamError', { message: message! })]
-          : trace,
+          : cut
+            ? [
+                ...trace,
+                step(
+                  'warn',
+                  `Ollama kept ${cut.kept} of about ${cut.sent} prompt tokens and dropped the start: its context is too small. Start Ollama with OLLAMA_CONTEXT_LENGTH=32768.`,
+                  'promptCut',
+                  cut,
+                ),
+              ]
+            : trace,
       },
       caller.key.id,
     );

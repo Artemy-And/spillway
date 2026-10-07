@@ -1,4 +1,4 @@
-import { fmtLimit, fmtUsd } from '../lib/format.ts';
+import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -327,6 +327,8 @@ export const es: Messages = {
     teamOverBudget: (a) =>
       `${a.team} superó su presupuesto mensual; las solicitudes van a modelos locales`,
     spentOf: (spent, budget) => `${spent} de ${budget}`,
+    promptCut: (a) =>
+      `${a.model} perdió el principio de ${p(a.count, { one: '# prompt largo', other: '# prompts largos' })} en las últimas 24 horas: el contexto de Ollama es demasiado pequeño`,
     providerFailing: (a) =>
       `${a.provider} falló ${times(a.failed + a.rescued)} en las últimas 24 horas` +
       (a.rescued ? `; el modelo local respondió ${times(a.rescued)}` : ''),
@@ -534,6 +536,8 @@ export const es: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} falló: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} no disponible → enviada a ${t.model} · local`,
+    promptCut: (t: TraceParams) =>
+      `Ollama conservó ${fmtNumber(t.kept ?? 0)} de unos ${fmtNumber(t.sent ?? 0)} tokens del prompt y descartó el principio: su contexto es demasiado pequeño. Inicia Ollama con OLLAMA_CONTEXT_LENGTH=32768.`,
     cacheHit: (t: TraceParams) => `Respondida desde la caché: ${fmtUsd(t.saved ?? 0)} sin gastar`,
   },
 

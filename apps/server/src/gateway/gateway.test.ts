@@ -5,12 +5,14 @@ import { serve } from '@hono/node-server';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { overview } from '../admin/stats.ts';
 import { createApp } from '../app.ts';
 import { type AppContext, RateLimiter } from '../context.ts';
 import { openDb } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import { loadEnv } from '../env.ts';
 import { newGatewayKey, Vault } from '../lib/crypto.ts';
+import { calendar } from '../lib/time.ts';
 import { SettingsStore } from '../settings.ts';
 
 // A fake upstream that speaks OpenAI (/v1/chat/completions, /v1/responses) and Anthropic
@@ -496,4 +498,26 @@ test('Responses client without input gets a clear error', async () => {
   const res = await call('/v1/responses', { model: 'gpt-mini' });
   assert.equal(res.status, 400);
   assert.match((await json(res)).error.message, /"input"/);
+});
+
+test('Ollama dropping the start of a long prompt is logged and shown on the overview', async () => {
+  const ask = (content: string) =>
+    call('/v1/chat/completions', { model: 'qwen-coder', messages: [{ role: 'user', content }] });
+  // A short prompt fits: the 1000 tokens the fake Ollama reports are about what was sent.
+  await ask('hi '.repeat(1200));
+  assert.ok(!(await lastLog()).trace.some((s) => s.code === 'promptCut'));
+
+  // About 10,000 tokens sent, 1000 kept: the start was cut.
+  await ask('word '.repeat(8000));
+  const cut = (await lastLog()).trace.find((s) => s.code === 'promptCut');
+  assert.equal(cut?.tone, 'warn');
+  assert.equal(cut?.params?.kept, 1000);
+  assert.ok(Number(cut?.params?.sent) > 9000);
+
+  const { alerts } = await overview(ctx.db, '7d', null, calendar('UTC'));
+  const alert = alerts.find((a) => a.code === 'promptCut');
+  assert.deepEqual(alert && { model: alert.model, count: alert.count }, {
+    model: 'Qwen Coder',
+    count: 1,
+  });
 });

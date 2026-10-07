@@ -1,4 +1,4 @@
-import { fmtLimit, fmtUsd } from '../lib/format.ts';
+import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -328,6 +328,8 @@ export const fr: Messages = {
     teamOverBudget: (a) =>
       `${a.team} a dépassé son budget mensuel ; les requêtes vont aux modèles locaux`,
     spentOf: (spent, budget) => `${spent} sur ${budget}`,
+    promptCut: (a) =>
+      `${a.model} a perdu le début de ${p(a.count, { one: '# long prompt', other: '# longs prompts' })} au cours des dernières 24 heures : le contexte d'Ollama est trop petit`,
     providerFailing: (a) =>
       `${a.provider} a échoué ${times(a.failed + a.rescued)} ces dernières 24 heures` +
       (a.rescued ? ` ; le modèle local a répondu ${times(a.rescued)}` : ''),
@@ -538,6 +540,8 @@ export const fr: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} a échoué : ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} indisponible → envoyée à ${t.model} · local`,
+    promptCut: (t: TraceParams) =>
+      `Ollama a gardé ${fmtNumber(t.kept ?? 0)} des quelque ${fmtNumber(t.sent ?? 0)} tokens du prompt et a supprimé le début : son contexte est trop petit. Lancez Ollama avec OLLAMA_CONTEXT_LENGTH=32768.`,
     cacheHit: (t: TraceParams) => `Réponse tirée du cache : ${fmtUsd(t.saved ?? 0)} non dépensés`,
   },
 

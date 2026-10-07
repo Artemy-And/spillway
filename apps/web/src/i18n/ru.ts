@@ -1,4 +1,4 @@
-import { fmtLimit, fmtUsd } from '../lib/format.ts';
+import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -350,6 +350,8 @@ export const ru: Messages = {
     teamOverBudget: (a) =>
       `Команда ${a.team} превысила месячный бюджет, запросы идут на локальные модели`,
     spentOf: (spent, budget) => `${spent} из ${budget}`,
+    promptCut: (a) =>
+      `${a.model}: за сутки обрезано начало у ${p(a.count, { one: '# длинного запроса', few: '# длинных запросов', many: '# длинных запросов', other: '# длинного запроса' })}, у Ollama слишком маленький контекст`,
     providerFailing: (a) =>
       `${a.provider}: ${times(a.failed + a.rescued)} не ответил за последние сутки` +
       (a.rescued ? `; локальная модель ответила вместо него ${times(a.rescued)}` : ''),
@@ -559,6 +561,8 @@ export const ru: Messages = {
     upstreamError: (t: TraceParams) => `${t.message}`,
     providerFailed: (t: TraceParams) => `${t.provider} не ответил: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} недоступен → отправлен в ${t.model} · локальная`,
+    promptCut: (t: TraceParams) =>
+      `Ollama оставила ${fmtNumber(t.kept ?? 0)} из примерно ${fmtNumber(t.sent ?? 0)} токенов запроса и отбросила начало: у неё слишком маленький контекст. Запустите Ollama с OLLAMA_CONTEXT_LENGTH=32768.`,
     cacheHit: (t: TraceParams) => `Ответ из кэша: ${fmtUsd(t.saved ?? 0)} не потрачено`,
   },
 
