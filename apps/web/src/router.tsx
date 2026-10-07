@@ -30,7 +30,15 @@ const login = createRoute({
   component: LoginPage,
 });
 
-const setup = createRoute({ getParentRoute: () => root, path: '/setup', component: SetupPage });
+const setup = createRoute({
+  getParentRoute: () => root,
+  path: '/setup',
+  // The link the server prints to its logs carries the setup code.
+  validateSearch: (search: Record<string, unknown>) => ({
+    code: typeof search.code === 'string' ? search.code : undefined,
+  }),
+  component: SetupPage,
+});
 
 const invite = createRoute({
   getParentRoute: () => root,

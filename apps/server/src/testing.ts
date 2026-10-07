@@ -16,6 +16,7 @@ export async function testApp(env: Record<string, string> = {}) {
     settings: new SettingsStore(db),
     oidc: null,
     rateLimiter: new RateLimiter(),
+    setupCode: 'TEST-SETUP-CODE',
     publicDir: null,
   };
   const app = createApp(ctx);
@@ -36,6 +37,7 @@ export async function testApp(env: Record<string, string> = {}) {
         name: 'Admin',
         email: 'admin@acme.test',
         password: 'admin pass 1',
+        code: ctx.setupCode,
       }),
     );
 

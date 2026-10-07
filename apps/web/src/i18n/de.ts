@@ -78,6 +78,10 @@ export const de: Messages = {
   },
 
   errors: {
+    'Wrong setup code. Spillway prints the setup link in its logs.':
+      'Falscher Einrichtungscode. Spillway schreibt den Einrichtungslink beim Start ins Log.',
+    'Your email comes from single sign-on and cannot be changed here':
+      'Ihre E-Mail-Adresse kommt aus dem Single Sign-on und lässt sich hier nicht ändern',
     'This is a read-only demo with made-up data. Install Spillway to try changes.':
       'Dies ist eine schreibgeschützte Demo mit erfundenen Daten. Installieren Sie Spillway, um Änderungen auszuprobieren.',
     'A team with this name already exists': 'Ein Team mit diesem Namen gibt es bereits',
@@ -144,6 +148,8 @@ export const de: Messages = {
   },
 
   setup: {
+    code: 'Einrichtungscode',
+    codeHint: 'Spillway schreibt beim Start einen Link damit ins Log: docker logs spillway',
     title: 'Willkommen bei Spillway',
     subtitle:
       'Legen Sie das Admin-Konto an. Damit melden Sie sich an, verbinden KI-Anbieter und vergeben Schlüssel.',

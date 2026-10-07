@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 import { Logo } from '../components/Layout.tsx';
 import { Button, ErrorNote, Field, Input } from '../components/ui.tsx';
@@ -7,11 +7,16 @@ import { LanguageSelect, useI18n } from '../i18n/index.tsx';
 import { auth, unwrap } from '../lib/api.ts';
 import { browserZone } from '../lib/format.ts';
 
-/** First start: whoever opens Spillway first creates the admin account. */
+/**
+ * First start: the admin account, created by someone holding the setup code the server prints to
+ * its logs. The printed link fills the code in.
+ */
 export function SetupPage() {
   const { m } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { code: linked } = useSearch({ from: '/setup' });
+  const [code, setCode] = useState(linked ?? '');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,7 +32,7 @@ export function SetupPage() {
       unwrap(
         auth.setup.$post({
           // The browser's zone becomes the gateway's, so budgets reset on the team's midnight.
-          json: { name: name.trim(), email, password, timeZone: browserZone() },
+          json: { name: name.trim(), email, password, code: code.trim(), timeZone: browserZone() },
         }),
       ),
     onSuccess: async () => {
@@ -65,6 +70,15 @@ export function SetupPage() {
           if (!mismatch) create.mutate();
         }}
       >
+        <Field label={m.setup.code} hint={m.setup.codeHint}>
+          <Input
+            required
+            autoComplete="off"
+            spellCheck={false}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </Field>
         <Field label={m.setup.name}>
           <Input
             required

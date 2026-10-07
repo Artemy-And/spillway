@@ -78,6 +78,10 @@ export const ru: Messages = {
   },
 
   errors: {
+    'Wrong setup code. Spillway prints the setup link in its logs.':
+      'Неверный код настройки. Ссылку с ним Spillway печатает в лог при запуске.',
+    'Your email comes from single sign-on and cannot be changed here':
+      'Почта задаётся единым входом (SSO), здесь её изменить нельзя',
     'This is a read-only demo with made-up data. Install Spillway to try changes.':
       'Это демо только для просмотра, данные выдуманы. Чтобы что-то менять, установите Spillway.',
     'A team with this name already exists': 'Команда с таким названием уже есть',
@@ -141,6 +145,8 @@ export const ru: Messages = {
   },
 
   setup: {
+    code: 'Код настройки',
+    codeHint: 'Spillway печатает ссылку с ним в лог при запуске: docker logs spillway',
     title: 'Добро пожаловать в Spillway',
     subtitle:
       'Создайте аккаунт администратора. С ним вы будете входить, подключать ИИ-провайдеров и выдавать ключи.',

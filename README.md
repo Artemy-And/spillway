@@ -29,11 +29,12 @@ container with an admin UI and SQLite inside.
                   rules · masked log
 ```
 
-Try it with one command, then open http://localhost:8080 and create the admin account:
+Try it with one command, then open the setup link it prints to create the admin account:
 
 ```sh
 docker run -d --name spillway -p 8080:8080 -v spillway-data:/data \
   --add-host host.docker.internal:host-gateway ghcr.io/artemy-and/spillway
+docker logs spillway    # First start: create the admin account at http://localhost:8080/setup?code=…
 ```
 
 For a setup you keep, use [Docker Compose](#quick-start).
@@ -84,7 +85,7 @@ around Spillway, such as a managed instance or support. Nothing on this list wil
 mkdir spillway && cd spillway
 curl -fsSLO https://raw.githubusercontent.com/Artemy-And/spillway/main/docker-compose.yml
 docker compose up -d
-open http://localhost:8080
+docker compose logs spillway    # prints the setup link
 ```
 
 This pulls the signed image `ghcr.io/artemy-and/spillway` for amd64 or arm64; nothing is built
@@ -92,8 +93,10 @@ on your machine. `latest` follows releases. To pin one, put `SPILLWAY_TAG=0.2.0`
 to the compose file (`.env.example` lists every setting). Put Spillway behind your usual reverse
 proxy for HTTPS and set `PUBLIC_URL` to the address people open.
 
-The first visitor creates the admin account in the browser (with SSO configured, the first person
-to sign in from an allowed domain becomes the admin instead). A short tour and a getting-started
+The first start prints a setup link with a one-time code to the logs, and whoever opens it creates
+the admin account in the browser. A stranger who finds a fresh install before you cannot, since the
+code is only in the logs. With SSO configured, the first person to sign in from an allowed domain
+becomes the admin instead. A short tour and a getting-started
 checklist on the Overview page then walk through connecting a provider, adding models, picking a
 local model, creating a key and sending the first request. For unattended installs, set
 `ADMIN_EMAIL` and `ADMIN_PASSWORD` instead; they are used only when nobody exists yet.

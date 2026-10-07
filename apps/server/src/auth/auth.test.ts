@@ -19,6 +19,7 @@ before(async () => {
     settings: new SettingsStore(db),
     oidc: null,
     rateLimiter: new RateLimiter(),
+    setupCode: 'TEST-SETUP-CODE',
     publicDir: null,
   };
   app = createApp(ctx);
@@ -44,6 +45,7 @@ test('a fresh gateway asks for the first account', async () => {
     name: 'Artemy',
     email: 'Me@Company.com',
     password: 'correct horse',
+    code: 'test-setup-code',
   });
   assert.equal(res.status, 201);
   cookie = cookieOf(res);

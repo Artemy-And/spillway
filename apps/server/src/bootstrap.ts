@@ -21,7 +21,12 @@ export async function bootstrap(ctx: AppContext): Promise<void> {
         passwordHash: await hashPassword(env.ADMIN_PASSWORD),
       });
     } else {
-      console.log(`\n  First start: open ${env.PUBLIC_URL} to create the admin account.\n`);
+      // Only someone who can read these logs gets the code, so a stranger who finds a fresh
+      // install first cannot make themselves its admin.
+      const link = new URL(`/setup?code=${ctx.setupCode}`, env.PUBLIC_URL);
+      console.log(
+        `\n  First start: create the admin account at\n    ${link}\n  Setup code: ${ctx.setupCode} (a new one at every start until an admin exists)\n`,
+      );
     }
   }
 

@@ -119,6 +119,8 @@ export const en = {
   },
 
   setup: {
+    code: 'Setup code',
+    codeHint: 'Spillway prints a link with it in its logs when it starts: docker logs spillway',
     title: 'Welcome to Spillway',
     subtitle:
       'Create the admin account. You will use it to sign in, connect AI providers and hand out keys.',

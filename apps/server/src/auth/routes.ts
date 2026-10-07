@@ -5,7 +5,7 @@ import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { invites, sessions, users } from '../db/schema.ts';
-import { hashPassword, verifyPassword } from '../lib/crypto.ts';
+import { hashPassword, sameCode, verifyPassword } from '../lib/crypto.ts';
 import { isTimeZone } from '../lib/time.ts';
 import { findInvite } from './invites.ts';
 import type { OidcChecks } from './oidc.ts';
@@ -59,6 +59,8 @@ export function authRoutes(ctx: AppContext) {
           name: z.string().trim().min(1).max(128),
           email: z.email().transform((email) => email.toLowerCase()),
           password: passwordSchema,
+          /** From the setup link the server prints to its logs */
+          code: z.string().max(64).optional(),
           /** The admin's browser zone, so budgets reset on the team's midnight from day one */
           timeZone: z.string().optional(),
         }),
@@ -67,7 +69,13 @@ export function authRoutes(ctx: AppContext) {
         if (!(await needsSetup(ctx))) {
           return c.json({ error: 'Spillway is already set up. Sign in instead.' }, 409);
         }
-        const { name, email, password, timeZone } = c.req.valid('json');
+        const { name, email, password, timeZone, code } = c.req.valid('json');
+        if (!sameCode(code, ctx.setupCode)) {
+          return c.json(
+            { error: 'Wrong setup code. Spillway prints the setup link in its logs.' },
+            403,
+          );
+        }
         const [user] = await ctx.db
           .insert(users)
           .values({ email, name, role: 'admin', passwordHash: await hashPassword(password) })

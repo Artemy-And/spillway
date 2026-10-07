@@ -12,6 +12,7 @@ test('the first admin’s browser zone becomes the gateway’s', async () => {
     email: 'maya@acme.test',
     password: 'admin pass 1',
     timeZone: 'America/Chicago',
+    code: t.ctx.setupCode,
   });
   assert.equal((await t.ctx.settings.get()).timeZone, 'America/Chicago');
 });

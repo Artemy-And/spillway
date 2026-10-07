@@ -77,6 +77,10 @@ export const zh: Messages = {
   },
 
   errors: {
+    'Wrong setup code. Spillway prints the setup link in its logs.':
+      '设置代码错误。Spillway 启动时会把设置链接写入日志。',
+    'Your email comes from single sign-on and cannot be changed here':
+      '你的邮箱来自单点登录（SSO），无法在此修改',
     'This is a read-only demo with made-up data. Install Spillway to try changes.':
       '这是一个只读演示，数据均为虚构。要尝试修改，请安装 Spillway。',
     'A team with this name already exists': '已有同名团队',
@@ -135,6 +139,8 @@ export const zh: Messages = {
   },
 
   setup: {
+    code: '设置代码',
+    codeHint: 'Spillway 启动时会把含有它的链接写入日志：docker logs spillway',
     title: '欢迎使用 Spillway',
     subtitle: '创建管理员账户。之后用它登录、接入 AI 提供商并分发密钥。',
     name: '你的名字',

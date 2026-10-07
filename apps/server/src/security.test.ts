@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Oidc } from './auth/oidc.ts';
 import { requestLogs } from './db/schema.ts';
+import { newSetupCode } from './lib/crypto.ts';
 import { json, testApp } from './testing.ts';
 
 test('a form posted from another site cannot act with the session cookie', async () => {
@@ -70,4 +71,26 @@ test('an unknown email and a wrong password get the same answer', async () => {
   const wrong = await login('admin@acme.test');
   assert.equal(unknown.status, 401);
   assert.deepEqual(await json(unknown), await json(wrong));
+});
+
+test('only someone with the setup code from the logs can create the first admin', async () => {
+  const t = await testApp();
+  const setup = (code?: string) =>
+    t.send('/auth/setup', {
+      name: 'Eve',
+      email: 'eve@evil.example',
+      password: 'eve pass 12',
+      code,
+    });
+  assert.equal((await setup()).status, 403);
+  assert.equal((await setup('AAAA-BBBB-CCCC')).status, 403);
+  assert.equal((await json(await t.get('/auth/config'))).setup, true);
+  // Typed by hand: any case, without the dashes.
+  assert.equal((await setup(t.ctx.setupCode.toLowerCase().replaceAll('-', ''))).status, 201);
+});
+
+test('setup codes are three groups of four easy-to-read characters', () => {
+  const code = newSetupCode();
+  assert.match(code, /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  assert.notEqual(code, newSetupCode());
 });

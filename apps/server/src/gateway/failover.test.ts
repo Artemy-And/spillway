@@ -93,6 +93,7 @@ before(async () => {
     settings: new SettingsStore(db),
     oidc: null,
     rateLimiter: new RateLimiter(),
+    setupCode: 'TEST-SETUP-CODE',
     publicDir: null,
   };
   app = createApp(ctx);

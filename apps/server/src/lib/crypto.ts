@@ -29,6 +29,22 @@ export function shortId(prefix: string): string {
   return `${prefix}_${randomBytes(6).toString('hex')}`;
 }
 
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** A code to click or type from the logs, without look-alike letters: 60 random bits. */
+export function newSetupCode(): string {
+  const chars = [...randomBytes(12)].map((byte) => CODE_LETTERS[byte % 32]).join('');
+  return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
+}
+
+/** Compares a code the way people type it: any case, with or without dashes and spaces. */
+export function sameCode(given: string | undefined, expected: string): boolean {
+  const plain = (code: string) => Buffer.from(code.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  const a = plain(given ?? '');
+  const b = plain(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /** Gateway keys are shown once; only their hash is stored. */
 export function newGatewayKey(): { key: string; prefix: string; hash: string } {
   const key = `sw-${randomToken(24)}`;

@@ -90,6 +90,7 @@ before(async () => {
     settings: new SettingsStore(db),
     oidc: Oidc.fromEnv(env),
     rateLimiter: new RateLimiter(),
+    setupCode: 'TEST-SETUP-CODE',
     publicDir: null,
   };
   app = createApp(ctx);

@@ -27,6 +27,11 @@ export interface AppContext {
   settings: SettingsStore;
   oidc: Oidc | null;
   rateLimiter: RateLimiter;
+  /**
+   * Asked for when the first admin is created in the browser, so that has to be someone who can
+   * read the server's logs, not whoever reaches a fresh install first. Printed at every start.
+   */
+  setupCode: string;
   /** Built admin UI to serve, if any */
   publicDir: string | null;
 }

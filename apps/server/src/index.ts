@@ -8,7 +8,7 @@ import { type AppContext, RateLimiter, VERSION } from './context.ts';
 import { openDb } from './db/client.ts';
 import { seedDemo } from './demo.ts';
 import { loadEnv } from './env.ts';
-import { loadSecret, Vault } from './lib/crypto.ts';
+import { loadSecret, newSetupCode, Vault } from './lib/crypto.ts';
 import { watch } from './notify.ts';
 import { SettingsStore } from './settings.ts';
 
@@ -26,6 +26,7 @@ const ctx: AppContext = {
   settings: new SettingsStore(db),
   oidc: Oidc.fromEnv(env),
   rateLimiter: new RateLimiter(),
+  setupCode: newSetupCode(),
   publicDir: process.env.PUBLIC_DIR ?? resolve(import.meta.dirname, '../public'),
 };
 
