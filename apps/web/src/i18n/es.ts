@@ -246,6 +246,7 @@ export const es: Messages = {
     title: 'Cuenta',
     subtitle: 'Tu nombre, correo, contraseña e idioma.',
     profile: 'Perfil',
+    emailFromSso: 'Tu correo viene del inicio de sesión único (SSO).',
     password: 'Contraseña',
     current: 'Contraseña actual',
     newPassword: 'Contraseña nueva',

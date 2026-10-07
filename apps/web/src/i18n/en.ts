@@ -222,6 +222,7 @@ export const en = {
     title: 'Account',
     subtitle: 'Your name, email, password and language.',
     profile: 'Profile',
+    emailFromSso: 'Your email comes from single sign-on.',
     password: 'Password',
     current: 'Current password',
     newPassword: 'New password',

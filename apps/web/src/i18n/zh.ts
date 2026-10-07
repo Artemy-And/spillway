@@ -236,6 +236,7 @@ export const zh: Messages = {
     title: '账户',
     subtitle: '你的名字、邮箱、密码和语言。',
     profile: '个人资料',
+    emailFromSso: '你的邮箱来自单点登录（SSO）。',
     password: '密码',
     current: '当前密码',
     newPassword: '新密码',

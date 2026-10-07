@@ -248,6 +248,7 @@ export const de: Messages = {
     title: 'Konto',
     subtitle: 'Name, E-Mail, Passwort und Sprache.',
     profile: 'Profil',
+    emailFromSso: 'Ihre E-Mail-Adresse kommt aus dem Single Sign-on.',
     password: 'Passwort',
     current: 'Aktuelles Passwort',
     newPassword: 'Neues Passwort',

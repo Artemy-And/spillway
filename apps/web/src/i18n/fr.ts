@@ -246,6 +246,7 @@ export const fr: Messages = {
     title: 'Compte',
     subtitle: 'Votre nom, e-mail, mot de passe et langue.',
     profile: 'Profil',
+    emailFromSso: 'Votre e-mail vient de l’authentification unique (SSO).',
     password: 'Mot de passe',
     current: 'Mot de passe actuel',
     newPassword: 'Nouveau mot de passe',

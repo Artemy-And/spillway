@@ -121,6 +121,8 @@ export function adminRoutes(ctx: AppContext) {
             hasPassword: !!user.passwordHash,
             welcomed: !!user.welcomedAt,
             checklistHidden: !!user.checklistHiddenAt,
+            /** With single sign-on, members cannot change their own email */
+            emailLocked: !!ctx.oidc && user.role !== 'admin',
           },
           gateway: {
             host: new URL(ctx.env.PUBLIC_URL).host,
@@ -154,6 +156,14 @@ export function adminRoutes(ctx: AppContext) {
         async (c) => {
           const user = c.get('user');
           const { name, email, welcomed, checklistHidden } = c.req.valid('json');
+          // Single sign-on finds people by email. A member who took the address of a colleague
+          // who has not signed in yet would get that colleague, and their prompts, on first SSO.
+          if (email && email !== user.email && ctx.oidc && user.role !== 'admin') {
+            return c.json(
+              { error: 'Your email comes from single sign-on and cannot be changed here' },
+              403,
+            );
+          }
           if (email && email !== user.email) {
             const taken = await db.query.users.findFirst({ where: eq(users.email, email) });
             if (taken) return c.json({ error: 'Someone already uses this email' }, 409);

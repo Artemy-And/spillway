@@ -13,7 +13,13 @@ export function AccountPage() {
     <>
       <PageHeader title={m.account.title} subtitle={m.account.subtitle} />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        {me && <Profile name={me.user.name ?? ''} email={me.user.email} />}
+        {me && (
+          <Profile
+            name={me.user.name ?? ''}
+            email={me.user.email}
+            emailLocked={me.user.emailLocked}
+          />
+        )}
         {me && <Password hasPassword={me.user.hasPassword} />}
         <Card aria-label={m.common.language} className="flex flex-col gap-3 px-6 py-5">
           <h2 className="text-[15px] font-semibold">{m.common.language}</h2>
@@ -26,7 +32,15 @@ export function AccountPage() {
   );
 }
 
-function Profile({ name: savedName, email: savedEmail }: { name: string; email: string }) {
+function Profile({
+  name: savedName,
+  email: savedEmail,
+  emailLocked,
+}: {
+  name: string;
+  email: string;
+  emailLocked: boolean;
+}) {
   const { m } = useI18n();
   const queryClient = useQueryClient();
   const [name, setName] = useState(savedName);
@@ -61,12 +75,13 @@ function Profile({ name: savedName, email: savedEmail }: { name: string; email: 
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
-        <Field label={m.common.email}>
+        <Field label={m.common.email} hint={emailLocked ? m.account.emailFromSso : undefined}>
           <Input
             type="email"
             required
             autoComplete="email"
             value={email}
+            disabled={emailLocked}
             onChange={(e) => setEmail(e.target.value)}
           />
         </Field>

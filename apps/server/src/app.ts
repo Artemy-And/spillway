@@ -3,6 +3,9 @@ import { join } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { csrf } from 'hono/csrf';
+import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { adminRoutes } from './admin/routes.ts';
 import { authRoutes } from './auth/routes.ts';
@@ -20,7 +23,9 @@ export function apiRoutes(ctx: AppContext) {
 export type ApiType = ReturnType<typeof apiRoutes>;
 
 const csvCell = (value: unknown) => {
-  const text = value instanceof Date ? value.toISOString() : String(value ?? '');
+  let text = value instanceof Date ? value.toISOString() : String(value ?? '');
+  // A client picks the model name, and Excel runs a cell starting with = + - @ as a formula.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
 
@@ -85,8 +90,38 @@ export function createApp(ctx: AppContext) {
   app.get('/healthz', (c) => c.json({ ok: true }));
   if (ctx.env.DEMO) app.use('*', demoGuard);
   app.route('/', gatewayRoutes(ctx));
-  app.use('/auth/*', secureHeaders());
-  app.use('/admin/*', secureHeaders());
+  // The admin UI and its API: nothing from other origins, never inside another site's frame.
+  app.use(
+    '*',
+    secureHeaders({
+      xFrameOptions: 'DENY',
+      contentSecurityPolicy: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        fontSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    }),
+  );
+  // The session cookie is SameSite=Lax, which still lets a sibling subdomain post forms with it,
+  // and some changes (revoking a key, signing out) need no JSON body. Browsers say where a
+  // request comes from; behind a reverse proxy the request URL is not the public one.
+  const publicOrigin = new URL(ctx.env.PUBLIC_URL).origin;
+  const sameOrigin = csrf({
+    origin: (origin, c) => origin === publicOrigin || origin === new URL(c.req.url).origin,
+  });
+  const small = bodyLimit({
+    maxSize: 1024 * 1024,
+    onError: (c) => c.json({ error: 'Request body is too large' }, 413),
+  });
+  app.use('/auth/*', sameOrigin, small);
+  app.use('/admin/*', sameOrigin, small);
   app.route('/', apiRoutes(ctx));
   app.route('/admin/export', exportRoutes(ctx));
 
@@ -102,6 +137,8 @@ export function createApp(ctx: AppContext) {
   }
 
   app.onError((error, c) => {
+    // A refusal on purpose, like the CSRF check's 403, keeps its own answer.
+    if (error instanceof HTTPException) return error.getResponse();
     console.error(error);
     return c.json({ error: 'Internal error' }, 500);
   });

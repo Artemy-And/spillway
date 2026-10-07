@@ -28,6 +28,18 @@ async function needsSetup(ctx: AppContext): Promise<boolean> {
 /** Slows down password guessing: 10 failures lock an email for 15 minutes. */
 const failures = new Map<string, { count: number; until: number }>();
 
+function recordFailure(email: string, count: number) {
+  const now = Date.now();
+  // Guesses at made-up emails would otherwise pile up here forever.
+  if (failures.size > 10_000) {
+    for (const [key, entry] of failures) if (entry.until < now) failures.delete(key);
+  }
+  failures.set(email, { count, until: now + LOCK_MS });
+}
+
+/** Checked against when the email is unknown, so the answer takes as long as for a real one. */
+let decoy: Promise<string> | null = null;
+
 export function authRoutes(ctx: AppContext) {
   const loginError = (message: string) => `/login?error=${encodeURIComponent(message)}`;
 
@@ -109,12 +121,11 @@ export function authRoutes(ctx: AppContext) {
           return c.json({ error: 'Too many attempts. Try again in 15 minutes.' }, 429);
         }
         const user = await ctx.db.query.users.findFirst({ where: eq(users.email, email) });
-        const ok =
-          !!user?.passwordHash &&
-          !user.disabledAt &&
-          (await verifyPassword(password, user.passwordHash));
+        decoy ??= hashPassword('decoy password');
+        const matches = await verifyPassword(password, user?.passwordHash ?? (await decoy));
+        const ok = matches && !!user?.passwordHash && !user.disabledAt;
         if (!ok || !user) {
-          failures.set(email, { count: (record?.count ?? 0) + 1, until: Date.now() + LOCK_MS });
+          recordFailure(email, (record?.count ?? 0) + 1);
           return c.json({ error: 'Wrong email or password' }, 401);
         }
         failures.delete(email);

@@ -245,6 +245,7 @@ export const ru: Messages = {
     title: 'Аккаунт',
     subtitle: 'Имя, email, пароль и язык.',
     profile: 'Профиль',
+    emailFromSso: 'Почта задаётся единым входом (SSO).',
     password: 'Пароль',
     current: 'Текущий пароль',
     newPassword: 'Новый пароль',
