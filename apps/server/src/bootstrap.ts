@@ -1,5 +1,6 @@
 import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { forgetComparisons } from './comparison/runner.ts';
+import { forgetTaskSets } from './comparison/task-sets.ts';
 import type { AppContext } from './context.ts';
 import { invites, models, providers, requestLogs, sessions, users } from './db/schema.ts';
 import { forgetExpired } from './gateway/cache.ts';
@@ -92,4 +93,5 @@ export async function cleanup(ctx: AppContext): Promise<void> {
   await ctx.db.delete(invites).where(lt(invites.expiresAt, new Date()));
   await forgetExpired(ctx);
   await forgetComparisons(ctx);
+  await forgetTaskSets(ctx);
 }

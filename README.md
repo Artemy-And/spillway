@@ -47,6 +47,10 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
   answers, compare recorded costs and latency, and manually review free-text results. Includes a
   comparison budget, cancellation, and downloadable reports. [How it works](docs/model-comparison.md).
 
+- **Repeat checks and detect model regressions.** Save synthetic task sets, choose a reference run,
+  and see which previously passing tasks now fail. Compare matching costs and latency; keep errors
+  and unreviewed answers separate from quality changes. [Reusable evaluations](docs/repeated-evaluations.md).
+
 - **Apply a tested cheaper model to real traffic.** Turn a completed comparison into a routing
   profile for a chosen key, retain permissions and privacy checks, and optionally fall back to the
   baseline on provider failure. Follow recorded API spend and clearly labelled estimated savings.

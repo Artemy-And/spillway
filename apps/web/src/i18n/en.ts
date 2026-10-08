@@ -1,6 +1,7 @@
 import type { Overview } from '../lib/api.ts';
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
+import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
@@ -26,6 +27,7 @@ const pii = {
 
 export const en = {
   comparisons: comparisonMessages.en,
+  evaluations: evaluationMessages.en,
   reservations: budgetMessages.en,
   profiles: profileMessages.en,
   common: {

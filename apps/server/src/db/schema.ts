@@ -1,5 +1,10 @@
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { ComparisonReport, ComparisonSummary } from '../comparison/types.ts';
+import type {
+  ComparisonReport,
+  ComparisonSummary,
+  ReferenceRun,
+  TaskSetInput,
+} from '../comparison/types.ts';
 import { ROUTING_OUTCOMES, type RoutingEvidence } from '../routing/types.ts';
 
 const id = () =>
@@ -255,6 +260,21 @@ export const comparisons = sqliteTable('comparisons', {
   expiresAt: timestamp('expires_at').notNull(),
   report: text('report', { mode: 'json' }).$type<ComparisonReport>().notNull(),
   summary: text('summary', { mode: 'json' }).$type<ComparisonSummary>().notNull(),
+});
+
+/** Explicitly saved synthetic templates; reports only retain a content fingerprint and results. */
+export const taskSets = sqliteTable('task_sets', {
+  id: id(),
+  revision: integer('revision').notNull().default(1),
+  content: text('content', { mode: 'json' }).$type<TaskSetInput>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  reference: text('reference', { mode: 'json' }).$type<ReferenceRun | null>(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at')
+    .notNull()
+    .$defaultFn(() => new Date()),
+  expiresAt: timestamp('expires_at').notNull(),
 });
 
 /** One explicit text-routing choice per key, backed by a completed comparison. */

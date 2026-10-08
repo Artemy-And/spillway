@@ -4,6 +4,7 @@ import { type TestContext, test } from 'node:test';
 import { serve } from '@hono/node-server';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { createApp } from '../app.ts';
 import {
   apiKeys,
   comparisons,
@@ -11,12 +12,14 @@ import {
   providers,
   requestLogs,
   responseCache,
+  taskSets,
 } from '../db/schema.ts';
 import { newGatewayKey } from '../lib/crypto.ts';
 import { testApp } from '../testing.ts';
 import { checkAnswer, jsonMatches } from './checks.ts';
 import { comparisonInput } from './routes.ts';
 import { comparisonRunner, forgetComparisons } from './runner.ts';
+import { forgetTaskSets, taskFingerprint } from './task-sets.ts';
 import type { ComparisonInput, ComparisonReport } from './types.ts';
 
 interface StubRequest {
@@ -32,6 +35,7 @@ interface StubOptions {
   hugeUsage?: boolean;
   finishReason?: string;
   output?: string;
+  fail?: boolean;
 }
 async function fixture(t: TestContext, options: StubOptions = {}) {
   const calls: StubRequest[] = [];
@@ -39,6 +43,7 @@ async function fixture(t: TestContext, options: StubOptions = {}) {
     const body = await c.req.json<StubRequest>();
     calls.push(body);
     if (options.delay) await new Promise((resolve) => setTimeout(resolve, options.delay));
+    if (options.fail) return c.json({ error: { message: 'Provider unavailable' } }, 503);
     const answer =
       body.messages.at(-1)?.content === 'manual'
         ? 'A useful summary'
@@ -468,4 +473,469 @@ test('an unpriced cloud replacement cannot bypass an exhausted budget as the con
   assert.ok(report.cells.every((cell) => cell.reason === 'policy' && cell.costUsd === 0));
   assert.equal(report.unknownCosts, false);
   assert.equal(f.calls.length, 0);
+});
+
+async function savedSet(f: Awaited<ReturnType<typeof fixture>>, input = f.input) {
+  const response = await f.send('/admin/api/task-sets', input, f.admin);
+  assert.equal(response.status, 201, await response.clone().text());
+  const set = (await response.json()) as typeof taskSets.$inferSelect;
+  return { set, input: { ...input, taskSet: { id: set.id, revision: set.revision } } };
+}
+async function pinRun(
+  f: Awaited<ReturnType<typeof fixture>>,
+  set: typeof taskSets.$inferSelect,
+  report: ComparisonReport,
+) {
+  const response = await f.send(
+    `/admin/api/task-sets/${set.id}/reference`,
+    { revision: set.revision, reportId: report.id },
+    f.admin,
+  );
+  assert.equal(response.status, 200, await response.clone().text());
+  return (await response.json()) as typeof taskSets.$inferSelect;
+}
+
+test('task sets are admin-only; saving and loading never calls a provider', async (t) => {
+  const f = await fixture(t);
+  const { set } = await savedSet(f);
+  const member = await f.addMember(f.admin, 'reader@acme.test');
+  for (const path of ['/admin/api/task-sets', `/admin/api/task-sets/${set.id}`]) {
+    assert.equal((await f.get(path)).status, 401);
+    assert.equal((await f.get(path, member.cookie)).status, 403);
+  }
+  assert.equal((await f.send('/admin/api/task-sets', f.input, member.cookie)).status, 403);
+  assert.equal(
+    (
+      await f.send(
+        `/admin/api/task-sets/${set.id}/reference`,
+        { revision: 1, reportId: null },
+        member.cookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await f.send(
+        `/admin/api/task-sets/${set.id}`,
+        { ...f.input, revision: 1 },
+        member.cookie,
+        'PUT',
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await f.send(`/admin/api/task-sets/${set.id}`, { revision: 1 }, member.cookie, 'DELETE'))
+      .status,
+    403,
+  );
+  const list = (await (await f.get('/admin/api/task-sets', f.admin)).json()) as Record<
+    string,
+    unknown
+  >[];
+  assert.equal(list.length, 1);
+  assert.equal('content' in list[0]!, false);
+  assert.equal((await f.get(`/admin/api/task-sets/${set.id}`, f.admin)).status, 200);
+  assert.equal(f.calls.length, 0);
+});
+
+test('saved tasks replay identically; reports retain evidence without prompt or expected-answer texts', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  const report = await f.finish((await f.create(input)).id);
+  assert.equal(report.evaluation!.fingerprint, set.fingerprint);
+  assert.equal(report.evaluation!.revision, 1);
+  assert.equal(report.evaluation!.reference, null);
+  assert.ok(
+    f.calls.every(
+      (call) =>
+        call.messages[0]!.content === input.system &&
+        call.messages[1]!.content === input.cases[0]!.prompt,
+    ),
+  );
+  const stored = await f.ctx.db.query.comparisons.findFirst({
+    where: eq(comparisons.id, report.id),
+  });
+  assert.equal(JSON.stringify(stored).includes(input.cases[0]!.prompt), false);
+  assert.equal(
+    (await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)).status,
+    200,
+  );
+  assert.equal(
+    await (await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)).json(),
+    null,
+  );
+});
+
+test('repeated evaluations identify previously passing tasks that fail and compare matching costs', async (t) => {
+  const options: StubOptions = {};
+  const f = await fixture(t, options);
+  const { set, input } = await savedSet(f);
+  const first = await f.finish((await f.create(input)).id);
+  await pinRun(f, set, first);
+  options.output = '{"status":"wrong"}';
+  const second = await f.finish((await f.create(input)).id);
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${second.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.equal(changes!.reference.id, first.id);
+  assert.ok(
+    changes!.models.every(
+      (model) => model.compared === 1 && model.regressions.length === 1 && model.inconclusive === 0,
+    ),
+  );
+  assert.ok(
+    changes!.models.every(
+      (model) => model.cost!.pairs === 1 && model.cost!.previousUsd === model.cost!.currentUsd,
+    ),
+  );
+  assert.ok(changes!.models.every((model) => model.regressions[0]!.name === 'Order'));
+});
+
+test('reference snapshots survive report deletion and later replacement cannot rewrite earlier evidence', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  const first = await f.finish((await f.create(input)).id);
+  await pinRun(f, set, first);
+  const second = await f.finish((await f.create(input)).id);
+  await pinRun(f, set, second);
+  const third = await f.finish((await f.create(input)).id);
+  assert.equal(second.evaluation!.reference!.id, first.id);
+  assert.equal(third.evaluation!.reference!.id, second.id);
+  assert.ok(second.evaluation!.reference!.cells.every((cell) => !('output' in cell)));
+  await f.send(`/admin/api/comparisons/${first.id}`, undefined, f.admin, 'DELETE');
+  await f.send(`/admin/api/task-sets/${set.id}`, { revision: 1 }, f.admin, 'DELETE');
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${second.id}/regressions`, f.admin)
+  ).json()) as { reference: { id: string } };
+  assert.equal(changes.reference.id, first.id);
+});
+
+test('provider failures and budget-skipped answers are inconclusive rather than quality regressions', async (t) => {
+  const options: StubOptions = {};
+  const f = await fixture(t, options);
+  const { set, input } = await savedSet(f);
+  await pinRun(f, set, await f.finish((await f.create(input)).id));
+  options.fail = true;
+  const report = await f.finish((await f.create(input)).id);
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.ok(
+    changes!.models.every(
+      (model) =>
+        model.regressions.length === 0 &&
+        model.compared === 0 &&
+        model.inconclusive === 1 &&
+        model.cost === null,
+    ),
+  );
+  assert.equal(changes!.models[0]!.operationalFailures, 1);
+  assert.equal(report.cells[1]!.reason, 'unknownCost');
+});
+
+test('manual reviews must finish before pinning; a new review updates regression results while the reference stays frozen', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f, {
+    ...f.input,
+    cases: [{ name: 'Summary', prompt: 'manual', check: 'manual', expected: '' }],
+  });
+  let first = await f.finish((await f.create(input)).id);
+  assert.equal(
+    (
+      await f.send(
+        `/admin/api/task-sets/${set.id}/reference`,
+        { revision: 1, reportId: first.id },
+        f.admin,
+      )
+    ).status,
+    400,
+  );
+  for (const model of f.added)
+    await f.send(
+      `/admin/api/comparisons/${first.id}/review`,
+      { caseIndex: 0, modelId: model.id, status: 'passed' },
+      f.admin,
+      'PATCH',
+    );
+  first = await f.finish(first.id);
+  await pinRun(f, set, first);
+  const second = await f.finish((await f.create(input)).id);
+  await f.send(
+    `/admin/api/comparisons/${second.id}/review`,
+    { caseIndex: 0, modelId: f.added[0]!.id, status: 'failed' },
+    f.admin,
+    'PATCH',
+  );
+  await f.send(
+    `/admin/api/comparisons/${first.id}/review`,
+    { caseIndex: 0, modelId: f.added[0]!.id, status: 'failed' },
+    f.admin,
+    'PATCH',
+  );
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${second.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.equal(changes!.models[0]!.regressions.length, 1);
+  assert.equal(changes!.models[1]!.inconclusive, 1);
+});
+
+test('changed tasks and stale revisions cannot quote or replay with misleading task-set evidence', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  const changed = { ...input, cases: [{ ...input.cases[0]!, expected: '{}' }] };
+  assert.equal((await f.send('/admin/api/comparisons/quote', changed, f.admin)).status, 409);
+  assert.equal((await f.send('/admin/api/comparisons', changed, f.admin)).status, 409);
+  assert.equal(
+    (
+      await f.send(
+        '/admin/api/comparisons',
+        { ...input, taskSet: { id: 'absent', revision: 1 } },
+        f.admin,
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (await f.send(`/admin/api/task-sets/${set.id}`, { ...f.input, revision: 1 }, f.admin, 'PUT'))
+      .status,
+    200,
+  );
+  assert.equal((await f.send('/admin/api/comparisons', input, f.admin)).status, 409);
+  assert.equal(f.calls.length, 0);
+});
+
+test('concurrent task-set edits reject a stale writer; changing checks or output limits resets the reference', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  await pinRun(f, set, await f.finish((await f.create(input)).id));
+  const responses = await Promise.all(
+    ['Renamed A', 'Renamed B'].map((name) =>
+      f.send(`/admin/api/task-sets/${set.id}`, { ...f.input, name, revision: 1 }, f.admin, 'PUT'),
+    ),
+  );
+  assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+  const renamed = (await (
+    await f.get(`/admin/api/task-sets/${set.id}`, f.admin)
+  ).json()) as typeof taskSets.$inferSelect;
+  assert.ok(renamed.reference);
+  assert.equal(renamed.revision, 2);
+  const updated = await f.send(
+    `/admin/api/task-sets/${set.id}`,
+    { ...f.input, maxOutputTokens: 128, revision: 2 },
+    f.admin,
+    'PUT',
+  );
+  assert.equal(updated.status, 200);
+  assert.equal(((await updated.json()) as typeof taskSets.$inferSelect).reference, null);
+  assert.equal(
+    (await f.send(`/admin/api/task-sets/${set.id}`, { revision: 2 }, f.admin, 'DELETE')).status,
+    409,
+  );
+});
+
+test('reference selection rejects unrelated sets and edited criteria even if task names match', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  const report = await f.finish((await f.create(input)).id);
+  const other = await savedSet(f);
+  assert.equal(
+    (
+      await f.send(
+        `/admin/api/task-sets/${other.set.id}/reference`,
+        { revision: 1, reportId: report.id },
+        f.admin,
+      )
+    ).status,
+    400,
+  );
+  await f.send(
+    `/admin/api/task-sets/${set.id}`,
+    { ...f.input, system: 'Different instructions', revision: 1 },
+    f.admin,
+    'PUT',
+  );
+  assert.equal(
+    (
+      await f.send(
+        `/admin/api/task-sets/${set.id}/reference`,
+        { revision: 2, reportId: report.id },
+        f.admin,
+      )
+    ).status,
+    400,
+  );
+});
+
+test('disabling text storage deletes templates immediately and blocks reuse without disabling unsaved comparisons', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  assert.equal(
+    (await f.send('/admin/api/settings', { storePrompts: false }, f.admin, 'PUT')).status,
+    200,
+  );
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
+  assert.equal((await f.get(`/admin/api/task-sets/${set.id}`, f.admin)).status, 403);
+  assert.equal((await f.send('/admin/api/task-sets', f.input, f.admin)).status, 403);
+  assert.equal((await f.send('/admin/api/comparisons', input, f.admin)).status, 403);
+  assert.deepEqual(await (await f.get('/admin/api/task-sets', f.admin)).json(), []);
+  const report = await f.finish((await f.create()).id);
+  assert.equal(report.storesOutputs, false);
+  assert.equal(report.evaluation, undefined);
+});
+
+test('expired templates cannot be loaded or replayed; shorter retention applies to existing sets', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  await f.ctx.db
+    .update(taskSets)
+    .set({ expiresAt: new Date(Date.now() - 1) })
+    .where(eq(taskSets.id, set.id));
+  assert.equal((await f.get(`/admin/api/task-sets/${set.id}`, f.admin)).status, 404);
+  assert.equal((await f.send('/admin/api/comparisons', input, f.admin)).status, 404);
+  await forgetTaskSets(f.ctx);
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
+  const newer = await savedSet(f);
+  await f.ctx.db
+    .update(taskSets)
+    .set({ updatedAt: new Date(Date.now() - 3 * 86_400_000) })
+    .where(eq(taskSets.id, newer.set.id));
+  await f.send('/admin/api/settings', { retentionDays: 1 }, f.admin, 'PUT');
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
+  assert.equal(f.calls.length, 0);
+});
+
+test('saved templates reject personal data and secrets without silently changing check semantics', async (t) => {
+  const f = await fixture(t);
+  for (const value of [
+    { ...f.input, system: 'Email person@example.com' },
+    { ...f.input, cases: [{ ...f.input.cases[0]!, expected: '{"email":"person@example.com"}' }] },
+    { ...f.input, cases: [{ ...f.input.cases[0]!, prompt: 'Card 4111 1111 1111 1111' }] },
+  ])
+    assert.equal((await f.send('/admin/api/task-sets', value, f.admin)).status, 400);
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
+  assert.equal(taskFingerprint(f.input), taskFingerprint({ ...f.input, name: 'Different title' }));
+  assert.notEqual(
+    taskFingerprint(f.input),
+    taskFingerprint({ ...f.input, cases: [{ ...f.input.cases[0]!, check: 'manual' }] }),
+  );
+});
+
+test('configuration changes are disclosed and newly selected models are not reported as regressions', async (t) => {
+  const f = await fixture(t);
+  const { set, input } = await savedSet(f);
+  await pinRun(f, set, await f.finish((await f.create(input)).id));
+  await f.ctx.db.update(models).set({ inputPrice: 15 }).where(eq(models.id, f.added[0]!.id));
+  const [newModel] = await f.ctx.db
+    .insert(models)
+    .values({
+      name: 'new-choice',
+      upstreamModel: 'new-wire',
+      providerId: f.added[0]!.providerId,
+      inputPrice: 1,
+      outputPrice: 2,
+    })
+    .returning();
+  const report = await f.finish(
+    (await f.create({ ...input, modelIds: [f.added[0]!.id, newModel!.id] })).id,
+  );
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.equal(changes!.models[0]!.configurationChanged, true);
+  assert.equal(changes!.models[1]!.newModel, true);
+  assert.equal(changes!.models[1]!.compared, 0);
+  assert.equal(changes!.models[1]!.regressions.length, 0);
+  assert.equal(changes!.models[1]!.cost, null);
+});
+
+test('a previously failed task that now passes is an improvement rather than a regression', async (t) => {
+  const options: StubOptions = { output: 'Wrong answer' };
+  const f = await fixture(t, options);
+  const { set, input } = await savedSet(f);
+  await pinRun(f, set, await f.finish((await f.create(input)).id));
+  options.output = undefined;
+  const report = await f.finish((await f.create(input)).id);
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.ok(
+    changes!.models.every((model) => model.improved === 1 && model.regressions.length === 0),
+  );
+});
+
+test('unknown reference charges are excluded from cost comparisons rather than reported as zero', async (t) => {
+  const options: StubOptions = { local: true, missingUsage: true };
+  const f = await fixture(t, options);
+  const { set, input } = await savedSet(f);
+  await pinRun(f, set, await f.finish((await f.create(input)).id));
+  options.missingUsage = false;
+  const report = await f.finish((await f.create(input)).id);
+  const changes = (await (
+    await f.get(`/admin/api/comparisons/${report.id}/regressions`, f.admin)
+  ).json()) as ReturnType<typeof import('./regressions.ts').regressionReport>;
+  assert.equal(changes!.models[0]!.compared, 1);
+  assert.equal(changes!.models[0]!.cost, null);
+  assert.equal(changes!.models[1]!.cost!.currentUsd, 0);
+});
+
+test('demo refuses task-set writes, and malformed saved criteria fail before any storage', async (t) => {
+  const f = await fixture(t);
+  assert.equal(
+    (
+      await f.send(
+        '/admin/api/task-sets',
+        { ...f.input, cases: [{ ...f.input.cases[0]!, expected: '{' }] },
+        f.admin,
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await f.send('/admin/api/task-sets', { ...f.input, maxOutputTokens: 0 }, f.admin)).status,
+    400,
+  );
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
+  const demo = createApp({ ...f.ctx, env: { ...f.ctx.env, DEMO: true } });
+  assert.equal(
+    (
+      await demo.request('/admin/api/task-sets', {
+        method: 'POST',
+        headers: { cookie: f.admin, 'content-type': 'application/json' },
+        body: JSON.stringify(f.input),
+      })
+    ).status,
+    403,
+  );
+  assert.equal(f.calls.length, 0);
+});
+
+test('a save admitted before text storage is disabled cannot persist templates after the setting changes', async (t) => {
+  const f = await fixture(t);
+  const get = f.ctx.settings.get.bind(f.ctx.settings);
+  let held = true;
+  let entered!: () => void;
+  let release!: () => void;
+  const read = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  f.ctx.settings.get = async () => {
+    const value = await get();
+    if (held) {
+      held = false;
+      entered();
+      await gate;
+    }
+    return value;
+  };
+  const saving = f.send('/admin/api/task-sets', f.input, f.admin);
+  await read;
+  await f.ctx.settings.update({ storePrompts: false });
+  release();
+  assert.equal((await saving).status, 403);
+  assert.equal((await f.ctx.db.select().from(taskSets)).length, 0);
 });

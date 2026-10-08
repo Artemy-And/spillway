@@ -7,6 +7,8 @@ import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
 import { BudgetError, usage as budgetUsage, listHolds, reconcile } from '../budget/ledger.ts';
 import { comparisonRoutes } from '../comparison/routes.ts';
+import { taskSetRoutes } from '../comparison/task-set-routes.ts';
+import { forgetTaskSets } from '../comparison/task-sets.ts';
 import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
   apiKeys,
@@ -795,6 +797,7 @@ export function adminRoutes(ctx: AppContext) {
 
       .put('/settings', adminOnly, zValidator('json', settingsPatch), async (c) => {
         const settings = await ctx.settings.update(c.req.valid('json'));
+        await forgetTaskSets(ctx);
         return c.json({ ok: true, localModelId: settings.localModelId });
       })
 
@@ -856,6 +859,7 @@ export function adminRoutes(ctx: AppContext) {
         return c.json({ ok: true });
       })
       .route('/comparisons', comparisonRoutes(ctx))
+      .route('/task-sets', taskSetRoutes(ctx))
       .route('/routing-profiles', routingProfileRoutes(ctx))
       .get('/budget-holds', async (c) =>
         c.json(await listHolds(db, await ownKeyIds(ctx, c.get('user')))),

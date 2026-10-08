@@ -3,56 +3,19 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { type AuthEnv, adminOnly } from '../auth/session.ts';
 import type { AppContext } from '../context.ts';
+import { comparisonInput } from './input.ts';
+import { regressionReport } from './regressions.ts';
 import { ComparisonError, comparisonRunner } from './runner.ts';
-import { CHECKS } from './types.ts';
+import { TaskSetError } from './task-sets.ts';
 
-export const caseInput = z
-  .object({
-    name: z.string().trim().min(1).max(80),
-    prompt: z.string().trim().min(1).max(12000),
-    check: z.enum(CHECKS),
-    expected: z.string().max(12000).default(''),
-  })
-  .superRefine((task, context) => {
-    if ((task.check === 'exact' || task.check === 'contains') && !task.expected.trim()) {
-      context.addIssue({
-        code: 'custom',
-        path: ['expected'],
-        message: 'An expected answer is required',
-      });
-    }
-    if (task.check === 'json' && task.expected.trim()) {
-      try {
-        JSON.parse(task.expected);
-      } catch {
-        context.addIssue({
-          code: 'custom',
-          path: ['expected'],
-          message: 'Expected JSON must be valid',
-        });
-      }
-    }
-  });
-
-export const comparisonInput = z.object({
-  name: z.string().trim().min(1).max(80),
-  keyId: z.string().min(1),
-  modelIds: z
-    .array(z.string().min(1))
-    .min(2)
-    .max(4)
-    .refine((ids) => new Set(ids).size === ids.length, 'Select different models'),
-  system: z.string().max(4000).default(''),
-  maxSpendUsd: z.number().min(0).max(50),
-  maxOutputTokens: z.number().int().min(32).max(2048),
-  cases: z.array(caseInput).min(1).max(20),
-});
+export { caseInput, comparisonInput } from './input.ts';
 
 export function comparisonRoutes(ctx: AppContext) {
   const runner = comparisonRunner(ctx);
   return new Hono<AuthEnv>()
     .use('*', adminOnly)
     .onError((error, c) => {
+      if (error instanceof TaskSetError) return c.json({ error: error.message }, error.status);
       if (error instanceof ComparisonError) return c.json({ error: error.message }, 400);
       console.error('Comparison API failed', error);
       return c.json({ error: 'Comparison could not be saved' }, 500);
@@ -68,6 +31,12 @@ export function comparisonRoutes(ctx: AppContext) {
     .get('/:id', async (c) => {
       const report = await runner.get(c.req.param('id'));
       return report ? c.json(report) : c.json({ error: 'Comparison not found' }, 404);
+    })
+    .get('/:id/regressions', async (c) => {
+      const report = await runner.get(c.req.param('id'));
+      return report
+        ? c.json(regressionReport(report))
+        : c.json({ error: 'Comparison not found' }, 404);
     })
     .post('/:id/cancel', async (c) => {
       const report = await runner.get(c.req.param('id'));

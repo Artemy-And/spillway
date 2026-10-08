@@ -2,7 +2,9 @@ import type { Check, ComparisonInput } from '@server/comparison/types.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { type ComponentProps, type ReactNode, useState } from 'react';
+import { EvaluationResults } from '../components/EvaluationResults.tsx';
 import { ProfileFromComparison } from '../components/ProfileFromComparison.tsx';
+import { matchesTaskSet, TaskSetLibrary } from '../components/TaskSetLibrary.tsx';
 import {
   Button,
   Card,
@@ -18,7 +20,14 @@ import {
   type Tone,
 } from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
-import { api, type ComparisonReport, meQuery, modelsQuery, unwrap } from '../lib/api.ts';
+import {
+  api,
+  type ComparisonReport,
+  meQuery,
+  modelsQuery,
+  type TaskSetRow,
+  unwrap,
+} from '../lib/api.ts';
 import { fmtDate, fmtNumber } from '../lib/format.ts';
 
 type Task = ComparisonInput['cases'][number] & { id: string };
@@ -129,6 +138,15 @@ export function ComparisonsPage() {
     },
   ]);
   const [importError, setImportError] = useState<string | null>(null);
+  const [taskSet, setTaskSet] = useState<TaskSetRow | null>(null);
+  const loadTaskSet = (row: TaskSetRow) => {
+    setTaskSet(row);
+    setName(row.content.name);
+    setSystem(row.content.system);
+    setMaxTokens(String(row.content.maxOutputTokens));
+    setTasks(row.content.cases.map((task) => ({ ...task, id: crypto.randomUUID() })));
+    setImportError(null);
+  };
   const input: ComparisonInput = {
     name,
     keyId,
@@ -138,6 +156,8 @@ export function ComparisonsPage() {
     maxOutputTokens: Number(maxTokens),
     cases: tasks.map(({ id: _id, ...task }) => task),
   };
+  if (taskSet && matchesTaskSet(input, taskSet))
+    input.taskSet = { id: taskSet.id, revision: taskSet.revision };
   const fingerprint = JSON.stringify(input);
   const estimate = useMutation({
     mutationFn: async (value: ComparisonInput) => ({
@@ -219,6 +239,13 @@ export function ComparisonsPage() {
         >
           <fieldset disabled={!!busy} className="flex flex-col gap-5 border-0 p-0">
             <legend className="mb-4 text-lg font-semibold">{t.newRun}</legend>
+            <TaskSetLibrary
+              input={input}
+              selected={taskSet}
+              onLoad={loadTaskSet}
+              onSelect={setTaskSet}
+              disabled={!!busy}
+            />
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.name}>
                 <Input
@@ -526,6 +553,21 @@ export function ComparisonsPage() {
       )}
       {report.data?.status === 'completed' && (
         <ProfileFromComparison key={report.data.id} report={report.data} keys={keys.data ?? []} />
+      )}
+      {report.data?.evaluation && (
+        <EvaluationResults
+          key={report.data.id}
+          report={report.data}
+          money={money}
+          busy={!!busy}
+          onLoad={(row, previous) => {
+            loadTaskSet(row);
+            setKeyId(previous.keyId);
+            setModelIds(previous.models.map((model) => model.id));
+            setMaxSpend(String(previous.maxSpendUsd));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       )}
     </div>
   );

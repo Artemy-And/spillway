@@ -11,6 +11,22 @@ export interface ComparisonInput {
   maxSpendUsd: number;
   maxOutputTokens: number;
   cases: { name: string; prompt: string; check: Check; expected: string }[];
+  taskSet?: { id: string; revision: number };
+}
+export type TaskSetInput = Pick<ComparisonInput, 'name' | 'system' | 'maxOutputTokens' | 'cases'>;
+export interface ReferenceRun {
+  id: string;
+  name: string;
+  createdAt: string;
+  models: ComparisonModel[];
+  cells: Pick<ComparisonCell, 'caseIndex' | 'modelId' | 'status' | 'costUsd' | 'latencyMs'>[];
+}
+export interface EvaluationSource {
+  id: string;
+  name: string;
+  revision: number;
+  fingerprint: string;
+  reference: ReferenceRun | null;
 }
 export interface ComparisonModel {
   id: string;
@@ -83,6 +99,7 @@ export interface ComparisonReport {
   models: ComparisonModel[];
   cases: { id: string; name: string; check: Check }[];
   cells: ComparisonCell[];
+  evaluation?: EvaluationSource;
 }
 export type ComparisonSummary = Omit<ComparisonReport, 'cells' | 'cases' | 'models'> & {
   total: number;

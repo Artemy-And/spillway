@@ -1,6 +1,7 @@
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
+import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
@@ -24,6 +25,7 @@ const pii = {
 
 export const zh: Messages = {
   comparisons: comparisonMessages.zh,
+  evaluations: evaluationMessages.zh,
   reservations: budgetMessages.zh,
   profiles: profileMessages.zh,
   common: {

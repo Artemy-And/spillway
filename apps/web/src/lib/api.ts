@@ -64,6 +64,7 @@ export type LogDetail = InferResponseType<(typeof api.logs)[':id']['$get'], 200>
 export type UserRow = InferResponseType<typeof api.users.$get, 200>[number];
 export type ProviderRow = InferResponseType<typeof api.providers.$get, 200>[number];
 export type ComparisonReport = InferResponseType<(typeof api.comparisons)[':id']['$get'], 200>;
+export type TaskSetRow = InferResponseType<(typeof api)['task-sets'][':id']['$get'], 200>;
 export type RoutingProfileRow = InferResponseType<
   (typeof api)['routing-profiles']['$get'],
   200

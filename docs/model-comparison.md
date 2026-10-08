@@ -41,6 +41,11 @@ answer before masking. With text storage disabled, automatic results and costs r
 manual review requires a complete stored output. Reports expire after the configured retention
 period. Tasks can be imported/exported as a JSON array, and reports downloaded as JSON.
 
+For repeated checks, explicitly save a task set and choose a fully reviewed reference run.
+Saved templates require text storage, reject detected personal data/secrets and expire under
+the retention setting. Reports continue to omit prompts and expected answers.
+See [repeated evaluations](repeated-evaluations.md) for versioning and regression comparison.
+
 Example task file:
 
 ```json

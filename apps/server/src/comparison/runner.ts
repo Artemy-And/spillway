@@ -7,6 +7,7 @@ import { findModel, type Target } from '../gateway/policy.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { checkAnswer } from './checks.ts';
+import { evaluationSource } from './task-sets.ts';
 import type {
   ComparisonCell,
   ComparisonInput,
@@ -110,6 +111,7 @@ export class ComparisonRunner {
   }
 
   async prepare(input: ComparisonInput) {
+    const evaluation = await evaluationSource(this.#ctx, input);
     const caller = await callerForKey(this.#ctx, input.keyId);
     if (!caller) throw new ComparisonError('Choose an active gateway key');
     const targets: Target[] = [];
@@ -140,7 +142,7 @@ export class ComparisonRunner {
         ),
       0,
     );
-    return { caller, targets, estimatedUsd };
+    return { caller, targets, estimatedUsd, evaluation };
   }
 
   async start(input: ComparisonInput, createdBy: string): Promise<ComparisonReport> {
@@ -149,7 +151,7 @@ export class ComparisonRunner {
       throw new ComparisonError('A comparison is already running');
     this.#starting = true;
     try {
-      const { caller, targets, estimatedUsd } = await this.prepare(input);
+      const { caller, targets, estimatedUsd, evaluation } = await this.prepare(input);
       const settings = await this.#ctx.settings.get();
       const id = crypto.randomUUID();
       const report: ComparisonReport = {
@@ -166,6 +168,7 @@ export class ComparisonRunner {
         unknownCosts: false,
         maxOutputTokens: input.maxOutputTokens,
         storesOutputs: settings.storePrompts,
+        ...(evaluation ? { evaluation } : {}),
         models: targets.map(viewModel),
         cases: input.cases.map((task) => ({
           id: crypto.randomUUID(),
