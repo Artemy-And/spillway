@@ -184,6 +184,8 @@ bindings are not evicted. Expired metadata is removed after seven additional day
 settings still control log previews; bindings contain no conversation or raw session identifiers.
 The admin profile page shows unexpired session counts, recorded spend and the existing labelled
 cost estimates. Request traces explain the pinned model and rejected continuation.
+The [agent session report](session-reports.md) combines token totals, ledger spend/reserves,
+errors and slow calls across retained turns, including baseline/control sessions.
 
 This stage supports the evaluated Chat function-call contract through existing OpenAI, Anthropic
 and Ollama provider translations, including native full-history Responses/Messages clients,

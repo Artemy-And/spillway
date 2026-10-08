@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { SessionReports } from '../components/SessionReports.tsx';
 import {
   Button,
   Card,
@@ -42,6 +43,7 @@ export function RoutingProfilesPage() {
       {profiles.data?.map((profile) => (
         <Profile key={profile.id} profile={profile} />
       ))}
+      <SessionReports />
     </div>
   );
 }

@@ -56,6 +56,7 @@ export async function reserve(
   db: Db,
   input: {
     requestId: string;
+    sessionId?: string;
     caller: Caller;
     target: Target;
     requestedModelId: string;
@@ -106,6 +107,7 @@ export async function reserve(
           reason: sql<string | null>`null`.as('reason'),
           createdAt: sql<Date>`${now.getTime()}`.as('created_at'),
           settledAt: sql<Date | null>`null`.as('settled_at'),
+          sessionId: sql<string | null>`${input.sessionId ?? null}`.as('session_id'),
         })
         .from(apiKeys)
         .leftJoin(teams, eq(apiKeys.teamId, teams.id))

@@ -13,6 +13,7 @@ import type { ComparisonInput, ComparisonReport } from '../comparison/types.ts';
 import { openDb } from '../db/client.ts';
 import {
   apiKeys,
+  budgetReservations,
   comparisons,
   models,
   providers,
@@ -26,6 +27,7 @@ import { sse } from '../gateway/sse.ts';
 import { newGatewayKey } from '../lib/crypto.ts';
 import { testApp } from '../testing.ts';
 import { listProfiles } from './service.ts';
+import { sessionReports } from './session-report.ts';
 import { resolveSession } from './sessions.ts';
 
 const session = 'session-DEMO-0001';
@@ -1091,6 +1093,64 @@ test('CI replays a pinned saved tool scenario against an immutable reference wit
   const regression = await runCI('http://localhost:8080', f.admin, config, fetcher, 5000);
   assert.equal(regression.passed, false);
   assert.ok(regression.regression?.models.every((model) => model.regressions.length === 1));
+});
+
+test('session reports sum both turns without double charging and update after ledger reconciliation', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  const first = await f.request();
+  const final = await f.request(session, { messages: history, stream: true });
+  await final.text();
+  await finishedLog(f, final);
+  const rows = await sessionReports(f.ctx);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.requests, 2);
+  assert.equal(rows[0]!.inputTokens, 200);
+  assert.equal(rows[0]!.outputTokens, 20);
+  assert.equal(rows[0]!.recordedSpendUsd, 0.00024);
+  assert.equal(rows[0]!.unknownUsage, 0);
+  assert.equal(rows[0]!.id, first.headers.get('x-spillway-session-ref'));
+  assert.equal(JSON.stringify(rows).includes(session), false);
+  assert.equal(JSON.stringify(rows).includes('orderId'), false);
+  await f.ctx.db
+    .update(budgetReservations)
+    .set({ chargedUsd: 0.5 })
+    .where(eq(budgetReservations.requestId, first.headers.get('x-spillway-request-id')!));
+  assert.ok(Math.abs((await sessionReports(f.ctx))[0]!.recordedSpendUsd - 0.50012) < 1e-9);
+  await f.ctx.db
+    .update(requestLogs)
+    .set({ latencyMs: 6000 })
+    .where(eq(requestLogs.id, first.headers.get('x-spillway-request-id')!));
+  assert.equal((await sessionReports(f.ctx))[0]!.slowRequests, 1);
+});
+
+test('session reports expose active and uncertain reservations and require admin access', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  let resume = () => {};
+  f.mode.gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  t.after(() => resume());
+  const response = await f.request(session, { stream: true });
+  const active = (await sessionReports(f.ctx))[0]!;
+  assert.equal(active.activeRequests, 1);
+  assert.ok(active.activeReserveUsd > 0);
+  assert.equal(active.requests, 0);
+  const reader = response.body!.getReader();
+  await reader.read();
+  await reader.cancel();
+  await finishedLog(f, response);
+  const uncertain = (await sessionReports(f.ctx))[0]!;
+  assert.equal(uncertain.activeRequests, 0);
+  assert.equal(uncertain.unknownCosts, 1);
+  assert.equal(uncertain.unknownUsage, 1);
+  assert.ok(uncertain.uncertainReserveUsd > 0);
+  assert.equal(uncertain.errors, 1);
+  const member = await f.addMember(f.admin, 'report@acme.test');
+  assert.equal((await f.get('/admin/api/routing-profiles/sessions', member.cookie)).status, 403);
+  assert.equal((await f.get('/admin/api/routing-profiles/sessions', f.admin)).status, 200);
+  resume();
 });
 
 test('tool profile requires explicit loop mode, full evidence, and provider fallback disabled', async (t) => {

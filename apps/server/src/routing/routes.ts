@@ -6,6 +6,7 @@ import { type AuthEnv, adminOnly } from '../auth/session.ts';
 import type { AppContext } from '../context.ts';
 import { routingProfiles } from '../db/schema.ts';
 import { createProfile, listProfiles, RoutingError, updateProfile } from './service.ts';
+import { sessionReports } from './session-report.ts';
 
 export function routingProfileRoutes(ctx: AppContext) {
   return new Hono<AuthEnv>()
@@ -16,6 +17,7 @@ export function routingProfileRoutes(ctx: AppContext) {
       return c.json({ error: 'Routing profile could not be saved' }, 500);
     })
     .get('/', async (c) => c.json(await listProfiles(ctx)))
+    .get('/sessions', async (c) => c.json(await sessionReports(ctx)))
     .post(
       '/',
       zValidator(

@@ -160,12 +160,14 @@ export const budgetReservations = sqliteTable(
     reason: text('reason'),
     createdAt: createdAt(),
     settledAt: timestamp('settled_at'),
+    sessionId: text('session_id'),
   },
   (t) => [
     index('budget_key_idx').on(t.keyId, t.createdAt),
     index('budget_team_idx').on(t.teamId, t.createdAt),
     index('budget_request_idx').on(t.requestId),
     index('budget_state_idx').on(t.state),
+    index('budget_session_idx').on(t.sessionId),
   ],
 );
 
@@ -190,6 +192,8 @@ export const requestLogs = sqliteTable(
     trace: text('trace', { mode: 'json' }).$type<TraceStep[]>().notNull(),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
+    usageKnown: integer('usage_known', { mode: 'boolean' }),
+    sessionId: text('session_id'),
     costUsd: real('cost_usd').notNull().default(0),
     costKnown: integer('cost_known', { mode: 'boolean' }),
     savedUsd: real('saved_usd').notNull().default(0),
@@ -211,6 +215,7 @@ export const requestLogs = sqliteTable(
     index('request_logs_key_idx').on(t.keyId, t.createdAt),
     index('request_logs_team_idx').on(t.teamId, t.createdAt),
     index('request_logs_routing_idx').on(t.routingProfileId, t.createdAt),
+    index('request_logs_session_idx').on(t.sessionId, t.createdAt),
   ],
 );
 

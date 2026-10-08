@@ -188,10 +188,23 @@ Workflow: [tool sessions and rollout](docs/tool-session-routing.md), [CI evaluat
 This connects the implemented comparison/economy reports to progressive application and repeated
 checks. It does not establish quality outside the tested tasks or claim completed customer pilots.
 
+## Stage 11 — Measure complete agent sessions
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Associate logs and cloud attempt reservations with the key-scoped session hash, without storing raw IDs or conversation data.
+- [x] Show latest retained sessions with token totals, recorded spend, active/uncertain reserves, errors and slow-call counts.
+- [x] Report unknown usage separately from known zero cost and show average/maximum whole-turn latency.
+- [x] Use the ledger as the charge source without double-counting request logs; reflect reconciliation and active streams.
+- [x] Add the report to Routing profiles in all six languages and restrict the aggregate API to admins.
+- [x] Add two integration tests for two-turn totals, active/canceled streams, reconciliation, latency and member access.
+- [x] Validate the implementation: all 267 server tests, both type checks, lint and web build passed.
+
+Details and retention limits: [session reports](docs/session-reports.md).
+
 ## Next stages — Planned
 
 - [ ] Support provider-stored native context and reasoning continuity on a pinned provider.
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.
-- [ ] Report recorded/uncertain spend, tokens, errors and slow calls across an entire agent session.
 
 These later items are priorities to investigate, without committed completion dates.

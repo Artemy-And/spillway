@@ -85,6 +85,13 @@
       "when": 1791490338314,
       "tag": "0011_session_rollouts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1791490885289,
+      "tag": "0012_session_reports",
+      "breakpoints": true
     }
   ]
 }

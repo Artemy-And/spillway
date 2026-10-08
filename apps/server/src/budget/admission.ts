@@ -14,6 +14,7 @@ export async function admit(
     target: Target;
     requestedModelId: string;
     requestId: string;
+    sessionId?: string;
     body: Record<string, unknown>;
     format: string;
     settings: Settings;

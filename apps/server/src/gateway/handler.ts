@@ -704,6 +704,10 @@ export async function handleGateway(
           result: 'blocked_model',
           latencyMs: Date.now() - started,
           costKnown: true,
+          usageKnown: true,
+          sessionId: /^[A-Za-z0-9_-]{16,128}$/.test(sessionToken)
+            ? sha256(`${caller.key.id}\0${sessionToken}`)
+            : null,
           trace: [step('block', error.message, 'sessionBlocked', { message: error.message })],
         },
         caller.key.id,
@@ -733,6 +737,8 @@ export async function handleGateway(
   const base: typeof requestLogs.$inferInsert = {
     id,
     createdAt: new Date(started),
+    sessionId: affinity?.row.id ?? null,
+    usageKnown: true,
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
@@ -839,6 +845,7 @@ export async function handleGateway(
     format,
     settings,
     allowLocal: affinity ? false : undefined,
+    sessionId: affinity?.row.id,
   });
   if (admission.denied) {
     await writeLog(
@@ -942,6 +949,7 @@ export async function handleGateway(
         ruleId: outage && !failed ? 'outage' : decision.ruleId,
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
+        usageKnown: meter.usageKnown,
         costUsd: cost,
         costKnown: totals.known,
         // A failover is not a saving: the cloud model was not going to answer anyway.
@@ -1084,6 +1092,7 @@ export async function handleGateway(
     response.headers.set('x-spillway-model', target.model.name);
     if (affinity) {
       response.headers.set('x-spillway-session-status', 'pinned');
+      response.headers.set('x-spillway-session-ref', affinity.row.id);
       response.headers.set('x-spillway-session-expires-at', affinity.row.expiresAt.toISOString());
     }
     if (internalCaller && !stream) {
