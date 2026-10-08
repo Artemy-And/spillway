@@ -28,6 +28,35 @@ export class Meter {
   text = '';
   /** Why a stream the provider sent untouched ended in failure, if it did. */
   failure: string | null = null;
+  #knownInput = false;
+  #knownOutput = false;
+
+  get usageKnown(): boolean {
+    return (
+      this.#knownInput &&
+      this.#knownOutput &&
+      [
+        this.inputTokens,
+        this.outputTokens,
+        this.cacheReadTokens,
+        this.cacheWriteTokens,
+        this.cacheWrite1hTokens,
+      ].every((value) => Number.isSafeInteger(value) && value >= 0)
+    );
+  }
+
+  /** A failed attempt's cache usage and text must not carry over to the next provider. */
+  reset() {
+    this.inputTokens = 0;
+    this.outputTokens = 0;
+    this.cacheReadTokens = 0;
+    this.cacheWriteTokens = 0;
+    this.cacheWrite1hTokens = 0;
+    this.text = '';
+    this.failure = null;
+    this.#knownInput = false;
+    this.#knownOutput = false;
+  }
 
   #append(text: string | null | undefined) {
     if (text && this.text.length < PREVIEW_LIMIT) this.text += text;
@@ -35,8 +64,14 @@ export class Meter {
 
   #anthropicUsage(usage: Partial<AUsage> | undefined) {
     if (!usage) return;
-    if (usage.input_tokens != null) this.inputTokens = usage.input_tokens;
-    if (usage.output_tokens != null) this.outputTokens = usage.output_tokens;
+    if (usage.input_tokens != null) {
+      this.#knownInput = Number.isSafeInteger(usage.input_tokens) && usage.input_tokens >= 0;
+      this.inputTokens = this.#knownInput ? usage.input_tokens : 0;
+    }
+    if (usage.output_tokens != null) {
+      this.#knownOutput = Number.isSafeInteger(usage.output_tokens) && usage.output_tokens >= 0;
+      this.outputTokens = this.#knownOutput ? usage.output_tokens : 0;
+    }
     if (usage.cache_read_input_tokens != null) this.cacheReadTokens = usage.cache_read_input_tokens;
     if (usage.cache_creation_input_tokens != null) {
       this.cacheWriteTokens = usage.cache_creation_input_tokens;
@@ -49,18 +84,31 @@ export class Meter {
   /** OpenAI counts cached tokens inside prompt_tokens; they are billed at the cached price. */
   #openAIUsage(usage: OAIUsage) {
     const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
-    this.cacheReadTokens = cached;
-    this.inputTokens = usage.prompt_tokens - cached;
-    this.outputTokens = usage.completion_tokens;
+    const validCached =
+      Number.isSafeInteger(cached) && cached >= 0 && cached <= usage.prompt_tokens;
+    this.#knownInput =
+      Number.isSafeInteger(usage.prompt_tokens) && usage.prompt_tokens >= 0 && validCached;
+    this.#knownOutput =
+      Number.isSafeInteger(usage.completion_tokens) && usage.completion_tokens >= 0;
+    this.cacheReadTokens = validCached ? cached : 0;
+    this.inputTokens = this.#knownInput ? usage.prompt_tokens - cached : 0;
+    this.outputTokens = this.#knownOutput ? usage.completion_tokens : 0;
   }
 
   /** The Responses API counts cached tokens inside input_tokens, like chat completions. */
   #responsesUsage(usage: RUsage | null | undefined) {
     if (!usage) return;
     const cached = usage.input_tokens_details?.cached_tokens ?? 0;
-    this.cacheReadTokens = cached;
-    this.inputTokens = usage.input_tokens - cached;
-    this.outputTokens = usage.output_tokens;
+    this.#knownInput =
+      Number.isSafeInteger(usage.input_tokens) &&
+      usage.input_tokens >= 0 &&
+      Number.isSafeInteger(cached) &&
+      cached >= 0 &&
+      cached <= usage.input_tokens;
+    this.#knownOutput = Number.isSafeInteger(usage.output_tokens) && usage.output_tokens >= 0;
+    this.cacheReadTokens = this.#knownInput ? cached : 0;
+    this.inputTokens = this.#knownInput ? usage.input_tokens - cached : 0;
+    this.outputTokens = this.#knownOutput ? usage.output_tokens : 0;
   }
 
   openAIChunk(chunk: OAIChunk) {
@@ -69,7 +117,7 @@ export class Meter {
   }
 
   openAIResponse(res: OAIChatResponse) {
-    this.#openAIUsage(res.usage ?? { prompt_tokens: 0, completion_tokens: 0 });
+    if (res.usage) this.#openAIUsage(res.usage);
     this.#append(res.choices[0]?.message?.content);
   }
 

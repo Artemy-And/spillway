@@ -1,3 +1,5 @@
+import type { ProviderKind } from '../db/schema.ts';
+
 export const CHECKS = ['manual', 'contains', 'exact', 'json'] as const;
 export type Check = (typeof CHECKS)[number];
 
@@ -20,6 +22,10 @@ export interface ComparisonModel {
   isLocal: boolean;
   inputPrice: number | null;
   outputPrice: number | null;
+  /** Older reports can be read but need a new run before activating a routing profile. */
+  providerKind?: ProviderKind;
+  providerUrlHash?: string;
+  cacheReadPrice?: number | null;
 }
 export type CellStatus =
   | 'queued'

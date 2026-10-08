@@ -1,5 +1,6 @@
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { ComparisonReport, ComparisonSummary } from '../comparison/types.ts';
+import { ROUTING_OUTCOMES, type RoutingEvidence } from '../routing/types.ts';
 
 const id = () =>
   text('id')
@@ -147,6 +148,7 @@ export const requestLogs = sqliteTable(
     format: text('format', { enum: CLIENT_FORMATS }).notNull(),
     requestedModel: text('requested_model').notNull(),
     requestedModelId: text('requested_model_id'),
+    attemptedModelId: text('attempted_model_id'),
     servedModelId: text('served_model_id'),
     servedModel: text('served_model'),
     servedLocal: integer('served_local', { mode: 'boolean' }).notNull().default(false),
@@ -159,6 +161,12 @@ export const requestLogs = sqliteTable(
     outputTokens: integer('output_tokens').notNull().default(0),
     costUsd: real('cost_usd').notNull().default(0),
     savedUsd: real('saved_usd').notNull().default(0),
+    routingProfileId: text('routing_profile_id'),
+    routingProfileName: text('routing_profile_name'),
+    routingOutcome: text('routing_outcome', { enum: ROUTING_OUTCOMES }),
+    routingCostKnown: integer('routing_cost_known', { mode: 'boolean' }),
+    baselineCostUsd: real('baseline_cost_usd'),
+    routingSavingsUsd: real('routing_savings_usd'),
     latencyMs: integer('latency_ms').notNull().default(0),
     stream: integer('stream', { mode: 'boolean' }).notNull().default(false),
     pii: text('pii', { mode: 'json' }).$type<Record<string, number>>(),
@@ -170,6 +178,7 @@ export const requestLogs = sqliteTable(
     index('request_logs_created_idx').on(t.createdAt),
     index('request_logs_key_idx').on(t.keyId, t.createdAt),
     index('request_logs_team_idx').on(t.teamId, t.createdAt),
+    index('request_logs_routing_idx').on(t.routingProfileId, t.createdAt),
   ],
 );
 
@@ -220,3 +229,30 @@ export const comparisons = sqliteTable('comparisons', {
   report: text('report', { mode: 'json' }).$type<ComparisonReport>().notNull(),
   summary: text('summary', { mode: 'json' }).$type<ComparisonSummary>().notNull(),
 });
+
+/** One explicit text-routing choice per key, backed by a completed comparison. */
+export const routingProfiles = sqliteTable('routing_profiles', {
+  id: id(),
+  name: text('name').notNull(),
+  keyId: text('key_id')
+    .notNull()
+    .unique()
+    .references(() => apiKeys.id, { onDelete: 'cascade' }),
+  comparisonId: text('comparison_id').notNull(),
+  baselineModelId: text('baseline_model_id')
+    .notNull()
+    .references(() => models.id, { onDelete: 'cascade' }),
+  candidateModelId: text('candidate_model_id')
+    .notNull()
+    .references(() => models.id, { onDelete: 'cascade' }),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  fallbackOnError: integer('fallback_on_error', { mode: 'boolean' }).notNull().default(true),
+  evidence: text('evidence', { mode: 'json' }).$type<RoutingEvidence>().notNull(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  updatedAt: timestamp('updated_at')
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export type RoutingProfile = typeof routingProfiles.$inferSelect;

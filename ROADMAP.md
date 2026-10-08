@@ -24,16 +24,23 @@ Implementation details and limitations: [model comparison](docs/model-comparison
 
 ## Stage 2 — Apply a tested choice to real traffic
 
-**In progress. Started: 2026-10-08.**
+**Completed: 2026-10-08. Started: 2026-10-08.**
 
-- [ ] Create a routing profile from a completed comparison with passing baseline and candidate tasks.
-- [ ] Apply a profile to an explicitly selected gateway key; map baseline text requests to the candidate.
-- [ ] Keep key/team permissions, budgets and privacy checks in effect for the served model.
-- [ ] Keep images, tools, embeddings and unsupported stateful requests on their original model.
-- [ ] Offer an explicit fallback to the baseline when the selected provider fails.
-- [ ] Enable, disable and remove profiles in the admin UI, with an explanation in request logs.
-- [ ] Show actual recorded spend and an explicitly labelled estimate of avoided baseline costs.
-- [ ] Add integration coverage for routing, isolation between keys, policy enforcement, fallback and accounting.
+- [x] Create a routing profile from a completed comparison with passing baseline and cheaper candidate tasks.
+- [x] Apply a profile to an explicitly selected gateway key; map baseline text requests to the candidate.
+- [x] Keep key/team permissions, budgets and privacy checks in effect for the served model.
+- [x] Keep images, tools, embeddings and unsupported stateful requests on their original model.
+- [x] Offer an explicit fallback to the baseline when the selected provider fails.
+- [x] Enable, disable and remove profiles in the admin UI, with an explanation in request logs.
+- [x] Show recorded API spend and an explicitly labelled estimate of avoided baseline costs.
+- [x] Pin model and provider configuration to the comparison; require a new run after relevant changes.
+- [x] Retain profile evidence after source report expiry, without storing task texts in the profile.
+- [x] Add 21 tests for routing, key isolation, policy enforcement, fallback, streaming, cache,
+  configuration changes, concurrent activation and accounting. All 161 server tests passed;
+  both type checks, lint and web build passed.
+
+Implementation details and limits: [routing profiles](docs/routing-profiles.md).
+The comparison-to-profile workflow is implemented; validation with real teams remains planned.
 
 ## Later stages — Planned
 

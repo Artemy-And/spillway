@@ -7,6 +7,7 @@ estimate the cost, then explicitly start the run. Estimating does not contact pr
 
 Every task runs once per model, sequentially, through the normal gateway. The selected key's team,
 model allowlists, limits, privacy rules and rate limit still apply. The response cache is bypassed.
+Active routing profiles are also bypassed so the comparison exercises the selected models.
 These are real provider requests and appear in the request log. Only one comparison runs at a time.
 Cancellation aborts the active request and skips the remainder; an already accepted provider request
 may still be billed. Runs interrupted by a server restart are marked interrupted and are not resumed.
@@ -59,5 +60,6 @@ Example task file:
 ]
 ```
 
-This stage does not automatically change routing rules and does not evaluate tool-using coding
-agents. Use the findings to decide which model to try next for the tested workload.
+After a completed comparison, **Apply to real requests** offers candidates that passed every task
+and cost less than the first selected baseline. Applying is an explicit admin action for a chosen
+key; see [routing profiles](routing-profiles.md). Comparisons do not evaluate tool-using coding agents.

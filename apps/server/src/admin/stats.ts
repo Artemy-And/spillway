@@ -69,7 +69,10 @@ export async function failingProviders(db: Db, now = new Date()) {
       lastFailure: sql<number | null>`max(case when ${failed} then ${requestLogs.createdAt} end)`,
     })
     .from(requestLogs)
-    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
+    .innerJoin(
+      models,
+      sql`${models.id} = coalesce(${requestLogs.attemptedModelId}, ${requestLogs.requestedModelId})`,
+    )
     .innerJoin(providers, eq(models.providerId, providers.id))
     .where(gte(requestLogs.createdAt, new Date(now.getTime() - STATUS_WINDOW_MS)))
     .groupBy(providers.id)
@@ -328,10 +331,13 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
       last: sql<number>`max(${requestLogs.createdAt})`,
       error: sql<
         string | null
-      >`(select r.error from request_logs r join models m on m.id = r.requested_model_id where m.provider_id = ${providers.id} and r.error is not null order by r.created_at desc limit 1)`,
+      >`(select r.error from request_logs r join models m on m.id = coalesce(r.attempted_model_id, r.requested_model_id) where m.provider_id = ${providers.id} and r.error is not null order by r.created_at desc limit 1)`,
     })
     .from(requestLogs)
-    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
+    .innerJoin(
+      models,
+      sql`${models.id} = coalesce(${requestLogs.attemptedModelId}, ${requestLogs.requestedModelId})`,
+    )
     .innerJoin(providers, eq(models.providerId, providers.id))
     .where(
       and(

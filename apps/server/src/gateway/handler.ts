@@ -11,8 +11,9 @@ import {
   users,
 } from '../db/schema.ts';
 import { sha256, shortId } from '../lib/crypto.ts';
-import { maskPii } from '../lib/pii.ts';
+import { maskPii, type PiiCounts } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
+import { allowed, matchesFingerprint, routingTarget } from '../routing/resolve.ts';
 import type { Settings } from '../settings.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
@@ -590,6 +591,9 @@ export async function handleGateway(
     requestedName: body.model,
     pii: scan.found,
     settings,
+    body,
+    format,
+    skipProfiles: !!internalCaller,
   });
   const stream = isOllama(format) ? body.stream !== false : body.stream === true;
 
@@ -601,6 +605,16 @@ export async function handleGateway(
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
     requestedModel: body.model,
     requestedModelId: decision.requested?.model.id ?? null,
+    routingProfileId: decision.routingProfile?.id ?? null,
+    routingProfileName: decision.routingProfile?.name ?? null,
+    routingOutcome: decision.routingProfile
+      ? !decision.target
+        ? 'policy'
+        : decision.routingApplied
+          ? 'selected'
+          : 'skipped'
+      : null,
+    routingCostKnown: decision.routingProfile && !decision.target ? true : null,
     servedModelId: decision.target?.model.id ?? null,
     servedModel: decision.target ? modelLabel(decision.target) : null,
     servedLocal: decision.target?.provider.isLocal ?? false,
@@ -627,7 +641,9 @@ export async function handleGateway(
   const cacheId =
     settings.cache.enabled &&
     !stream &&
-    decision.result === 'ok' &&
+    (decision.result === 'ok' ||
+      (decision.routingApplied &&
+        decision.target.model.id === decision.routingProfile?.candidateModelId)) &&
     !base.pii &&
     wantsCache(c.req.raw.headers)
       ? cacheKey(caller.key.id, decision.target.model, format, body)
@@ -640,6 +656,7 @@ export async function handleGateway(
         ...base,
         ruleId: 'cache',
         savedUsd: hit.costUsd,
+        routingCostKnown: decision.routingProfile ? true : null,
         latencyMs: Date.now() - started,
         trace: [
           ...decision.trace.filter((s) => s.code !== 'sentTo'),
@@ -657,6 +674,9 @@ export async function handleGateway(
         'x-spillway-result': decision.result,
         'x-spillway-model': decision.target.model.name,
         'x-spillway-cache': 'hit',
+        ...(decision.routingProfile
+          ? { 'x-spillway-routing-profile': decision.routingProfile.id }
+          : {}),
       },
     });
   }
@@ -665,18 +685,44 @@ export async function handleGateway(
   let result = decision.result;
   let trace: TraceStep[] = decision.trace;
   let outage = false;
+  let profileFallbackUsed = false;
+  let failedCloudAttempt = false;
+  const attemptedModelId = target.model.id;
   const meter = new Meter();
   const finish = async (status: number, error?: unknown) => {
-    const cost = meter.cost(target.model);
+    const cost = target.provider.isLocal ? 0 : meter.cost(target.model);
     const requestedCost = decision.requested ? meter.cost(decision.requested.model) : cost;
     const failed = error !== undefined;
     const message = failed ? (error instanceof Error ? error.message : String(error)) : null;
     const cut =
       !failed && target.provider.kind === 'ollama' ? promptCut(body, meter.totalInput) : null;
+    const pricesKnown = target.model.inputPrice !== null && target.model.outputPrice !== null;
+    const routingCostKnown =
+      !failedCloudAttempt &&
+      (!failed || target.provider.isLocal) &&
+      (target.provider.isLocal || (meter.usageKnown && pricesKnown));
+    const eligible =
+      decision.routingApplied &&
+      !failed &&
+      !outage &&
+      !cut &&
+      meter.usageKnown &&
+      routingCostKnown &&
+      target.model.id === decision.routingProfile?.candidateModelId &&
+      decision.requested &&
+      (decision.requested.provider.isLocal ||
+        (decision.requested.model.inputPrice !== null &&
+          decision.requested.model.outputPrice !== null));
+    const baselineCostUsd = eligible
+      ? decision.requested!.provider.isLocal
+        ? 0
+        : requestedCost
+      : null;
     await writeLog(
       ctx,
       {
         ...base,
+        attemptedModelId,
         servedModelId: target.model.id,
         servedModel: modelLabel(target),
         servedLocal: target.provider.isLocal,
@@ -689,7 +735,22 @@ export async function handleGateway(
         outputTokens: meter.outputTokens,
         costUsd: cost,
         // A failover is not a saving: the cloud model was not going to answer anyway.
-        savedUsd: result === 'rerouted' && !outage ? Math.max(0, requestedCost - cost) : 0,
+        savedUsd:
+          result === 'rerouted' && !outage && !decision.routingProfile
+            ? Math.max(0, requestedCost - cost)
+            : 0,
+        routingOutcome: decision.routingProfile
+          ? profileFallbackUsed || outage
+            ? 'fallback'
+            : !decision.routingApplied
+              ? 'skipped'
+              : target.model.id === decision.routingProfile.candidateModelId
+                ? 'selected'
+                : 'policy'
+          : null,
+        routingCostKnown: decision.routingProfile ? routingCostKnown : null,
+        baselineCostUsd,
+        routingSavingsUsd: baselineCostUsd === null ? null : baselineCostUsd - cost,
         latencyMs: Date.now() - started,
         responsePreview: settings.storePrompts
           ? maskPii(meter.text).text.slice(0, PREVIEW) || null
@@ -718,10 +779,27 @@ export async function handleGateway(
     try {
       forwarded = await forward(ctx, c, format, body, target, stream, meter);
     } catch (error) {
-      const local = await failoverTarget(ctx, caller, target, settings, error);
+      failedCloudAttempt = !target.provider.isLocal;
+      const freshCaller = await callerForKey(ctx, caller.key.id);
+      if (!freshCaller) throw error;
+      const fallbackSettings = await ctx.settings.get();
+      const baseline = await baselineFallback(
+        ctx,
+        freshCaller,
+        decision,
+        target,
+        fallbackSettings,
+        error,
+        body,
+        format,
+        scan.found,
+      );
+      const local =
+        baseline ?? (await failoverTarget(ctx, freshCaller, target, fallbackSettings, error));
       if (!local) throw error;
       const reason = (error as Error).message;
       const failedProvider = target.provider.name;
+      profileFallbackUsed = !!baseline;
       trace = [
         ...trace,
         step('warn', reason, 'providerFailed', { provider: failedProvider, message: reason }),
@@ -735,9 +813,20 @@ export async function handleGateway(
           },
         ),
       ];
+      if (baseline && decision.routingProfile) {
+        trace.push(
+          step(
+            'warn',
+            `Profile ${decision.routingProfile.name} fell back to ${baseline.model.name}`,
+            'profileFallback',
+            { profile: decision.routingProfile.name, model: baseline.model.name },
+          ),
+        );
+      }
       target = local;
-      result = 'rerouted';
+      result = baseline ? 'ok' : 'rerouted';
       outage = true;
+      meter.reset();
       forwarded = await forward(ctx, c, format, body, local, stream, meter);
     }
     const { response, done } = forwarded;
@@ -755,12 +844,14 @@ export async function handleGateway(
       }
     });
     // Comparisons read the finished log before sending the next request or checking its budget.
-    if (internalCaller && !stream) await logged;
+    if ((internalCaller || decision.routingProfile) && !stream) await logged;
     else void logged;
     if (cacheId) response.headers.set('x-spillway-cache', 'miss');
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);
+    if (decision.routingProfile)
+      response.headers.set('x-spillway-routing-profile', decision.routingProfile.id);
     return response;
   } catch (error) {
     const status = error instanceof UpstreamError ? error.status : 502;
@@ -791,5 +882,45 @@ async function failoverTarget(
   if (target.provider.isLocal || !caller.key.fallbackToLocal) return null;
   if (!settings.rerouteOnFailure || !settings.localModelId) return null;
   const local = await findModel(ctx.db, eq(models.id, settings.localModelId));
-  return local && local.model.id !== target.model.id ? local : null;
+  return local?.provider.isLocal &&
+    local.model.id !== target.model.id &&
+    allowed(caller, local.model.id)
+    ? local
+    : null;
+}
+
+/** The original model is a separate, explicit fallback and must pass its own policy checks. */
+async function baselineFallback(
+  ctx: AppContext,
+  caller: Caller,
+  decision: Decision,
+  target: Target,
+  settings: Settings,
+  error: unknown,
+  body: Record<string, unknown>,
+  format: Format,
+  pii: PiiCounts,
+): Promise<Target | null> {
+  const profile = decision.routingProfile;
+  if (
+    !decision.routingApplied ||
+    !profile?.fallbackOnError ||
+    target.model.id !== profile.candidateModelId ||
+    !(error instanceof UpstreamError) ||
+    (error.status < 500 && error.status !== 429)
+  )
+    return null;
+  const baseline = await routingTarget(ctx, profile.baselineModelId);
+  if (!baseline || !matchesFingerprint(baseline, profile.evidence.baseline)) return null;
+  const checked = await decide(ctx, {
+    caller,
+    requestedName: baseline.model.name,
+    pii,
+    settings,
+    body,
+    format,
+    skipProfiles: true,
+    skipRateLimit: true,
+  });
+  return checked.target?.model.id === baseline.model.id ? checked.target : null;
 }

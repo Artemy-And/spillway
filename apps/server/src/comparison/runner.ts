@@ -4,6 +4,7 @@ import type { AppContext } from '../context.ts';
 import { comparisons, models, requestLogs, users } from '../db/schema.ts';
 import { callerForKey, handleGateway } from '../gateway/handler.ts';
 import { findModel, type Target } from '../gateway/policy.ts';
+import { sha256 } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { checkAnswer } from './checks.ts';
 import type {
@@ -49,6 +50,9 @@ function viewModel(target: Target): ComparisonModel {
     isLocal: provider.isLocal,
     inputPrice: model.inputPrice,
     outputPrice: model.outputPrice,
+    providerKind: provider.kind,
+    providerUrlHash: sha256(provider.baseUrl),
+    cacheReadPrice: model.cacheReadPrice,
   };
 }
 

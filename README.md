@@ -47,6 +47,11 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
   answers, compare recorded costs and latency, and manually review free-text results. Includes a
   comparison budget, cancellation, and downloadable reports. [How it works](docs/model-comparison.md).
 
+- **Apply a tested cheaper model to real traffic.** Turn a completed comparison into a routing
+  profile for a chosen key, retain permissions and privacy checks, and optionally fall back to the
+  baseline on provider failure. Follow recorded API spend and clearly labelled estimated savings.
+  [Routing profiles](docs/routing-profiles.md).
+
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
   `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
   `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool

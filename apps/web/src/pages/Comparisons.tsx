@@ -2,6 +2,7 @@ import type { Check, ComparisonInput } from '@server/comparison/types.ts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { type ComponentProps, type ReactNode, useState } from 'react';
+import { ProfileFromComparison } from '../components/ProfileFromComparison.tsx';
 import {
   Button,
   Card,
@@ -522,6 +523,9 @@ export function ComparisonsPage() {
             {t.exportReport}
           </Button>
         </ComparisonResults>
+      )}
+      {report.data?.status === 'completed' && (
+        <ProfileFromComparison key={report.data.id} report={report.data} keys={keys.data ?? []} />
       )}
     </div>
   );

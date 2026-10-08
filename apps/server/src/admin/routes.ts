@@ -27,6 +27,7 @@ import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { SERVER_ZONE } from '../lib/time.ts';
 import { mailFrom, send } from '../notify.ts';
+import { routingProfileRoutes } from '../routing/routes.ts';
 import {
   calendarOf,
   notificationsPatch,
@@ -829,5 +830,6 @@ export function adminRoutes(ctx: AppContext) {
         return c.json({ ok: true });
       })
       .route('/comparisons', comparisonRoutes(ctx))
+      .route('/routing-profiles', routingProfileRoutes(ctx))
   );
 }

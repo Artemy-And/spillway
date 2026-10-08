@@ -2,6 +2,7 @@ import type { Overview } from '../lib/api.ts';
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
+import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 
 const p = plural('en');
 
@@ -24,6 +25,7 @@ const pii = {
 
 export const en = {
   comparisons: comparisonMessages.en,
+  profiles: profileMessages.en,
   common: {
     save: 'Save',
     saved: 'Saved',
@@ -82,9 +84,10 @@ export const en = {
   },
 
   /** Server messages in other languages; English shows them as they come. */
-  errors: {} as Record<string, string>,
+  errors: profileErrors.en as Record<string, string>,
 
   nav: {
+    routingProfiles: profileMessages.en.title,
     comparisons: 'Compare models',
     main: 'Main',
     overview: 'Overview',
@@ -481,6 +484,9 @@ export const en = {
 
   /** The "why" of a request, step by step. */
   trace: {
+    profileApplied: (t: TraceParams) => profileTrace(profileMessages.en, 'traceApplied', t),
+    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.en, 'traceSkipped', t),
+    profileFallback: (t: TraceParams) => profileTrace(profileMessages.en, 'traceFallback', t),
     modelMissing: (t: TraceParams) => `Model "${t.model}" is not available on this gateway`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} is not allowed for team ${t.name}`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} is not allowed for key ${t.name}`,

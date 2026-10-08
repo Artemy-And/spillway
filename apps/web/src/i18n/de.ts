@@ -2,6 +2,7 @@ import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
+import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 
 const p = plural('de');
 
@@ -23,6 +24,7 @@ const times = (n: number) => p(n, { one: 'einmal', other: '#-mal' });
 
 export const de: Messages = {
   comparisons: comparisonMessages.de,
+  profiles: profileMessages.de,
   common: {
     save: 'Speichern',
     saved: 'Gespeichert',
@@ -80,6 +82,7 @@ export const de: Messages = {
   },
 
   errors: {
+    ...profileErrors.de,
     'Wrong setup code. Spillway prints the setup link in its logs.':
       'Falscher Einrichtungscode. Spillway schreibt den Einrichtungslink beim Start ins Log.',
     'Your email comes from single sign-on and cannot be changed here':
@@ -114,6 +117,7 @@ export const de: Messages = {
   },
 
   nav: {
+    routingProfiles: profileMessages.de.title,
     comparisons: 'Modelle vergleichen',
     main: 'Hauptmenü',
     overview: 'Übersicht',
@@ -505,6 +509,9 @@ export const de: Messages = {
   },
 
   trace: {
+    profileApplied: (t: TraceParams) => profileTrace(profileMessages.de, 'traceApplied', t),
+    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.de, 'traceSkipped', t),
+    profileFallback: (t: TraceParams) => profileTrace(profileMessages.de, 'traceFallback', t),
     modelMissing: (t: TraceParams) => `Modell „${t.model}“ ist auf diesem Gateway nicht verfügbar`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} ist für Team ${t.name} nicht erlaubt`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} ist für Schlüssel ${t.name} nicht erlaubt`,

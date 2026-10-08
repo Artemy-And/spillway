@@ -2,6 +2,7 @@ import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
+import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 
 const p = plural('es');
 
@@ -23,6 +24,7 @@ const times = (n: number) => p(n, { one: 'una vez', other: '# veces' });
 
 export const es: Messages = {
   comparisons: comparisonMessages.es,
+  profiles: profileMessages.es,
   common: {
     save: 'Guardar',
     saved: 'Guardado',
@@ -80,6 +82,7 @@ export const es: Messages = {
   },
 
   errors: {
+    ...profileErrors.es,
     'Wrong setup code. Spillway prints the setup link in its logs.':
       'Código de configuración incorrecto. Spillway escribe el enlace en su log al arrancar.',
     'Your email comes from single sign-on and cannot be changed here':
@@ -112,6 +115,7 @@ export const es: Messages = {
   },
 
   nav: {
+    routingProfiles: profileMessages.es.title,
     comparisons: 'Comparar modelos',
     main: 'Menú principal',
     overview: 'Resumen',
@@ -501,6 +505,9 @@ export const es: Messages = {
   },
 
   trace: {
+    profileApplied: (t: TraceParams) => profileTrace(profileMessages.es, 'traceApplied', t),
+    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.es, 'traceSkipped', t),
+    profileFallback: (t: TraceParams) => profileTrace(profileMessages.es, 'traceFallback', t),
     modelMissing: (t: TraceParams) => `El modelo «${t.model}» no está disponible en esta pasarela`,
     modelNotAllowedTeam: (t: TraceParams) =>
       `${t.model} no está permitido para el equipo ${t.name}`,

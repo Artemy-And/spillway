@@ -8,6 +8,7 @@ import {
   type Provider,
   providers,
   type Result,
+  type RoutingProfile,
   requestLogs,
   type Team,
   type TraceStep,
@@ -16,7 +17,9 @@ import {
 } from '../db/schema.ts';
 import { describePii, type PiiCounts, type PiiKind } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
+import { allowed, chooseProfile } from '../routing/resolve.ts';
 import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
+import type { Format } from './handler.ts';
 
 export interface Caller {
   key: ApiKey;
@@ -37,6 +40,8 @@ export interface Decision {
   ruleId: RuleId | null;
   trace: TraceStep[];
   message: string;
+  routingProfile: RoutingProfile | null;
+  routingApplied: boolean;
 }
 
 /** Kinds that stop a request to a cloud model. Emails, phones and IPs are only masked in logs. */
@@ -101,6 +106,11 @@ interface Input {
   /** Embeddings never switch to another model, see below. */
   purpose?: 'chat' | 'embeddings';
   now?: Date;
+  body?: Record<string, unknown>;
+  format?: Format;
+  /** Comparisons and a fallback must not apply a profile recursively. */
+  skipProfiles?: boolean;
+  skipRateLimit?: boolean;
 }
 
 export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
@@ -111,6 +121,8 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   const cal = calendarOf(settings);
   const rules = settings.rules;
   const trace: TraceStep[] = [];
+  let routingProfile: RoutingProfile | null = null;
+  let routingApplied = false;
 
   const stop = (
     result: Result,
@@ -120,7 +132,17 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     ruleId: RuleId | null = null,
   ): Decision => {
     trace.push(blocked);
-    return { result, status, requested, target: null, ruleId, trace, message: blocked.text };
+    return {
+      result,
+      status,
+      requested,
+      target: null,
+      ruleId,
+      trace,
+      message: blocked.text,
+      routingProfile,
+      routingApplied,
+    };
   };
 
   // 1. Model exists and this key may use it
@@ -159,7 +181,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   );
 
   // 2. Rate limit for agents
-  if (rules.agentRateLimit.enabled && key.kind === 'agent') {
+  if (rules.agentRateLimit.enabled && key.kind === 'agent' && !input.skipRateLimit) {
     if (!ctx.rateLimiter.hit(key.id, rules.agentRateLimit.rpm)) {
       const rule = ruleNumber('agentRateLimit');
       const { rpm } = rules.agentRateLimit;
@@ -182,8 +204,37 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   let result: Result = 'ok';
   let ruleId: RuleId | null = null;
 
+  if (!embeddings && !input.skipProfiles && input.body && input.format) {
+    const choice = await chooseProfile(ctx, caller, requested, input.body, input.format);
+    if (choice) {
+      routingProfile = choice.profile;
+      if (choice.target) {
+        target = choice.target;
+        result = 'rerouted';
+        routingApplied = true;
+        trace.push(
+          step(
+            'info',
+            `Profile ${choice.profile.name} selected ${plainName(target)}`,
+            'profileApplied',
+            { profile: choice.profile.name, model: plainName(target) },
+          ),
+        );
+      } else {
+        trace.push(
+          step(
+            'warn',
+            `Profile ${choice.profile.name} skipped: ${choice.reason}`,
+            'profileSkipped',
+            { profile: choice.profile.name, reason: choice.reason },
+          ),
+        );
+      }
+    }
+  }
+
   // 3. Budgets and schedule. Local models cost nothing, so they skip this.
-  if (requested.provider.isLocal) {
+  if (target.provider.isLocal) {
     trace.push(step('info', 'Local model: no API cost, budgets do not apply', 'localNoBudget'));
   } else {
     /** `hard` is a limit that is used up; the others are rules that save money early. */
@@ -297,7 +348,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       const local = settings.localModelId
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
         : null;
-      if (!reroute.allowed || !local) {
+      if (!reroute.allowed || !local || !allowed(caller, local.model.id)) {
         const blocked = !reroute.allowed
           ? step(
               'block',
@@ -381,5 +432,15 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         local: target.provider.isLocal,
       }),
     );
-  return { result, status: 200, requested, target, ruleId, trace, message: '' };
+  return {
+    result,
+    status: 200,
+    requested,
+    target,
+    ruleId,
+    trace,
+    message: '',
+    routingProfile,
+    routingApplied,
+  };
 }
