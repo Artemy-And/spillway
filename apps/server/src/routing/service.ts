@@ -39,6 +39,8 @@ function matchesReport(target: Target, saved: ComparisonModel): boolean {
 export async function createProfile(ctx: AppContext, input: ProfileInput, createdBy: string) {
   const report = await comparisonRunner(ctx).get(input.comparisonId);
   if (report?.status !== 'completed') throw new RoutingError('Choose a completed comparison');
+  if (report.cases.some((task) => task.toolMode))
+    throw new RoutingError('Tool evaluations cannot create text routing profiles');
   if (input.baselineModelId === input.candidateModelId)
     throw new RoutingError('Choose different baseline and candidate models');
   const baselineSaved = report.models.find((model) => model.id === input.baselineModelId);

@@ -1,10 +1,15 @@
 # Apply a tested model choice
 
-Complete a model comparison, including any manual reviews, then choose **Apply to real requests**.
+Complete a text-only model comparison, including any manual reviews, then choose
+**Apply to real requests**.
 The first selected model is the baseline. A candidate must pass every task and have a lower total
 recorded API cost than the baseline, which must also pass every task with known costs. Passing the
 tested tasks does not establish general model quality. Choose tasks representative of the workload
 you will send through this key.
+
+[Tool evaluations](tool-evaluations.md) can check function calls and short loops with fixed results,
+but a report containing any tool scenario cannot create a text routing profile. Passing a tool
+fixture does not enable substitution of live tool traffic or certify a coding agent.
 
 Select an active gateway key, name the profile, choose a candidate, and decide whether provider
 failures should retry the baseline. The application continues to request the baseline's existing

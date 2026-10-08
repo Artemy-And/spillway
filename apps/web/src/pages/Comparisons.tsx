@@ -6,6 +6,11 @@ import { EvaluationResults } from '../components/EvaluationResults.tsx';
 import { ProfileFromComparison } from '../components/ProfileFromComparison.tsx';
 import { matchesTaskSet, TaskSetLibrary } from '../components/TaskSetLibrary.tsx';
 import {
+  normalizeToolScenario,
+  ToolScenarioEditor,
+  validComparisonTask,
+} from '../components/ToolScenarioEditor.tsx';
+import {
   Button,
   Card,
   cx,
@@ -77,18 +82,22 @@ function tasksFromJson(value: unknown): Task[] {
     )
       throw new Error('Invalid task');
     const expected = (task.expected as string | undefined) ?? '';
+    const tools = task.tools === undefined ? undefined : normalizeToolScenario(task.tools);
     if (
       expected.length > 12000 ||
-      ((task.check === 'exact' || task.check === 'contains') && !expected.trim())
+      (tools?.mode !== 'call' &&
+        (task.check === 'exact' || task.check === 'contains') &&
+        !expected.trim())
     )
       throw new Error('Invalid expected answer');
-    if (task.check === 'json' && expected.trim()) JSON.parse(expected);
+    if (tools?.mode !== 'call' && task.check === 'json' && expected.trim()) JSON.parse(expected);
     return {
       id: crypto.randomUUID(),
       name: task.name,
       prompt: task.prompt,
       check: task.check as Check,
       expected,
+      ...(tools ? { tools } : {}),
     };
   });
 }
@@ -210,12 +219,7 @@ export function ComparisonsPage() {
     Number.isInteger(input.maxOutputTokens) &&
     input.maxOutputTokens >= 32 &&
     input.maxOutputTokens <= 2048 &&
-    tasks.every(
-      (task) =>
-        task.name.trim() &&
-        task.prompt.trim() &&
-        ((task.check !== 'contains' && task.check !== 'exact') || task.expected.trim()),
-    );
+    tasks.every(validComparisonTask);
   const updateTask = (id: string, patch: Partial<Task>) =>
     setTasks((previous) => previous.map((task) => (task.id === id ? { ...task, ...patch } : task)));
 
@@ -338,7 +342,12 @@ export function ComparisonsPage() {
                   onChange={(e) => setMaxSpend(e.target.value)}
                 />
               </Field>
-              <Field label={t.maxTokens}>
+              <Field
+                label={t.maxTokens}
+                hint={
+                  tasks.some((task) => task.tools) ? m.toolEvaluations.outputCapHint : undefined
+                }
+              >
                 <Input
                   required
                   type="number"
@@ -368,7 +377,7 @@ export function ComparisonsPage() {
                       e.target.value = '';
                       if (!file) return;
                       try {
-                        if (file.size > 600000) throw new Error('File too large');
+                        if (file.size > 2000000) throw new Error('File too large');
                         setTasks(tasksFromJson(JSON.parse(await file.text())));
                         setImportError(null);
                       } catch {
@@ -413,19 +422,26 @@ export function ComparisonsPage() {
                     onChange={(e) => updateTask(task.id, { prompt: e.target.value })}
                   />
                 </Field>
-                <Field label={t.check}>
-                  <Select
-                    value={task.check}
-                    onChange={(e) => updateTask(task.id, { check: e.target.value as Check })}
-                  >
-                    {CHECKS.map((check) => (
-                      <option key={check} value={check}>
-                        {t.checks[check]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                {task.check !== 'manual' && (
+                <ToolScenarioEditor
+                  tools={task.tools}
+                  onChange={(tools) => updateTask(task.id, { tools })}
+                  onExample={(patch) => updateTask(task.id, patch)}
+                />
+                {task.tools?.mode !== 'call' && (
+                  <Field label={t.check}>
+                    <Select
+                      value={task.check}
+                      onChange={(e) => updateTask(task.id, { check: e.target.value as Check })}
+                    >
+                      {CHECKS.map((check) => (
+                        <option key={check} value={check}>
+                          {t.checks[check]}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
+                {task.tools?.mode !== 'call' && task.check !== 'manual' && (
                   <Field label={t.expected} hint={t.expectedHint}>
                     <Textarea
                       required={task.check !== 'json'}
@@ -468,8 +484,11 @@ export function ComparisonsPage() {
               </Button>
               {quote && (
                 <p className="text-sm text-ink-2">
-                  {t.estimated}: <strong>{money(quote.estimatedUsd)}</strong> · {t.calls}:{' '}
-                  {quote.calls}
+                  {t.estimated}: <strong>{money(quote.estimatedUsd)}</strong> ·{' '}
+                  {tasks.some((task) => task.tools?.mode === 'loop')
+                    ? m.toolEvaluations.maximumCalls
+                    : t.calls}
+                  : {quote.calls}
                 </p>
               )}
               <Button
@@ -551,7 +570,7 @@ export function ComparisonsPage() {
           </Button>
         </ComparisonResults>
       )}
-      {report.data?.status === 'completed' && (
+      {report.data?.status === 'completed' && !report.data.cases.some((task) => task.toolMode) && (
         <ProfileFromComparison key={report.data.id} report={report.data} keys={keys.data ?? []} />
       )}
       {report.data?.evaluation && (
@@ -592,6 +611,11 @@ function ComparisonResults({
 }) {
   const { m } = useI18n();
   const t = m.comparisons;
+  const tools = m.toolEvaluations;
+  const reason = (code: NonNullable<ComparisonReport['cells'][number]['reason']>) =>
+    code in tools.reasons
+      ? tools.reasons[code as keyof typeof tools.reasons]
+      : t.reasons[code as keyof typeof t.reasons];
   const done = report.cells.filter(
     (cell) => cell.status !== 'queued' && cell.status !== 'running',
   ).length;
@@ -613,6 +637,11 @@ function ComparisonResults({
       <Progress value={(done / report.cells.length) * 100} label={t.progress} />
       {report.unknownCosts && (
         <p className="rounded-lg bg-warn-bg p-3 text-sm text-warn-fg">{t.unknownHint}</p>
+      )}
+      {report.cases.some((task) => task.toolMode) && (
+        <p className="text-xs text-muted">
+          {tools.fixtureHint} {tools.profileHint}
+        </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         {report.models.map((model) => {
@@ -703,14 +732,21 @@ function ComparisonResults({
       <p className="text-xs leading-relaxed text-muted">
         {t.savingsHint} {t.localHint}
       </p>
-      {report.cases.some((task) => task.check === 'manual') && (
+      {report.cases.some((task) => task.toolMode !== 'call' && task.check === 'manual') && (
         <p className="text-sm text-muted">{t.manualHint}</p>
       )}
       {report.cases.map((task, caseIndex) => (
         <section key={task.id} className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold">
             {caseIndex + 1}. {task.name}{' '}
-            <span className="font-normal text-muted">· {t.checks[task.check]}</span>
+            <span className="font-normal text-muted">
+              ·{' '}
+              {task.toolMode === 'call'
+                ? tools.call
+                : task.toolMode === 'loop'
+                  ? `${tools.loop} · ${t.checks[task.check]}`
+                  : t.checks[task.check]}
+            </span>
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {report.models.map((model) => {
@@ -723,9 +759,7 @@ function ComparisonResults({
                     <span className="text-sm font-medium">{model.label}</span>
                     <Status tone={TONES[cell.status]}>{t.statuses[cell.status]}</Status>
                   </div>
-                  {cell.reason && (
-                    <p className="mt-2 text-xs text-muted">{t.reasons[cell.reason]}</p>
-                  )}
+                  {cell.reason && <p className="mt-2 text-xs text-muted">{reason(cell.reason)}</p>}
                   {cell.latencyMs !== null && (
                     <p className="mt-2 font-mono text-xs text-muted">
                       {cell.costUsd === null ? t.unknown : money(cell.costUsd)} ·{' '}
@@ -743,6 +777,47 @@ function ComparisonResults({
                     )}
                   {cell.outputTruncated && (
                     <p className="mt-2 text-xs text-warn-fg">{t.outputCut}</p>
+                  )}
+                  {!!cell.toolSteps?.length && (
+                    <details className="mt-3 text-xs text-muted" open>
+                      <summary className="cursor-pointer">
+                        {tools.modelCalls}: {cell.toolSteps.length}
+                      </summary>
+                      <ol className="mt-2 space-y-2">
+                        {cell.toolSteps.map((step) => (
+                          <li
+                            key={`${step.phase}-${step.index}`}
+                            className="rounded-md bg-canvas p-2"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">
+                                {step.phase === 'final'
+                                  ? tools.final
+                                  : `${tools.step} ${step.index + 1}${step.toolName ? ` · ${step.toolName}` : ''}`}
+                              </span>
+                              <Status tone={TONES[step.status]}>{t.statuses[step.status]}</Status>
+                            </div>
+                            {step.reason && <p className="mt-1">{reason(step.reason)}</p>}
+                            <p className="mt-1 font-mono">
+                              {step.costUsd === null ? t.unknown : money(step.costUsd)} ·{' '}
+                              {step.latencyMs === null ? '?' : fmtNumber(step.latencyMs)} ms
+                            </p>
+                            <p>
+                              {t.tokens}: {step.inputTokens ?? '?'} / {step.outputTokens ?? '?'}
+                            </p>
+                            {step.requestId && (
+                              <Link
+                                to="/logs"
+                                search={{ id: step.requestId }}
+                                className="mt-1 block break-all text-accent underline"
+                              >
+                                {t.request}: {step.requestId}
+                              </Link>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
                   )}
                   {cell.requestId && (
                     <details className="mt-3 text-xs text-muted">
@@ -764,7 +839,9 @@ function ComparisonResults({
                       )}
                     </details>
                   )}
-                  {task.check === 'manual' &&
+                  {task.toolMode !== 'call' &&
+                    (task.toolMode !== 'loop' || cell.toolSteps?.at(-1)?.reason === 'manual') &&
+                    task.check === 'manual' &&
                     report.status !== 'running' &&
                     ['review', 'passed', 'failed'].includes(cell.status) &&
                     cell.output !== null &&

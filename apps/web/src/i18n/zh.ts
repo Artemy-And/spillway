@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 // Chinese has one plural form; the helper still formats the number for us.
 const p = plural('zh');
@@ -26,6 +27,7 @@ const pii = {
 export const zh: Messages = {
   comparisons: comparisonMessages.zh,
   evaluations: evaluationMessages.zh,
+  toolEvaluations: toolEvaluationMessages.zh,
   reservations: budgetMessages.zh,
   profiles: profileMessages.zh,
   common: {

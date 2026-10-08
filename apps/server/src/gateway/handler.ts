@@ -179,9 +179,27 @@ export function promptCut(
   return kept > 0 && sent >= kept * 1.5 && sent - kept >= 2000 ? { sent, kept } : null;
 }
 
+function decodedToolText(value: string): string {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === 'string' ? parsed : (JSON.stringify(parsed) ?? '');
+  } catch {
+    return value;
+  }
+}
+
+/** Tool arguments may themselves contain JSON escapes; scan both the wire text and decoded data. */
+function toolText(value: unknown): string {
+  const raw = typeof value === 'string' ? value : (JSON.stringify(value) ?? '');
+  if (typeof value !== 'string') return raw;
+  const decoded = decodedToolText(value);
+  return decoded === raw ? raw : `${raw}\n${decoded}`;
+}
+
 /** All text that would leave the building, plus the latest user turn for the log. */
 function promptText(format: Format, body: Record<string, unknown>): { all: string; last: string } {
   const parts: string[] = [];
+  if (body.tools !== undefined) parts.push(toolText(body.tools));
   let last = '';
   if (format === 'anthropic') {
     const req = body as unknown as ARequest;
@@ -194,8 +212,13 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const text = blocks
         .map((block) => {
           if (block.type === 'text') return block.text;
+          if (block.type === 'tool_use') return toolText(block.input);
           if (block.type === 'tool_result') {
-            return typeof block.content === 'string' ? block.content : textOf(block.content);
+            const content =
+              typeof block.content === 'string' ? block.content : textOf(block.content);
+            const expanded = toolText(content);
+            if (expanded !== content) parts.push(expanded);
+            return decodedToolText(content);
           }
           return '';
         })
@@ -218,7 +241,10 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const output =
         item.type === 'function_call_output' || item.type === 'custom_tool_call_output';
       const text = responsesText(message ? item.content : output ? item.output : undefined);
-      parts.push(text);
+      parts.push(output ? toolText(text) : text);
+      if (item.type === 'function_call') parts.push(toolText(item.arguments));
+      else if (item.type === 'custom_tool_call') parts.push(toolText(item.input));
+      else if (item.type === 'local_shell_call') parts.push(toolText(item.action));
       if (message && item.role === 'user' && text.trim()) last = text;
     }
   } else {
@@ -228,7 +254,12 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
     )[];
     for (const message of messages) {
       const text = textOf(message.content as string);
-      parts.push(text);
+      parts.push(message.role === 'tool' ? toolText(text) : text);
+      if ('tool_calls' in message && Array.isArray(message.tool_calls)) {
+        for (const call of message.tool_calls) {
+          parts.push(toolText(call?.function?.arguments));
+        }
+      }
       if (message.role === 'user' && text.trim()) last = text;
     }
   }
@@ -526,11 +557,16 @@ async function forward(
       });
       if (!res.ok) throw await upstreamFailure(provider, res);
       if (stream && res.body) chunks = await primed(anthropicStreamToOpenAI(parseSSE(res.body)));
-      else result = anthropicResponseToOpenAI((await res.json()) as AResponse);
+      else {
+        const answer = (await res.json()) as AResponse;
+        // Translation supplies compatibility defaults; only native usage proves a charge.
+        meter.anthropicResponse(answer);
+        result = anthropicResponseToOpenAI(answer);
+      }
     }
 
     if (result) {
-      meter.openAIResponse(result);
+      if (wire === 'openai') meter.openAIResponse(result);
       resolveDone();
       return {
         response: Response.json(fromOpenAIResponse(format, result, model.name, body)),
@@ -970,6 +1006,9 @@ export async function handleGateway(
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);
+    if (internalCaller && !stream) {
+      response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
+    }
     if (decision.routingProfile)
       response.headers.set('x-spillway-routing-profile', decision.routingProfile.id);
     return response;
@@ -981,6 +1020,9 @@ export async function handleGateway(
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', 'error');
     response.headers.set('x-spillway-model', target.model.name);
+    if (internalCaller && !stream) {
+      response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
+    }
     return response;
   }
 }

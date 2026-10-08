@@ -81,9 +81,32 @@ Estimates coordinate admission; they do not guarantee a provider invoice cap.
 Implementation details and limits: [repeated evaluations](docs/repeated-evaluations.md).
 Runs are started manually; this stage does not introduce scheduled provider spending or automatic profile changes.
 
+## Stage 5 — Evaluate function calls and short tool loops
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Check the model's choice of function and exact structured JSON arguments without forcing the expected function.
+- [x] Replay 1–3 ordered tool calls with fixed results, then check the final text/JSON answer.
+- [x] Execute model requests only; never execute fixture functions, shell commands, HTTP or MCP tools.
+- [x] Report each turn's status, reason, request ID, recorded cost, tokens and latency, with scenario totals.
+- [x] Estimate the bounded sequence, recheck its remaining budget each turn, and stop further cloud calls after uncertain charges.
+- [x] Recheck key/admin access and model/provider configuration each turn; stop a loop after model substitution.
+- [x] Preserve gateway privacy and key/team limits; scan tool definitions, arguments and results, including escaped JSON data.
+- [x] Correct Anthropic native usage and cache-cost accounting; distinguish unknown token usage from known zero local API cost.
+- [x] Save and replay tool scenarios with content fingerprints and immutable reference/regression reports.
+- [x] Mask stored model transcripts, respect text storage/retention, and restrict manual review to valid final answers.
+- [x] Add scenario editing, examples, import/export and per-turn reports in all six supported languages.
+- [x] Keep live text routing profiles restricted to text-only comparison evidence.
+- [x] Add 40 tests for tool validation, bounded loops, accounting, privacy, budgets, cancellation,
+  access/configuration changes, manual review and saved scenarios. All 235 server tests, both type checks,
+  lint and web build passed.
+
+Implementation details and limits: [tool evaluations](docs/tool-evaluations.md).
+These fixed scenarios establish evidence on the tested decisions; live tool-session routing remains planned.
+
 ## Later stages — Planned
 
-- [ ] Expand capability checks and evaluation to supported tool-using workflows.
+- [ ] Apply evaluated model choices to supported live tool workflows with session continuity and affinity.
 - [ ] Explore model aliases, provider pools and session affinity, taking inspiration from
   [GoModel](https://github.com/ENTERPILOT/GoModel).
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.

@@ -22,8 +22,8 @@ export function comparisonRoutes(ctx: AppContext) {
     })
     .get('/', async (c) => c.json(await runner.list()))
     .post('/quote', zValidator('json', comparisonInput), async (c) => {
-      const { targets, estimatedUsd } = await runner.prepare(c.req.valid('json'));
-      return c.json({ estimatedUsd, calls: targets.length * c.req.valid('json').cases.length });
+      const { estimatedUsd, calls } = await runner.prepare(c.req.valid('json'));
+      return c.json({ estimatedUsd, calls });
     })
     .post('/', zValidator('json', comparisonInput), async (c) =>
       c.json(await runner.start(c.req.valid('json'), c.get('user').id), 201),

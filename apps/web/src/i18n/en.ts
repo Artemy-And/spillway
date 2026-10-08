@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('en');
 
@@ -28,6 +29,7 @@ const pii = {
 export const en = {
   comparisons: comparisonMessages.en,
   evaluations: evaluationMessages.en,
+  toolEvaluations: toolEvaluationMessages.en,
   reservations: budgetMessages.en,
   profiles: profileMessages.en,
   common: {

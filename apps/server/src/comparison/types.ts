@@ -3,6 +3,29 @@ import type { ProviderKind } from '../db/schema.ts';
 export const CHECKS = ['manual', 'contains', 'exact', 'json'] as const;
 export type Check = (typeof CHECKS)[number];
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: string;
+}
+export interface ToolStep {
+  name: string;
+  arguments: string;
+  result: string;
+}
+export interface ToolScenario {
+  mode: 'call' | 'loop';
+  definitions: ToolDefinition[];
+  steps: ToolStep[];
+}
+export interface ComparisonCase {
+  name: string;
+  prompt: string;
+  check: Check;
+  expected: string;
+  tools?: ToolScenario;
+}
+
 export interface ComparisonInput {
   name: string;
   keyId: string;
@@ -10,7 +33,7 @@ export interface ComparisonInput {
   system: string;
   maxSpendUsd: number;
   maxOutputTokens: number;
-  cases: { name: string; prompt: string; check: Check; expected: string }[];
+  cases: ComparisonCase[];
   taskSet?: { id: string; revision: number };
 }
 export type TaskSetInput = Pick<ComparisonInput, 'name' | 'system' | 'maxOutputTokens' | 'cases'>;
@@ -66,7 +89,23 @@ export type Reason =
   | 'cancelled'
   | 'interrupted'
   | 'unavailable'
-  | 'timeout';
+  | 'timeout'
+  | 'toolMissing'
+  | 'toolUnexpected'
+  | 'toolArguments'
+  | 'toolSequence';
+export interface ComparisonToolStep {
+  index: number;
+  phase: 'call' | 'final';
+  status: CellStatus;
+  reason: Reason | null;
+  toolName: string | null;
+  requestId: string | null;
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  latencyMs: number | null;
+}
 export interface ComparisonCell {
   caseIndex: number;
   modelId: string;
@@ -81,6 +120,7 @@ export interface ComparisonCell {
   requestId: string | null;
   servedModel: string | null;
   httpStatus: number | null;
+  toolSteps?: ComparisonToolStep[];
 }
 export interface ComparisonReport {
   id: string;
@@ -97,7 +137,7 @@ export interface ComparisonReport {
   maxOutputTokens: number;
   storesOutputs: boolean;
   models: ComparisonModel[];
-  cases: { id: string; name: string; check: Check }[];
+  cases: { id: string; name: string; check: Check; toolMode?: ToolScenario['mode'] }[];
   cells: ComparisonCell[];
   evaluation?: EvaluationSource;
 }

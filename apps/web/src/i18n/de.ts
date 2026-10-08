@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('de');
 
@@ -27,6 +28,7 @@ const times = (n: number) => p(n, { one: 'einmal', other: '#-mal' });
 export const de: Messages = {
   comparisons: comparisonMessages.de,
   evaluations: evaluationMessages.de,
+  toolEvaluations: toolEvaluationMessages.de,
   reservations: budgetMessages.de,
   profiles: profileMessages.de,
   common: {

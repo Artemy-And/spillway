@@ -24,11 +24,28 @@ export function taskFingerprint(input: TaskSetInput): string {
     JSON.stringify({
       system: input.system,
       maxOutputTokens: input.maxOutputTokens,
-      cases: input.cases.map(({ name, prompt, check, expected }) => ({
+      cases: input.cases.map(({ name, prompt, check, expected, tools }) => ({
         name,
         prompt,
         check,
         expected,
+        ...(tools
+          ? {
+              tools: {
+                mode: tools.mode,
+                definitions: tools.definitions.map(({ name, description, parameters }) => ({
+                  name,
+                  description,
+                  parameters,
+                })),
+                steps: tools.steps.map(({ name, arguments: args, result }) => ({
+                  name,
+                  arguments: args,
+                  result,
+                })),
+              },
+            }
+          : {}),
       })),
     }),
   );
@@ -42,10 +59,32 @@ async function storageSettings(ctx: AppContext) {
 }
 
 function safeTemplate(input: TaskSetInput) {
+  const decodedJson = (text: string) => {
+    try {
+      const value: unknown = JSON.parse(text);
+      return typeof value === 'string' ? value : JSON.stringify(value);
+    } catch {
+      return text;
+    }
+  };
   const texts = [
     input.name,
     input.system,
-    ...input.cases.flatMap((task) => [task.name, task.prompt, task.expected]),
+    ...input.cases.flatMap((task) => [
+      task.name,
+      task.prompt,
+      task.expected,
+      ...(task.tools
+        ? [
+            JSON.stringify(task.tools),
+            ...task.tools.definitions.map((tool) => decodedJson(tool.parameters)),
+            ...task.tools.steps.flatMap((step) => [
+              decodedJson(step.arguments),
+              decodedJson(step.result),
+            ]),
+          ]
+        : []),
+    ]),
   ];
   if (texts.some((text) => Object.keys(maskPii(text).found).length)) {
     throw new TaskSetError(

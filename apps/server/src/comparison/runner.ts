@@ -8,6 +8,7 @@ import { sha256 } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { checkAnswer } from './checks.ts';
 import { evaluationSource } from './task-sets.ts';
+import { estimateToolTask, maximumTaskCalls, runToolTask } from './tool-runner.ts';
 import type {
   ComparisonCell,
   ComparisonInput,
@@ -105,6 +106,13 @@ export class ComparisonRunner {
           cell.status = 'skipped';
           cell.reason = 'interrupted';
         }
+        for (const step of cell.toolSteps ?? []) {
+          if (step.status === 'running') step.costUsd = null;
+          if (step.status === 'queued' || step.status === 'running') {
+            step.status = 'skipped';
+            step.reason = 'interrupted';
+          }
+        }
       }
       await this.#save(report);
     }
@@ -137,12 +145,21 @@ export class ComparisonRunner {
         sum +
         input.cases.reduce(
           (subtotal, task) =>
-            subtotal + estimateCall(target, input.system, task.prompt, input.maxOutputTokens),
+            subtotal +
+            (task.tools
+              ? estimateToolTask(target, input, task)
+              : estimateCall(target, input.system, task.prompt, input.maxOutputTokens)),
           0,
         ),
       0,
     );
-    return { caller, targets, estimatedUsd, evaluation };
+    return {
+      caller,
+      targets,
+      estimatedUsd,
+      evaluation,
+      calls: targets.length * input.cases.reduce((sum, task) => sum + maximumTaskCalls(task), 0),
+    };
   }
 
   async start(input: ComparisonInput, createdBy: string): Promise<ComparisonReport> {
@@ -174,6 +191,7 @@ export class ComparisonRunner {
           id: crypto.randomUUID(),
           name: maskPii(task.name).text,
           check: task.check,
+          ...(task.tools ? { toolMode: task.tools.mode } : {}),
         })),
         cells: input.cases.flatMap((_, caseIndex) =>
           targets.map(
@@ -233,6 +251,12 @@ export class ComparisonRunner {
       for (const cell of report.cells) {
         if (abort.signal.aborted) break;
         const task = input.cases[cell.caseIndex]!;
+        if (task.tools) {
+          await runToolTask(this.#ctx, input, report, cell, createdBy, abort, () =>
+            this.#save(report),
+          );
+          continue;
+        }
         const metadata = report.models.find((model) => model.id === cell.modelId)!;
         const target = await findModel(this.#ctx.db, eq(models.id, cell.modelId));
         const caller = await callerForKey(this.#ctx, input.keyId);
@@ -315,6 +339,7 @@ export class ComparisonRunner {
           const inputTokens = body.usage?.prompt_tokens;
           const outputTokens = body.usage?.completion_tokens;
           const usageKnown =
+            response.headers.get('x-spillway-usage-known') !== 'false' &&
             Number.isSafeInteger(inputTokens) &&
             Number.isSafeInteger(outputTokens) &&
             inputTokens! >= 0 &&
@@ -326,13 +351,15 @@ export class ComparisonRunner {
           cell.outputTokens = usageKnown ? outputTokens! : null;
           cell.costUsd = blocked
             ? 0
-            : target.provider.isLocal && !log?.servedModelId
-              ? 0
-              : log?.servedLocal
+            : log?.costKnown === false
+              ? null
+              : target.provider.isLocal && !log?.servedModelId
                 ? 0
-                : usageKnown && pricesKnown && log && Number.isFinite(log.costUsd)
-                  ? log.costUsd
-                  : null;
+                : log?.servedLocal
+                  ? 0
+                  : usageKnown && pricesKnown && log && Number.isFinite(log.costUsd)
+                    ? log.costUsd
+                    : null;
           if (log?.trace.some((step) => step.code === 'providerFailed')) report.unknownCosts = true;
           if (cell.costUsd === null) report.unknownCosts = true;
           else report.spentUsd += cell.costUsd;
@@ -393,9 +420,19 @@ export class ComparisonRunner {
     } finally {
       for (const cell of report.cells) {
         if (cell.status === 'queued' || cell.status === 'running') {
-          if (cell.status === 'running') report.unknownCosts = true;
+          if (cell.status === 'running') {
+            report.unknownCosts = true;
+            cell.costUsd = null;
+          }
           cell.status = 'skipped';
           cell.reason = report.status === 'cancelled' ? 'cancelled' : 'interrupted';
+        }
+        for (const step of cell.toolSteps ?? []) {
+          if (step.status === 'running') step.costUsd = null;
+          if (step.status === 'queued' || step.status === 'running') {
+            step.status = 'skipped';
+            step.reason = report.status === 'cancelled' ? 'cancelled' : 'interrupted';
+          }
         }
       }
       report.finishedAt = new Date().toISOString();
@@ -446,17 +483,30 @@ export class ComparisonRunner {
       const cell = report.cells.find(
         (cell) => cell.caseIndex === caseIndex && cell.modelId === modelId,
       );
+      const task = report.cases[caseIndex];
+      const final = cell?.toolSteps?.at(-1);
       if (
         !cell ||
         cell.output === null ||
         cell.outputTruncated ||
-        report.cases[caseIndex]?.check !== 'manual' ||
+        task?.check !== 'manual' ||
+        task.toolMode === 'call' ||
+        (task.toolMode === 'loop' &&
+          (final?.phase !== 'final' ||
+            final.reason !== 'manual' ||
+            !cell.toolSteps
+              ?.slice(0, -1)
+              .every((step) => step.phase === 'call' && step.status === 'passed'))) ||
         !['passed', 'failed', 'review'].includes(cell.status)
       ) {
         throw new ComparisonError('Only manual answers can be reviewed');
       }
       cell.status = status;
       cell.reason = 'manual';
+      if (task.toolMode === 'loop' && final) {
+        final.status = status;
+        final.reason = 'manual';
+      }
       await this.#save(report);
       return report;
     });

@@ -1,11 +1,13 @@
 # Compare models on your tasks
 
 An administrator can open **Compare models**, choose an existing gateway key, select 2–4 enabled
-models, and enter 1–20 representative text tasks. The first selected model is the baseline.
+models, and enter 1–20 representative text, JSON or function-call tasks. The first selected model
+is the baseline.
 Cloud models need both input and output prices. Choose a comparison budget and output token limit,
 estimate the cost, then explicitly start the run. Estimating does not contact providers.
 
-Every task runs once per model, sequentially, through the normal gateway. The selected key's team,
+Every text or call-only task uses one request per model; a tool loop uses 2–4 requests per model.
+Tasks run sequentially through the normal gateway. The selected key's team,
 model allowlists, limits, privacy rules and rate limit still apply. The response cache is bypassed.
 Active routing profiles are also bypassed so the comparison exercises the selected models.
 These are real provider requests and appear in the request log. Only one comparison runs at a time.
@@ -19,6 +21,10 @@ Checks available:
 - **Exact answer:** case-sensitive equality after trimming surrounding whitespace.
 - **JSON:** the entire response must parse as JSON, without Markdown fences. An optional expected
   object is checked as a subset; arrays and scalar values must match exactly.
+
+Tasks can also check an expected function and exact JSON arguments or a short ordered tool loop
+with fixed results and a final-answer check. The runner executes model requests only.
+See [tool evaluations](tool-evaluations.md) for the scenario format and protocol limits.
 
 A response cut off by the output limit, missing text, or an Ollama context warning fails.
 A response served by a substituted model is marked skipped and names the actual model.
@@ -65,6 +71,8 @@ Example task file:
 ]
 ```
 
-After a completed comparison, **Apply to real requests** offers candidates that passed every task
-and cost less than the first selected baseline. Applying is an explicit admin action for a chosen
-key; see [routing profiles](routing-profiles.md). Comparisons do not evaluate tool-using coding agents.
+After a completed text-only comparison, **Apply to real requests** offers candidates that passed
+every task and cost less than the first selected baseline. Applying is an explicit admin action for a chosen
+key; see [routing profiles](routing-profiles.md). Reports with tool scenarios cannot activate those
+profiles. Fixed tool scenarios evaluate the chosen examples, without establishing full
+coding-agent quality.

@@ -4,6 +4,7 @@ import { evaluationError } from '../i18n/evaluations.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, type TaskSetRow, unwrap } from '../lib/api.ts';
 import { fmtDate } from '../lib/format.ts';
+import { normalizeToolScenario, validComparisonTask } from './ToolScenarioEditor.tsx';
 import { Button, ErrorNote, Field, Select, Status } from './ui.tsx';
 
 export function taskContent(input: TaskSetInput): TaskSetInput {
@@ -12,16 +13,22 @@ export function taskContent(input: TaskSetInput): TaskSetInput {
     system: input.system,
     maxOutputTokens: input.maxOutputTokens,
     cases: input.cases.map((task) => ({
-      ...task,
       name: task.name.trim(),
       prompt: task.prompt.trim(),
+      check: task.check,
+      expected: task.expected,
+      ...(task.tools ? { tools: normalizeToolScenario(task.tools) } : {}),
     })),
   };
 }
 export function matchesTaskSet(input: TaskSetInput, row: TaskSetRow) {
-  const { name: _inputName, ...value } = taskContent(input);
-  const { name: _savedName, ...saved } = row.content;
-  return JSON.stringify(value) === JSON.stringify(saved);
+  try {
+    const { name: _inputName, ...value } = taskContent(input);
+    const { name: _savedName, ...saved } = taskContent(row.content);
+    return JSON.stringify(value) === JSON.stringify(saved);
+  } catch {
+    return false;
+  }
 }
 export const taskSetsQuery = {
   queryKey: ['task-sets'],
@@ -83,6 +90,7 @@ export function TaskSetLibrary({
   const blocked =
     disabled || load.isPending || save.isPending || remove.isPending || !!me?.gateway.demo;
   const editable = settings.data?.storePrompts === true;
+  const valid = input.cases.every(validComparisonTask);
   const metadata = sets.data?.find(
     (row) => row.id === selected?.id && row.revision === selected.revision,
   );
@@ -133,7 +141,7 @@ export function TaskSetLibrary({
       />
       <div className="flex flex-wrap gap-2">
         <Button
-          disabled={blocked || !editable || !input.name.trim()}
+          disabled={blocked || !editable || !input.name.trim() || !valid}
           onClick={() => save.mutate(false)}
         >
           {t.save}
@@ -143,7 +151,7 @@ export function TaskSetLibrary({
             <Button disabled={blocked || !editable} onClick={() => load.mutate(selected.id)}>
               {t.load}
             </Button>
-            <Button disabled={blocked || !editable} onClick={() => save.mutate(true)}>
+            <Button disabled={blocked || !editable || !valid} onClick={() => save.mutate(true)}>
               {t.update}
             </Button>
             <Button disabled={blocked} onClick={() => onSelect(null)}>

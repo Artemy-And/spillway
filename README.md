@@ -43,15 +43,19 @@ For a setup you keep, use [Docker Compose](#quick-start).
 
 Completed milestones and upcoming development: [roadmap](ROADMAP.md).
 
-- **Compare models on your own tasks.** Run the same text or JSON tasks on 2–4 models, check their
-  answers, compare recorded costs and latency, and manually review free-text results. Includes a
+- **Compare models on your own tasks.** Run the same text, JSON or function-call tasks on 2–4
+  models, check their answers, compare recorded costs and latency, and manually review free-text results. Includes a
   comparison budget, cancellation, and downloadable reports. [How it works](docs/model-comparison.md).
+
+- **Test tool decisions before choosing an agent model.** Check the expected function and JSON
+  arguments, or replay a short loop with fixed tool results and check its final answer. Track every
+  turn's costs and regressions without executing real tools. [Tool evaluations](docs/tool-evaluations.md).
 
 - **Repeat checks and detect model regressions.** Save synthetic task sets, choose a reference run,
   and see which previously passing tasks now fail. Compare matching costs and latency; keep errors
   and unreviewed answers separate from quality changes. [Reusable evaluations](docs/repeated-evaluations.md).
 
-- **Apply a tested cheaper model to real traffic.** Turn a completed comparison into a routing
+- **Apply a tested cheaper model to real traffic.** Turn a completed text comparison into a routing
   profile for a chosen key, retain permissions and privacy checks, and optionally fall back to the
   baseline on provider failure. Follow recorded API spend and clearly labelled estimated savings.
   [Routing profiles](docs/routing-profiles.md).
@@ -254,8 +258,8 @@ not match the version in `package.json`. Every push to `main` also publishes an 
 
 Semantic caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
 wire formats (most models are reachable through one of them). If you need these today, LiteLLM or
-Bifrost cover more of them. Budgets count spend from the log, so parallel requests can overshoot a
-limit by the cost of the requests already in flight.
+Bifrost cover more of them. Budget reservations coordinate parallel cloud requests; estimates can
+still differ from reported charges and provider invoices.
 
 ## Using Spillway at your company
 

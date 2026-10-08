@@ -1,7 +1,8 @@
 # Reusable tasks and repeated evaluations
 
 In **Compare models → Saved task sets**, an administrator can save the current 1–20 tasks,
-their success checks and expected answers, system instructions and output token cap. The current
+their success checks and expected answers, system instructions and output token cap. Tool tasks
+also retain function definitions, expected call sequences and fixed results. The current
 comparison name becomes the set's name. Loading a set restores those fields. The gateway key,
 2–4 models and comparison budget remain a per-run choice.
 
@@ -19,7 +20,9 @@ archived. Prior reports retain their revision identifier and a SHA-256 content f
 revision used by an older report.
 
 The fingerprint covers system instructions, ordered task names/prompts/checks/expected answers
-and the output cap. Renaming the set itself does not change the evaluation definition. Different
+and the output cap. For tool scenarios it also covers their mode, ordered definitions, raw JSON
+schema/argument strings and fixed results; reformatting those strings changes the fingerprint.
+Renaming the set itself does not change the evaluation definition. Different
 keys, budgets and model selections are allowed; costs and quality are matched by the same logical
 model IDs and task indices. Detected model/provider/price changes are flagged in the result.
 
@@ -61,6 +64,8 @@ and electricity. Prices, server load and provider variation can affect the measu
 
 One run is an observation on the chosen tasks, not statistical proof or a general quality claim.
 Spillway shows changes for review and does not disable or replace active routing profiles.
+[Function-call and tool-loop tasks](tool-evaluations.md) use the same reference workflow, with
+cost and latency measured across their whole sequence. Their reports cannot create live text profiles.
 
 ## Storage and access
 
