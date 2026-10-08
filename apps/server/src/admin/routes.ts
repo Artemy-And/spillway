@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createInvite } from '../auth/invites.ts';
 import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
+import { BudgetError, usage as budgetUsage, listHolds, reconcile } from '../budget/ledger.ts';
 import { comparisonRoutes } from '../comparison/routes.ts';
 import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
@@ -35,7 +36,7 @@ import {
   rulesSchema,
   settingsPatch,
 } from '../settings.ts';
-import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
+import { failingProviders, keySpend, overview, type Period } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
 /** USD per million tokens */
@@ -266,18 +267,35 @@ export function adminRoutes(ctx: AppContext) {
           .all();
         const spend = await keySpend(db, keyIds, calendarOf(await ctx.settings.get()));
         return c.json(
-          rows.map(({ key, owner, ownerEmail, team }) => {
-            const { hash: _hash, ...safe } = key;
-            const usage = spend.get(key.id);
-            return {
-              ...safe,
-              owner: owner ?? ownerEmail ?? null,
-              team,
-              spentToday: usage?.today ?? 0,
-              spentMonth: usage?.month ?? 0,
-              requestsMonth: usage?.requests ?? 0,
-            };
-          }),
+          await Promise.all(
+            rows.map(async ({ key, owner, ownerEmail, team }) => {
+              const { hash: _hash, ...safe } = key;
+              const usage = spend.get(key.id);
+              const cal = calendarOf(await ctx.settings.get());
+              const today = await budgetUsage(db, 'key', key.id, cal.startOfDay());
+              const month = await budgetUsage(db, 'key', key.id, cal.startOfMonth());
+              return {
+                ...safe,
+                owner: owner ?? ownerEmail ?? null,
+                team,
+                spentToday: today.spentUsd,
+                spentMonth: month.spentUsd,
+                activeToday: today.activeUsd,
+                activeMonth: month.activeUsd,
+                uncertainToday: today.uncertainUsd,
+                uncertainMonth: month.uncertainUsd,
+                remainingToday:
+                  key.dailyLimitUsd === null
+                    ? null
+                    : Math.max(0, key.dailyLimitUsd - today.committedUsd),
+                remainingMonth:
+                  key.monthlyLimitUsd === null
+                    ? null
+                    : Math.max(0, key.monthlyLimitUsd - month.committedUsd),
+                requestsMonth: usage?.requests ?? 0,
+              };
+            }),
+          ),
         );
       })
 
@@ -325,7 +343,6 @@ export function adminRoutes(ctx: AppContext) {
         const now = new Date();
         const cal = calendarOf(await ctx.settings.get());
         const rows = await db.select().from(teams).orderBy(teams.name).all();
-        const spend = await teamSpend(db, cal, now);
         const keyCounts = await db
           .select({ teamId: apiKeys.teamId, count: sql<number>`count(*)` })
           .from(apiKeys)
@@ -336,15 +353,24 @@ export function adminRoutes(ctx: AppContext) {
         const monthLength = cal.startOfNextMonth(now).getTime() - monthStart;
         const elapsed = Math.max(now.getTime() - monthStart, 3_600_000);
         return c.json(
-          rows.map((team) => {
-            const spent = spend.get(team.id) ?? 0;
-            return {
-              ...team,
-              spentMonth: spent,
-              forecast: (spent / elapsed) * monthLength,
-              keys: keyCounts.find((row) => row.teamId === team.id)?.count ?? 0,
-            };
-          }),
+          await Promise.all(
+            rows.map(async (team) => {
+              const usage = await budgetUsage(db, 'team', team.id, cal.startOfMonth(now));
+              const spent = usage.spentUsd;
+              return {
+                ...team,
+                spentMonth: spent,
+                activeMonth: usage.activeUsd,
+                uncertainMonth: usage.uncertainUsd,
+                remainingMonth:
+                  team.monthlyBudgetUsd === null
+                    ? null
+                    : Math.max(0, team.monthlyBudgetUsd - usage.committedUsd),
+                forecast: (spent / elapsed) * monthLength,
+                keys: keyCounts.find((row) => row.teamId === team.id)?.count ?? 0,
+              };
+            }),
+          ),
         );
       })
 
@@ -831,5 +857,24 @@ export function adminRoutes(ctx: AppContext) {
       })
       .route('/comparisons', comparisonRoutes(ctx))
       .route('/routing-profiles', routingProfileRoutes(ctx))
+      .get('/budget-holds', async (c) =>
+        c.json(await listHolds(db, await ownKeyIds(ctx, c.get('user')))),
+      )
+      .patch(
+        '/budget-holds/:id',
+        adminOnly,
+        idParam,
+        zValidator('json', z.object({ chargedUsd: z.number().min(0).max(1_000_000) })),
+        async (c) => {
+          try {
+            return c.json(
+              await reconcile(ctx, c.req.valid('param').id, c.req.valid('json').chargedUsd),
+            );
+          } catch (error) {
+            if (error instanceof BudgetError) return c.json({ error: error.message }, 409);
+            throw error;
+          }
+        },
+      )
   );
 }

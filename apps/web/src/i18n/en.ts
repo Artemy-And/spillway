@@ -3,6 +3,7 @@ import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
 import { comparisonMessages } from './comparisons.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
+import { budgetMessages, budgetTrace } from './reservations.ts';
 
 const p = plural('en');
 
@@ -25,6 +26,7 @@ const pii = {
 
 export const en = {
   comparisons: comparisonMessages.en,
+  reservations: budgetMessages.en,
   profiles: profileMessages.en,
   common: {
     save: 'Save',
@@ -484,6 +486,11 @@ export const en = {
 
   /** The "why" of a request, step by step. */
   trace: {
+    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.en.traceReconciled, t),
+    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.en.traceReserved, t),
+    budgetReservationDenied: () => budgetMessages.en.traceDenied,
+    budgetEstimateUnknown: () => budgetMessages.en.traceUnknown,
+    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.en.traceUnknownCharge, t),
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.en, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.en, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.en, 'traceFallback', t),

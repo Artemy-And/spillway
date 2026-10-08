@@ -42,9 +42,26 @@ Implementation details and limitations: [model comparison](docs/model-comparison
 Implementation details and limits: [routing profiles](docs/routing-profiles.md).
 The comparison-to-profile workflow is implemented; validation with real teams remains planned.
 
+## Stage 3 — Account for concurrent calls and uncertain charges
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Reserve estimated cloud costs atomically in SQLite against key daily/monthly limits and the team budget.
+- [x] Set an explicit output cap for limited cloud requests when the client omitted one.
+- [x] Settle final usage and retain uncertain amounts after failed calls, missing usage and interrupted streams.
+- [x] Account for embeddings and separate cloud fallback attempts; avoid double-counting legacy logs.
+- [x] Recover interrupted reservations on startup without assuming provider attempts were free.
+- [x] Show recorded spend, active/uncertain reserves and available allowances in the UI.
+- [x] Let admins reconcile verified provider charges; restrict member visibility to owned keys.
+- [x] Add 17 tests including a 40-request burst, shared team budgets, independent SQLite connections,
+  recovery after reopening the database, streaming, fallback, cache and reconciliation.
+- [x] Validate the implementation: all 178 server tests, both type checks, lint and web build passed.
+
+Implementation details and limits: [budget reservations](docs/budget-reservations.md).
+Estimates coordinate admission; they do not guarantee a provider invoice cap.
+
 ## Later stages — Planned
 
-- [ ] Improve budget accounting for concurrent requests and unknown or partial provider charges.
 - [ ] Expand capability checks and evaluation to supported tool-using workflows.
 - [ ] Add reusable task sets and repeated evaluations to detect model regressions.
 - [ ] Explore model aliases, provider pools and session affinity, taking inspiration from

@@ -61,6 +61,10 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
   per team and per key. Prices of well-known models fill in when you add them, and a cloud model
   without a price is flagged instead of quietly counting as free.
+- **Budget reservations for concurrent calls.** Cloud estimates reserve the key and team budget
+  before each provider attempt. Reported charges settle the estimate; unknown charges retain the
+  remainder for admin verification. See active reserves and available budget in the UI.
+  [How budget accounting works](docs/budget-reservations.md).
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
 - **Team budgets and four routing rules**: switch to the local model at N% of the team budget, keep

@@ -123,7 +123,10 @@ export class Meter {
 
   /** Embeddings bill their input only. */
   embeddingsResponse(res: { usage?: { prompt_tokens?: number } | null }) {
-    this.inputTokens = res.usage?.prompt_tokens ?? 0;
+    const input = res.usage?.prompt_tokens;
+    this.#knownInput = Number.isSafeInteger(input) && input! >= 0;
+    this.#knownOutput = true;
+    this.inputTokens = this.#knownInput ? input! : 0;
   }
 
   anthropicEvent(event: AStreamEvent) {

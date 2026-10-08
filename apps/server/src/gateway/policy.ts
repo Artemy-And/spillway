@@ -1,4 +1,5 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { usage } from '../budget/ledger.ts';
 import type { AppContext } from '../context.ts';
 import type { Db } from '../db/client.ts';
 import {
@@ -9,7 +10,6 @@ import {
   providers,
   type Result,
   type RoutingProfile,
-  requestLogs,
   type Team,
   type TraceStep,
   type TraceTone,
@@ -82,20 +82,6 @@ export async function findModel(db: Db, where: ReturnType<typeof eq>): Promise<T
     .where(and(where, eq(models.enabled, true)))
     .get();
   return row ?? null;
-}
-
-async function spent(
-  db: Db,
-  column: typeof requestLogs.keyId | typeof requestLogs.teamId,
-  id: string,
-  since: Date,
-) {
-  const row = await db
-    .select({ total: sql<number>`coalesce(sum(${requestLogs.costUsd}), 0)` })
-    .from(requestLogs)
-    .where(and(eq(column, id), gte(requestLogs.createdAt, since)))
-    .get();
-  return row?.total ?? 0;
 }
 
 interface Input {
@@ -245,26 +231,26 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       hard: boolean;
     } | null = null;
 
-    const keyDay =
-      key.dailyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
-        : 0;
-    const keyMonth =
+    const keyDayUsage =
+      key.dailyLimitUsd != null ? await usage(ctx.db, 'key', key.id, cal.startOfDay(now)) : null;
+    const keyMonthUsage =
       key.monthlyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now))
-        : 0;
+        ? await usage(ctx.db, 'key', key.id, cal.startOfMonth(now))
+        : null;
+    const keyDay = keyDayUsage?.committedUsd ?? 0;
+    const keyMonth = keyMonthUsage?.committedUsd ?? 0;
     const teamMonth =
       team?.monthlyBudgetUsd != null
-        ? await spent(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
+        ? (await usage(ctx.db, 'team', team.id, cal.startOfMonth(now))).committedUsd
         : 0;
 
     if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
       reroute = {
         reason: step(
           'warn',
-          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDay)} spent)`,
+          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDayUsage!.spentUsd)} recorded, ${usd(keyDay - keyDayUsage!.spentUsd)} reserved)`,
           'keyDailyLimit',
-          { key: key.name, limit: key.dailyLimitUsd, spent: keyDay },
+          { key: key.name, limit: key.dailyLimitUsd, spent: keyDayUsage!.spentUsd },
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
@@ -274,9 +260,9 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       reroute = {
         reason: step(
           'warn',
-          `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonth)} spent)`,
+          `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonthUsage!.spentUsd)} recorded, ${usd(keyMonth - keyMonthUsage!.spentUsd)} reserved)`,
           'keyMonthlyLimit',
-          { key: key.name, limit: key.monthlyLimitUsd, spent: keyMonth },
+          { key: key.name, limit: key.monthlyLimitUsd, spent: keyMonthUsage!.spentUsd },
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
@@ -348,7 +334,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       const local = settings.localModelId
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
         : null;
-      if (!reroute.allowed || !local || !allowed(caller, local.model.id)) {
+      if (!reroute.allowed || !local?.provider.isLocal || !allowed(caller, local.model.id)) {
         const blocked = !reroute.allowed
           ? step(
               'block',
@@ -372,7 +358,9 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       );
     } else {
       const parts = [
-        key.dailyLimitUsd != null ? `key ${usd(keyDay)} of ${usd(key.dailyLimitUsd)} today` : null,
+        key.dailyLimitUsd != null
+          ? `key ${usd(keyDayUsage!.spentUsd)} of ${usd(key.dailyLimitUsd)} today`
+          : null,
         team?.monthlyBudgetUsd
           ? `${team.name} at ${Math.round((teamMonth / team.monthlyBudgetUsd) * 100)}% of ${usd(team.monthlyBudgetUsd)}`
           : null,
@@ -380,7 +368,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       trace.push(
         parts.length
           ? step('ok', `Within budget: ${parts.join(' · ')}`, 'withinBudget', {
-              keySpent: key.dailyLimitUsd != null ? keyDay : null,
+              keySpent: key.dailyLimitUsd != null ? keyDayUsage!.spentUsd : null,
               keyLimit: key.dailyLimitUsd,
               team: team?.monthlyBudgetUsd ? team.name : null,
               teamPercent: team?.monthlyBudgetUsd

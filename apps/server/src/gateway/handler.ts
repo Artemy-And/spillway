@@ -1,5 +1,15 @@
-import { and, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, type SQL, sql } from 'drizzle-orm';
 import type { Context } from 'hono';
+import { admit } from '../budget/admission.ts';
+import { cappedBody, unmodeledFees } from '../budget/estimate.ts';
+import {
+  attemptTotals,
+  chargedSql,
+  knownSql,
+  type Reservation,
+  release,
+  settle,
+} from '../budget/ledger.ts';
 import type { AppContext } from '../context.ts';
 import {
   apiKeys,
@@ -543,7 +553,22 @@ export async function writeLog(
   keyId: string,
 ): Promise<void> {
   try {
-    await ctx.db.insert(requestLogs).values(row);
+    const tracked =
+      row.id && typeof row.costKnown === 'boolean'
+        ? sql`exists(select 1 from budget_reservations b where b.request_id = ${row.id})`
+        : null;
+    await ctx.db.insert(requestLogs).values(
+      tracked
+        ? {
+            ...row,
+            costUsd: sql`case when ${tracked} then ${chargedSql(row.id!)} else ${row.costUsd ?? 0} end`,
+            costKnown: sql`case when ${tracked} then ${knownSql(row.id!)} else ${row.costKnown ? 1 : 0} end`,
+            routingCostKnown: row.routingProfileId
+              ? sql`case when ${tracked} then ${knownSql(row.id!)} else ${row.routingCostKnown === null ? null : row.routingCostKnown ? 1 : 0} end`
+              : null,
+          }
+        : row,
+    );
     await ctx.db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, keyId));
   } catch (error) {
     console.error('Failed to write request log', error);
@@ -600,6 +625,7 @@ export async function handleGateway(
   const id = shortId('req');
   const base: typeof requestLogs.$inferInsert = {
     id,
+    createdAt: new Date(started),
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
@@ -621,6 +647,7 @@ export async function handleGateway(
     providerName: decision.target?.provider.name ?? null,
     status: decision.status,
     result: decision.result,
+    costKnown: true,
     ruleId: decision.ruleId,
     trace: decision.trace,
     stream,
@@ -638,7 +665,7 @@ export async function handleGateway(
 
   // With the cache on, a repeated request gets the stored answer. Only whole answers from the
   // model that was asked for are kept, and never for prompts with personal data in them.
-  const cacheId =
+  let cacheId =
     settings.cache.enabled &&
     !stream &&
     (decision.result === 'ok' ||
@@ -646,7 +673,20 @@ export async function handleGateway(
         decision.target.model.id === decision.routingProfile?.candidateModelId)) &&
     !base.pii &&
     wantsCache(c.req.raw.headers)
-      ? cacheKey(caller.key.id, decision.target.model, format, body)
+      ? cacheKey(
+          caller.key.id,
+          decision.target.model,
+          format,
+          cappedBody(
+            format,
+            body,
+            !decision.target.provider.isLocal &&
+              (caller.key.dailyLimitUsd !== null ||
+                caller.key.monthlyLimitUsd !== null ||
+                caller.team?.monthlyBudgetUsd != null),
+            format === 'openai' && speaksResponses(decision.target.provider),
+          ),
+        )
       : null;
   const hit = cacheId ? await cached(ctx, cacheId) : null;
   if (hit) {
@@ -681,26 +721,84 @@ export async function handleGateway(
     });
   }
 
-  let target = decision.target;
-  let result = decision.result;
-  let trace: TraceStep[] = decision.trace;
+  const admission = await admit(ctx, {
+    caller,
+    target: decision.target,
+    requestedModelId: decision.requested!.model.id,
+    requestId: id,
+    body,
+    format,
+    settings,
+  });
+  if (admission.denied) {
+    await writeLog(
+      ctx,
+      {
+        ...base,
+        servedModelId: null,
+        servedModel: null,
+        providerName: null,
+        servedLocal: false,
+        status: admission.status,
+        result: 'blocked_budget',
+        routingOutcome: decision.routingProfile ? 'policy' : null,
+        routingCostKnown: decision.routingProfile ? true : null,
+        trace: [...decision.trace, ...admission.trace],
+        latencyMs: Date.now() - started,
+      },
+      caller.key.id,
+    );
+    const response = errorResponse(format, admission.status, admission.message, 'blocked_budget');
+    response.headers.set('x-spillway-request-id', id);
+    response.headers.set('x-spillway-result', 'blocked_budget');
+    return response;
+  }
+  let target = admission.target;
+  let reservation: Reservation | null = admission.reservation;
+  body = admission.body;
+  if (target.model.id !== decision.target.model.id) cacheId = null;
+  let result = target.model.id === decision.target.model.id ? decision.result : 'rerouted';
+  let trace: TraceStep[] = [...decision.trace, ...admission.trace];
   let outage = false;
   let profileFallbackUsed = false;
-  let failedCloudAttempt = false;
   const attemptedModelId = target.model.id;
   const meter = new Meter();
+  const settleAttempt = async (error?: unknown) => {
+    if (!reservation) return;
+    const known =
+      error === undefined &&
+      !unmodeledFees(body, target, format) &&
+      meter.usageKnown &&
+      target.model.inputPrice !== null &&
+      target.model.outputPrice !== null;
+    await settle(
+      ctx.db,
+      reservation,
+      meter.cost(target.model),
+      known,
+      error === undefined ? 'missingUsage' : 'providerError',
+    );
+    reservation = null;
+  };
   const finish = async (status: number, error?: unknown) => {
-    const cost = target.provider.isLocal ? 0 : meter.cost(target.model);
+    await settleAttempt(error);
+    const totals = await attemptTotals(ctx.db, id);
+    const cost = totals.costUsd;
+    if (!totals.known)
+      trace.push(
+        step(
+          'warn',
+          'Provider charges are unknown; remaining estimate stays reserved',
+          'budgetUncertain',
+          { amount: totals.heldUsd },
+        ),
+      );
     const requestedCost = decision.requested ? meter.cost(decision.requested.model) : cost;
     const failed = error !== undefined;
     const message = failed ? (error instanceof Error ? error.message : String(error)) : null;
     const cut =
       !failed && target.provider.kind === 'ollama' ? promptCut(body, meter.totalInput) : null;
-    const pricesKnown = target.model.inputPrice !== null && target.model.outputPrice !== null;
-    const routingCostKnown =
-      !failedCloudAttempt &&
-      (!failed || target.provider.isLocal) &&
-      (target.provider.isLocal || (meter.usageKnown && pricesKnown));
+    const routingCostKnown = totals.known;
     const eligible =
       decision.routingApplied &&
       !failed &&
@@ -734,6 +832,7 @@ export async function handleGateway(
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
         costUsd: cost,
+        costKnown: totals.known,
         // A failover is not a saving: the cloud model was not going to answer anyway.
         savedUsd:
           result === 'rerouted' && !outage && !decision.routingProfile
@@ -777,9 +876,15 @@ export async function handleGateway(
   try {
     let forwarded: Forwarded;
     try {
+      if (c.req.raw.signal.aborted) {
+        if (reservation) await release(ctx.db, reservation);
+        reservation = null;
+        throw c.req.raw.signal.reason ?? new Error('Client disconnected');
+      }
       forwarded = await forward(ctx, c, format, body, target, stream, meter);
     } catch (error) {
-      failedCloudAttempt = !target.provider.isLocal;
+      await settleAttempt(error);
+      if (c.req.raw.signal.aborted) throw error;
       const freshCaller = await callerForKey(ctx, caller.key.id);
       if (!freshCaller) throw error;
       const fallbackSettings = await ctx.settings.get();
@@ -794,14 +899,29 @@ export async function handleGateway(
         format,
         scan.found,
       );
-      const local =
+      let local =
         baseline ?? (await failoverTarget(ctx, freshCaller, target, fallbackSettings, error));
       if (!local) throw error;
+      const fallbackAdmission = await admit(ctx, {
+        caller: freshCaller,
+        target: local,
+        requestedModelId: decision.requested!.model.id,
+        requestId: id,
+        body,
+        format,
+        settings: fallbackSettings,
+        allowLocal: fallbackSettings.rerouteOnFailure,
+      });
+      if (fallbackAdmission.denied) throw error;
+      local = fallbackAdmission.target;
+      reservation = fallbackAdmission.reservation;
+      body = fallbackAdmission.body;
       const reason = (error as Error).message;
       const failedProvider = target.provider.name;
-      profileFallbackUsed = !!baseline;
+      profileFallbackUsed = !!baseline && local.model.id === baseline.model.id;
       trace = [
         ...trace,
+        ...fallbackAdmission.trace,
         step('warn', reason, 'providerFailed', { provider: failedProvider, message: reason }),
         step(
           'info',
@@ -813,7 +933,7 @@ export async function handleGateway(
           },
         ),
       ];
-      if (baseline && decision.routingProfile) {
+      if (profileFallbackUsed && baseline && decision.routingProfile) {
         trace.push(
           step(
             'warn',
@@ -824,7 +944,7 @@ export async function handleGateway(
         );
       }
       target = local;
-      result = baseline ? 'ok' : 'rerouted';
+      result = profileFallbackUsed ? 'ok' : 'rerouted';
       outage = true;
       meter.reset();
       forwarded = await forward(ctx, c, format, body, local, stream, meter);
@@ -844,7 +964,7 @@ export async function handleGateway(
       }
     });
     // Comparisons read the finished log before sending the next request or checking its budget.
-    if ((internalCaller || decision.routingProfile) && !stream) await logged;
+    if (!stream) await logged;
     else void logged;
     if (cacheId) response.headers.set('x-spillway-cache', 'miss');
     response.headers.set('x-spillway-request-id', id);

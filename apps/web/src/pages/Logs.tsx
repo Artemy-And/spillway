@@ -233,7 +233,9 @@ function Details({ log }: { log: LogDetail }) {
         <dt className="text-muted">{m.logs.cost}</dt>
         <dd>
           <span className="font-mono text-xs">{fmtUsd(log.costUsd)}</span>
-          {log.routingCostKnown === false && <span className="text-warn-fg"> + ?</span>}
+          {(log.costKnown === false || log.routingCostKnown === false) && (
+            <span className="text-warn-fg"> + ?</span>
+          )}
           {log.savedUsd > 0 && (
             <span className="text-accent-strong"> {m.logs.savedAmount(fmtUsd(log.savedUsd))}</span>
           )}
@@ -246,6 +248,9 @@ function Details({ log }: { log: LogDetail }) {
           {log.stream && ` · ${m.logs.streaming}`}
         </dd>
       </dl>
+      {log.costKnown === false && (
+        <p className="text-xs text-warn-fg">{m.reservations.unknownLog}</p>
+      )}
 
       {log.routingProfileName && (
         <div className="space-y-2 text-[13px]">

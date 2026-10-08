@@ -138,6 +138,32 @@ export const apiKeys = sqliteTable(
   (t) => [index('api_keys_user_idx').on(t.userId), index('api_keys_team_idx').on(t.teamId)],
 );
 
+/** One row per cloud attempt; no prompts, answers or credentials. Unknown holds need reconciliation. */
+export const budgetReservations = sqliteTable(
+  'budget_reservations',
+  {
+    id: id(),
+    requestId: text('request_id').notNull(),
+    keyId: text('key_id').references(() => apiKeys.id, { onDelete: 'set null' }),
+    teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
+    modelName: text('model_name').notNull(),
+    providerName: text('provider_name').notNull(),
+    state: text('state', { enum: ['active', 'unknown', 'settled', 'released'] }).notNull(),
+    estimatedUsd: real('estimated_usd').notNull(),
+    heldUsd: real('held_usd').notNull(),
+    chargedUsd: real('charged_usd').notNull().default(0),
+    reason: text('reason'),
+    createdAt: createdAt(),
+    settledAt: timestamp('settled_at'),
+  },
+  (t) => [
+    index('budget_key_idx').on(t.keyId, t.createdAt),
+    index('budget_team_idx').on(t.teamId, t.createdAt),
+    index('budget_request_idx').on(t.requestId),
+    index('budget_state_idx').on(t.state),
+  ],
+);
+
 export const requestLogs = sqliteTable(
   'request_logs',
   {
@@ -160,6 +186,7 @@ export const requestLogs = sqliteTable(
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
     costUsd: real('cost_usd').notNull().default(0),
+    costKnown: integer('cost_known', { mode: 'boolean' }),
     savedUsd: real('saved_usd').notNull().default(0),
     routingProfileId: text('routing_profile_id'),
     routingProfileName: text('routing_profile_name'),

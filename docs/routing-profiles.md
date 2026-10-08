@@ -30,7 +30,9 @@ Both the baseline and candidate must be allowed by the key and its team. Budgets
 privacy checks apply to the model actually selected. Local API calls have zero recorded API cost;
 hardware and operations are excluded. Exhausted budgets still use the gateway's existing local
 fallback or blocking behavior; an unavailable or disallowed configured local fallback blocks.
-Live budget checks continue to use recorded spend, without reservations for concurrent requests.
+Cloud calls now reserve estimated cost against the key and team budget before dispatch, including
+cloud baseline fallback. See [budget reservations](budget-reservations.md) for estimates and
+uncertain-charge reconciliation.
 
 If the candidate becomes unavailable or forbidden, or either model's configuration changes, the
 profile keeps the original model and explains why in the request trace. Changes to the provider,
@@ -59,8 +61,9 @@ with known usage and prices qualify. Cache hits, provider fallback, interrupted 
 usage and Ollama context-cut warnings do not increase this estimate.
 
 Failed cloud attempts can be charged even when the baseline or local fallback succeeds. Such
-requests are flagged as having unknown charges; recorded spend can contain only the known final
-attempt's cost. Logs and the profile page do not present these unknown charges as confirmed zero.
+requests are flagged as having unknown charges. Recorded spend includes measured charges from
+each cloud attempt, and the remaining estimate stays reserved until reconciliation. Logs and the
+profile page do not present these unknown charges as confirmed zero.
 Profile estimates are separate from the Overview's existing local-routing and cache savings.
 
 Request traces explain profile selection, skipping and baseline fallback. The gateway also returns

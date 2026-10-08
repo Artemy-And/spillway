@@ -1,4 +1,6 @@
 import type { Context } from 'hono';
+import { admit } from '../budget/admission.ts';
+import { attemptTotals, release, settle } from '../budget/ledger.ts';
 import type { AppContext } from '../context.ts';
 import type { requestLogs } from '../db/schema.ts';
 import { shortId } from '../lib/crypto.ts';
@@ -103,6 +105,7 @@ export async function handleEmbeddings(
   const id = shortId('req');
   const base: typeof requestLogs.$inferInsert = {
     id,
+    createdAt: new Date(started),
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: format === 'openai' ? 'openai' : 'ollama',
@@ -114,6 +117,7 @@ export async function handleEmbeddings(
     providerName: decision.target?.provider.name ?? null,
     status: decision.status,
     result: decision.result,
+    costKnown: true,
     ruleId: decision.ruleId,
     trace: [what, ...decision.trace],
     pii: Object.keys(scan.found).length ? scan.found : null,
@@ -161,6 +165,51 @@ export async function handleEmbeddings(
     return new Response(hit.body, { headers: headers('hit') });
   }
 
+  if (target.provider.kind === 'anthropic') {
+    const message = `${target.provider.name} has no embeddings API; pick an OpenAI-compatible or Ollama model`;
+    await writeLog(
+      ctx,
+      {
+        ...base,
+        status: 400,
+        result: 'error',
+        error: message,
+        trace: [...(base.trace ?? []), step('block', message, 'upstreamError', { message })],
+        latencyMs: Date.now() - started,
+      },
+      caller.key.id,
+    );
+    return errorResponse(errorFormat, 400, message);
+  }
+  const admission = await admit(ctx, {
+    caller,
+    target,
+    requestedModelId: target.model.id,
+    requestId: id,
+    body,
+    format: `embeddings:${format}`,
+    settings,
+    allowLocal: false,
+  });
+  if (admission.denied) {
+    await writeLog(
+      ctx,
+      {
+        ...base,
+        status: admission.status,
+        result: 'blocked_budget',
+        servedModelId: null,
+        servedModel: null,
+        providerName: null,
+        trace: [...(base.trace ?? []), ...admission.trace],
+        latencyMs: Date.now() - started,
+      },
+      caller.key.id,
+    );
+    return errorResponse(errorFormat, admission.status, admission.message, 'blocked_budget');
+  }
+  base.trace = [...(base.trace ?? []), ...admission.trace];
+
   // Cloud providers get the usual deadline; local models run on our own hardware.
   const upstream = new AbortController();
   const client = c.req.raw.signal;
@@ -178,13 +227,8 @@ export async function handleEmbeddings(
       );
 
   const meter = new Meter();
+  let dispatched = false;
   try {
-    if (target.provider.kind === 'anthropic') {
-      throw new UpstreamError(
-        `${target.provider.name} has no embeddings API; pick an OpenAI-compatible or Ollama model`,
-        400,
-      );
-    }
     const request =
       format === 'openai'
         ? { ...body, model: target.model.upstreamModel }
@@ -193,6 +237,8 @@ export async function handleEmbeddings(
             input,
             ...(typeof body.dimensions === 'number' ? { dimensions: body.dimensions } : {}),
           };
+    if (client.aborted) throw client.reason ?? new Error('Client disconnected');
+    dispatched = true;
     const res = await callUpstream(ctx, target.provider, '/embeddings', {
       body: request,
       signal: upstream.signal,
@@ -208,10 +254,19 @@ export async function handleEmbeddings(
         if (Array.isArray(item.embedding)) item.embedding = asBase64(item.embedding);
       }
     }
-    const costUsd = meter.cost(target.model);
+    const costUsd = target.provider.isLocal ? 0 : meter.cost(target.model);
+    const costKnown =
+      target.provider.isLocal || (meter.usageKnown && target.model.inputPrice !== null);
+    if (admission.reservation) await settle(ctx.db, admission.reservation, costUsd, costKnown);
     await writeLog(
       ctx,
-      { ...base, inputTokens: meter.totalInput, costUsd, latencyMs: Date.now() - started },
+      {
+        ...base,
+        inputTokens: meter.totalInput,
+        costUsd,
+        costKnown,
+        latencyMs: Date.now() - started,
+      },
       caller.key.id,
     );
     const out = format === 'openai' ? { ...json, model: target.model.name } : null;
@@ -222,6 +277,18 @@ export async function handleEmbeddings(
     }
     return new Response(text, { headers: headers(cacheId ? 'miss' : null) });
   } catch (error) {
+    if (admission.reservation) {
+      if (!dispatched) await release(ctx.db, admission.reservation);
+      else
+        await settle(
+          ctx.db,
+          admission.reservation,
+          meter.cost(target.model),
+          false,
+          'providerError',
+        );
+    }
+    const total = await attemptTotals(ctx.db, id);
     const status = error instanceof UpstreamError ? error.status : 502;
     const message = error instanceof Error ? error.message : 'Upstream request failed';
     await writeLog(
@@ -230,6 +297,8 @@ export async function handleEmbeddings(
         ...base,
         status,
         result: 'error',
+        costUsd: total.costUsd,
+        costKnown: total.known,
         latencyMs: Date.now() - started,
         error: message,
         trace: [...(base.trace ?? []), step('block', message, 'upstreamError', { message })],

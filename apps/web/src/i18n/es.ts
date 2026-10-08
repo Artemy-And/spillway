@@ -3,6 +3,7 @@ import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
+import { budgetMessages, budgetTrace } from './reservations.ts';
 
 const p = plural('es');
 
@@ -24,6 +25,7 @@ const times = (n: number) => p(n, { one: 'una vez', other: '# veces' });
 
 export const es: Messages = {
   comparisons: comparisonMessages.es,
+  reservations: budgetMessages.es,
   profiles: profileMessages.es,
   common: {
     save: 'Guardar',
@@ -505,6 +507,11 @@ export const es: Messages = {
   },
 
   trace: {
+    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.es.traceReconciled, t),
+    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.es.traceReserved, t),
+    budgetReservationDenied: () => budgetMessages.es.traceDenied,
+    budgetEstimateUnknown: () => budgetMessages.es.traceUnknown,
+    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.es.traceUnknownCharge, t),
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.es, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.es, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.es, 'traceFallback', t),

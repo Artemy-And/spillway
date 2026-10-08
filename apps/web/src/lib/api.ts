@@ -69,3 +69,4 @@ export type RoutingProfileRow = InferResponseType<
   200
 >[number];
 export type Rules = InferResponseType<typeof api.rules.$get, 200>;
+export type BudgetHoldRow = InferResponseType<(typeof api)['budget-holds']['$get'], 200>[number];

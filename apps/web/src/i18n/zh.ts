@@ -3,6 +3,7 @@ import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
+import { budgetMessages, budgetTrace } from './reservations.ts';
 
 // Chinese has one plural form; the helper still formats the number for us.
 const p = plural('zh');
@@ -23,6 +24,7 @@ const pii = {
 
 export const zh: Messages = {
   comparisons: comparisonMessages.zh,
+  reservations: budgetMessages.zh,
   profiles: profileMessages.zh,
   common: {
     save: '保存',
@@ -480,6 +482,11 @@ export const zh: Messages = {
   },
 
   trace: {
+    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceReconciled, t),
+    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceReserved, t),
+    budgetReservationDenied: () => budgetMessages.zh.traceDenied,
+    budgetEstimateUnknown: () => budgetMessages.zh.traceUnknown,
+    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceUnknownCharge, t),
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceFallback', t),

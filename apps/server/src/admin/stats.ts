@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
+import { holdSql, spentSql } from '../budget/ledger.ts';
 import type { Db } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import type { Calendar } from '../lib/time.ts';
@@ -23,32 +24,22 @@ const quarter = sql<number>`${requestLogs.createdAt} / ${QUARTER}`;
 export async function keySpend(db: Db, keyIds: string[] | null, cal: Calendar, now = new Date()) {
   const rows = await db
     .select({
-      keyId: requestLogs.keyId,
-      today: sum(
-        sql`case when ${requestLogs.createdAt} >= ${cal.startOfDay(now).getTime()} then ${requestLogs.costUsd} end`,
-      ),
-      month: sum(sql`${requestLogs.costUsd}`),
-      requests: sql<number>`count(*)`,
+      keyId: apiKeys.id,
+      today: spentSql('key', sql`${apiKeys.id}`, cal.startOfDay(now)),
+      month: spentSql('key', sql`${apiKeys.id}`, cal.startOfMonth(now)),
+      heldToday: holdSql('key', sql`${apiKeys.id}`, cal.startOfDay(now)),
+      requests: sql<number>`(select count(*) from request_logs l where l.key_id = ${sql`${apiKeys.id}`}
+      and l.created_at >= ${cal.startOfMonth(now).getTime()})`,
     })
-    .from(requestLogs)
-    .where(
-      and(
-        gte(requestLogs.createdAt, cal.startOfMonth(now)),
-        keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
-      ),
-    )
-    .groupBy(requestLogs.keyId)
-    .all();
+    .from(apiKeys)
+    .where(keyIds ? inArray(apiKeys.id, keyIds) : undefined);
   return new Map(rows.map((row) => [row.keyId, row]));
 }
 
 export async function teamSpend(db: Db, cal: Calendar, now = new Date()) {
   const rows = await db
-    .select({ teamId: requestLogs.teamId, month: sum(sql`${requestLogs.costUsd}`) })
-    .from(requestLogs)
-    .where(gte(requestLogs.createdAt, cal.startOfMonth(now)))
-    .groupBy(requestLogs.teamId)
-    .all();
+    .select({ teamId: teams.id, month: spentSql('team', sql`${teams.id}`, cal.startOfMonth(now)) })
+    .from(teams);
   return new Map(rows.map((row) => [row.teamId, row.month]));
 }
 
@@ -275,7 +266,7 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
   const spend = await keySpend(db, keyIds, cal, now);
 
   for (const { key, team } of keys) {
-    const today = spend.get(key.id)?.today ?? 0;
+    const today = (spend.get(key.id)?.today ?? 0) + (spend.get(key.id)?.heldToday ?? 0);
     if (key.dailyLimitUsd && today >= key.dailyLimitUsd * 0.8) {
       const percent = Math.round((today / key.dailyLimitUsd) * 100);
       out.push({

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { BudgetNumbers } from '../components/BudgetNumbers.tsx';
 import { CloseIcon, PlusIcon, SearchIcon } from '../components/icons.tsx';
 import {
   Aside,
@@ -55,12 +56,20 @@ const EMPTY: Draft = {
 function status(key: KeyRow, m: Messages): { label: string; tone: Tone } {
   const labels = m.keys.status;
   if (key.revokedAt) return { label: labels.revoked, tone: 'off' };
-  if (key.dailyLimitUsd != null && key.spentToday >= key.dailyLimitUsd) {
+  const committed = key.spentToday + key.activeToday + key.uncertainToday;
+  const monthlyCommitted = key.spentMonth + key.activeMonth + key.uncertainMonth;
+  if (
+    (key.dailyLimitUsd != null && committed >= key.dailyLimitUsd) ||
+    (key.monthlyLimitUsd != null && monthlyCommitted >= key.monthlyLimitUsd)
+  ) {
     return key.fallbackToLocal
       ? { label: labels.localOnly, tone: 'info' }
       : { label: labels.limitReached, tone: 'block' };
   }
-  if (key.dailyLimitUsd && key.spentToday >= key.dailyLimitUsd * 0.8)
+  if (
+    (key.dailyLimitUsd && committed >= key.dailyLimitUsd * 0.8) ||
+    (key.monthlyLimitUsd && monthlyCommitted >= key.monthlyLimitUsd * 0.8)
+  )
     return { label: labels.nearLimit, tone: 'warn' };
   return { label: labels.active, tone: 'ok' };
 }
@@ -231,7 +240,9 @@ export function KeysPage() {
               {visible.length === 0 && <Empty>{keys.length ? m.keys.noMatch : m.keys.none}</Empty>}
               {visible.map((key) => {
                 const s = status(key, m);
-                const used = key.dailyLimitUsd ? pct(key.spentToday, key.dailyLimitUsd) : 0;
+                const used = key.dailyLimitUsd
+                  ? pct(key.spentToday + key.activeToday + key.uncertainToday, key.dailyLimitUsd)
+                  : 0;
                 return (
                   <div
                     key={key.id}
@@ -277,6 +288,20 @@ export function KeysPage() {
                           {m.keys.todayNoLimit(fmtUsd(key.spentToday))}
                         </span>
                       )}
+                      <BudgetNumbers
+                        period={m.reservations.daily}
+                        spent={key.spentToday}
+                        active={key.activeToday}
+                        uncertain={key.uncertainToday}
+                        remaining={key.remainingToday}
+                      />
+                      <BudgetNumbers
+                        period={m.reservations.monthly}
+                        spent={key.spentMonth}
+                        active={key.activeMonth}
+                        uncertain={key.uncertainMonth}
+                        remaining={key.remainingMonth}
+                      />
                     </div>
                     <div className="text-[13px] text-ink-2">{fmtAgo(key.lastUsedAt)}</div>
                     <div>

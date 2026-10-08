@@ -452,7 +452,7 @@ test('changing a selected upstream model during a run skips that model instead o
   assert.equal(finished.cells[1]!.reason, 'unavailable');
 });
 
-test('an unpriced cloud replacement has unknown charges and stops remaining cloud calls', async (t) => {
+test('an unpriced cloud replacement cannot bypass an exhausted budget as the configured local model', async (t) => {
   const f = await fixture(t);
   const [replacement] = await f.ctx.db
     .insert(models)
@@ -465,9 +465,7 @@ test('an unpriced cloud replacement has unknown charges and stops remaining clou
   await f.ctx.settings.update({ localModelId: replacement!.id });
   await f.ctx.db.update(apiKeys).set({ dailyLimitUsd: 0 }).where(eq(apiKeys.id, f.chargedKey.id));
   const report = await f.finish((await f.create()).id);
-  assert.equal(report.cells[0]!.reason, 'rerouted');
-  assert.equal(report.cells[0]!.costUsd, null);
-  assert.equal(report.unknownCosts, true);
-  assert.equal(report.cells[1]!.reason, 'unknownCost');
-  assert.equal(f.calls.length, 1);
+  assert.ok(report.cells.every((cell) => cell.reason === 'policy' && cell.costUsd === 0));
+  assert.equal(report.unknownCosts, false);
+  assert.equal(f.calls.length, 0);
 });
