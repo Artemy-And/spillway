@@ -1,0 +1,1 @@
+ALTER TABLE `routing_profiles` ADD `rollout_percent` integer DEFAULT 100 NOT NULL;

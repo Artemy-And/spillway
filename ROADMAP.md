@@ -170,13 +170,28 @@ remain a separate extension. Stage 8 supports the documented bounded full-histor
 Implementation and limits: [model aliases](docs/model-aliases.md). Pools are explicit operator
 configuration; they do not by themselves establish quality or comparison evidence.
 
+## Stage 10 — Connect evaluations, gradual rollout and regression gates
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Choose a 0–100% candidate share for new evaluated tool sessions with deterministic cohort assignment.
+- [x] Preserve baseline/candidate bindings across share changes; 0% stops new candidate assignments without interrupting existing sessions.
+- [x] Add rollout controls in all six languages; new tool profiles in the UI start at an explicit 10% share.
+- [x] Add a CI CLI for replaying pinned saved revisions with an immutable reference and explicit spend cap.
+- [x] Reject unknown/over-budget estimates before spending; fail the gate for regressions, errors, unreviewed/unknown-cost results or missing reference coverage.
+- [x] Request cancellation on polling timeout/failure; leave profile/share increases under explicit operator control.
+- [x] Add integration coverage for both cohorts, share changes, concurrent assignment and an actual saved-task CI replay.
+- [x] Prepare the [3–5 team pilot protocol](docs/team-pilots.md); actual teams/tasks/budgets are still needed.
+- [x] Validate the implementation: all 265 server tests, both type checks, lint and web build passed.
+
+Workflow: [tool sessions and rollout](docs/tool-session-routing.md), [CI evaluations](docs/evaluation-ci.md).
+This connects the implemented comparison/economy reports to progressive application and repeated
+checks. It does not establish quality outside the tested tasks or claim completed customer pilots.
+
 ## Next stages — Planned
 
 - [ ] Support provider-stored native context and reasoning continuity on a pinned provider.
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.
 - [ ] Report recorded/uncertain spend, tokens, errors and slow calls across an entire agent session.
-- [ ] Run saved evaluation scenarios from CI with an explicit spending limit and regression verdict.
-- [ ] Roll out evaluated models to a chosen fraction of new sessions; keep existing bindings unchanged.
-- [ ] Connect evaluation evidence, measured costs, gradual rollout and regression detection in one workflow.
 
 These later items are priorities to investigate, without committed completion dates.

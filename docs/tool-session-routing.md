@@ -24,6 +24,21 @@ The admin API accepts `POST /admin/api/routing-profiles` with the normal profile
 Profiles retain definition hashes and paired costs after the source report expires, without
 retaining prompts, expected arguments, schemas or fixture results.
 
+### Gradually enable a candidate
+
+Tool profiles accept `rolloutPercent: 0–100` on creation and updates. The admin UI starts at
+10% for a new tool profile; the API defaults to 100% for backwards compatibility. Choose the
+share explicitly in **Apply to real requests** or adjust it on **Routing profiles**.
+Spillway deterministically samples the key-scoped new session ID, then pins either baseline
+or candidate in SQLite. Shares describe a distribution over many new sessions, not an exact
+quota. Raising/lowering the share never changes either cohort's existing bindings.
+
+Set 0% to stop new candidate assignments while allowing current sessions to continue. Disabling
+or deleting the profile still blocks established profile sessions. Text profiles remain at
+100% and do not offer per-session rollout. Use [CI replays](evaluation-ci.md) and the existing
+regression reports to check changes before increasing a share; the gateway does not infer
+answer quality from request success or automatically raise the share.
+
 ## Start and continue a session
 
 Send **`x-spillway-session`** with a fresh random identifier from the first request. Reuse that

@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Button, Card, Empty, ErrorNote, PageHeader, Status, Switch } from '../components/ui.tsx';
+import {
+  Button,
+  Card,
+  Empty,
+  ErrorNote,
+  PageHeader,
+  Select,
+  Status,
+  Switch,
+} from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, type RoutingProfileRow, unwrap } from '../lib/api.ts';
 import { fmtNumber } from '../lib/format.ts';
@@ -44,7 +53,7 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
   const { data: me } = useQuery(meQuery);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['routing-profiles'] });
   const update = useMutation({
-    mutationFn: (json: { enabled?: boolean; fallbackOnError?: boolean }) =>
+    mutationFn: (json: { enabled?: boolean; fallbackOnError?: boolean; rolloutPercent?: number }) =>
       unwrap(api['routing-profiles'][':id'].$patch({ param: { id: profile.id }, json })),
     onSuccess: refresh,
   });
@@ -103,6 +112,26 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
         />
       )}
       {tools && <p className="text-sm text-muted">{m.sessionRouting.connectionHint}</p>}
+      {tools && (
+        <label className="space-y-2 text-sm" htmlFor={`rollout-${profile.id}`}>
+          <span>{m.sessionRouting.rollout}</span>
+          <Select
+            id={`rollout-${profile.id}`}
+            value={profile.rolloutPercent}
+            disabled={disabled}
+            onChange={(e) => update.mutate({ rolloutPercent: Number(e.target.value) })}
+          >
+            {[...new Set([0, 5, 10, 25, 50, 100, profile.rolloutPercent])]
+              .sort((a, b) => a - b)
+              .map((value) => (
+                <option key={value} value={value}>
+                  {value}%
+                </option>
+              ))}
+          </Select>
+          <p className="text-xs text-muted">{m.sessionRouting.rolloutHint}</p>
+        </label>
+      )}
       <ErrorNote error={update.error ?? remove.error} />
       <p className="text-xs text-muted">{t.proofHint}</p>
       <p className="text-xs text-muted">{t.window}</p>

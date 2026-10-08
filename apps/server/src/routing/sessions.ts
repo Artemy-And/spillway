@@ -58,7 +58,12 @@ export async function resolveSession(
     if (!contract.initial)
       throw new RoutingSessionError('Start a new session before assistant or tool history exists');
     const choice = await chooseProfile(ctx, caller, baseline, body, format, contract.hash);
-    const target = choice?.target ?? baseline;
+    const bucket = choice
+      ? (Number.parseInt(sha256(`${id}\0${choice.profile.id}`).slice(0, 8), 16) / 0x1_0000_0000) *
+        100
+      : 100;
+    const target =
+      choice?.target && bucket < choice.profile.rolloutPercent ? choice.target : baseline;
     // Bound the metadata per key without evicting active sessions or racing concurrent inserts.
     await ctx.db
       .insert(routingSessions)
@@ -130,11 +135,17 @@ export async function resolveSession(
     (!profile?.enabled ||
       profile.keyId !== caller.key.id ||
       profile.evidence.mode !== 'tools' ||
-      profile.candidateModelId !== target.model.id ||
+      (profile.candidateModelId !== target.model.id &&
+        profile.baselineModelId !== target.model.id) ||
       profile.baselineModelId !== baseline.model.id ||
       !profile.evidence.toolContracts?.includes(contract.hash) ||
       !matchesFingerprint(baseline, profile.evidence.baseline) ||
-      !matchesFingerprint(target, profile.evidence.candidate))
+      !matchesFingerprint(
+        target,
+        target.model.id === profile.candidateModelId
+          ? profile.evidence.candidate
+          : profile.evidence.baseline,
+      ))
   )
     throw new RoutingSessionError('The session routing profile was disabled, removed or changed');
   return { row, target, baseline, profile: profile ?? null };

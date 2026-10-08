@@ -1,6 +1,9 @@
 const en = {
   toolsMode: 'Tool sessions',
   textMode: 'Text requests',
+  rollout: 'New sessions using the candidate',
+  rolloutHint:
+    'Changing this share affects only new sessions. Set 0% to stop new candidate assignments while existing sessions keep their model.',
   activeSessions: 'Active tool sessions',
   applyHint:
     'Use the tested model for new sessions with matching tool definitions. Every session keeps its model.',
@@ -22,6 +25,9 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
   ru: {
     toolsMode: 'Сессии с инструментами',
     textMode: 'Текстовые запросы',
+    rollout: 'Доля новых сессий на проверенной модели',
+    rolloutHint:
+      'Доля влияет только на новые сессии. 0% останавливает новые назначения кандидата; начатые сессии сохраняют модель.',
     activeSessions: 'Активные сессии с инструментами',
     applyHint:
       'Примените проверенную модель к новым сессиям с совпадающими определениями инструментов. Каждая сессия сохраняет свою модель.',
@@ -40,6 +46,9 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
   de: {
     toolsMode: 'Werkzeugsitzungen',
     textMode: 'Textanfragen',
+    rollout: 'Neue Sitzungen mit dem Kandidaten',
+    rolloutHint:
+      'Änderungen betreffen nur neue Sitzungen. 0% stoppt neue Zuweisungen; bestehende Sitzungen behalten ihr Modell.',
     activeSessions: 'Aktive Werkzeugsitzungen',
     applyHint:
       'Das getestete Modell für neue Sitzungen mit passenden Werkzeugdefinitionen verwenden. Jede Sitzung behält ihr Modell.',
@@ -58,6 +67,9 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
   fr: {
     toolsMode: 'Sessions avec outils',
     textMode: 'Requêtes textuelles',
+    rollout: 'Nouvelles sessions utilisant le candidat',
+    rolloutHint:
+      'La part ne concerne que les nouvelles sessions. 0% arrête les nouvelles affectations ; les sessions existantes conservent leur modèle.',
     activeSessions: 'Sessions avec outils actives',
     applyHint:
       'Utilisez le modèle testé pour les nouvelles sessions aux définitions d’outils identiques. Chaque session conserve son modèle.',
@@ -76,6 +88,9 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
   es: {
     toolsMode: 'Sesiones con herramientas',
     textMode: 'Solicitudes de texto',
+    rollout: 'Sesiones nuevas con el candidato',
+    rolloutHint:
+      'La proporción solo afecta a sesiones nuevas. 0% detiene asignaciones nuevas; las sesiones existentes conservan su modelo.',
     activeSessions: 'Sesiones con herramientas activas',
     applyHint:
       'Usa el modelo probado para nuevas sesiones con definiciones de herramientas coincidentes. Cada sesión conserva su modelo.',
@@ -94,6 +109,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
   zh: {
     toolsMode: '工具会话',
     textMode: '文本请求',
+    rollout: '使用候选模型的新会话比例',
+    rolloutHint: '比例变更仅影响新会话。0%停止新的候选分配；现有会话保持其模型。',
     activeSessions: '活跃工具会话',
     applyHint: '将测试过的模型用于工具定义匹配的新会话。每个会话保持同一模型。',
     connectionHint:

@@ -294,6 +294,7 @@ export const routingProfiles = sqliteTable('routing_profiles', {
     .references(() => models.id, { onDelete: 'cascade' }),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   fallbackOnError: integer('fallback_on_error', { mode: 'boolean' }).notNull().default(true),
+  rolloutPercent: integer('rollout_percent').notNull().default(100),
   evidence: text('evidence', { mode: 'json' }).$type<RoutingEvidence>().notNull(),
   createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),

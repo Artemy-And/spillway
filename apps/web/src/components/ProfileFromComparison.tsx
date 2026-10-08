@@ -45,6 +45,7 @@ export function ProfileFromComparison({
   const [keyId, setKeyId] = useState(report.keyId);
   const [candidateId, setCandidateId] = useState(candidates[0]?.id ?? '');
   const [fallbackOnError, setFallbackOnError] = useState(true);
+  const [rolloutPercent, setRolloutPercent] = useState(10);
   // Manual reviews can make candidates eligible after this component has mounted.
   const chosen = candidates.find((model) => model.id === candidateId) ?? candidates[0];
   const create = useMutation({
@@ -59,6 +60,7 @@ export function ProfileFromComparison({
             candidateModelId: chosen!.id,
             fallbackOnError: tools ? false : fallbackOnError,
             mode: tools ? 'tools' : 'text',
+            rolloutPercent: tools ? rolloutPercent : 100,
           },
         }),
       ),
@@ -73,6 +75,21 @@ export function ProfileFromComparison({
       <h2 className="text-lg font-semibold">{t.applyTitle}</h2>
       <p className="text-sm text-muted">{tools ? m.sessionRouting.applyHint : t.applyHint}</p>
       {tools && <p className="text-sm text-muted">{m.sessionRouting.connectionHint}</p>}
+      {tools && (
+        <Field label={m.sessionRouting.rollout} hint={m.sessionRouting.rolloutHint}>
+          <Select
+            value={rolloutPercent}
+            disabled={disabled}
+            onChange={(e) => setRolloutPercent(Number(e.target.value))}
+          >
+            {[0, 5, 10, 25, 50, 100].map((value) => (
+              <option key={value} value={value}>
+                {value}%
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       {!baseline || !candidates.length ? (
         <p className="text-sm text-muted">{tools ? m.sessionRouting.newEvidence : t.unavailable}</p>
       ) : (

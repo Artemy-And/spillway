@@ -20,6 +20,7 @@ export interface ProfileInput {
   candidateModelId: string;
   fallbackOnError: boolean;
   mode?: 'text' | 'tools';
+  rolloutPercent?: number;
 }
 
 function matchesReport(target: Target, saved: ComparisonModel): boolean {
@@ -38,6 +39,8 @@ function matchesReport(target: Target, saved: ComparisonModel): boolean {
 }
 
 export async function createProfile(ctx: AppContext, input: ProfileInput, createdBy: string) {
+  if (input.mode !== 'tools' && input.rolloutPercent !== undefined && input.rolloutPercent !== 100)
+    throw new RoutingError('Gradual rollout requires a tool session profile');
   const report = await comparisonRunner(ctx).get(input.comparisonId);
   if (report?.status !== 'completed') throw new RoutingError('Choose a completed comparison');
   const toolCases = report.cases.filter((task) => task.toolMode);
@@ -116,6 +119,7 @@ export async function createProfile(ctx: AppContext, input: ProfileInput, create
       baselineModelId: input.baselineModelId,
       candidateModelId: input.candidateModelId,
       fallbackOnError: input.fallbackOnError,
+      rolloutPercent: input.rolloutPercent ?? 100,
       evidence,
       createdBy,
     })
@@ -129,12 +133,18 @@ export async function createProfile(ctx: AppContext, input: ProfileInput, create
 export async function updateProfile(
   ctx: AppContext,
   id: string,
-  patch: { enabled?: boolean; fallbackOnError?: boolean },
+  patch: { enabled?: boolean; fallbackOnError?: boolean; rolloutPercent?: number },
 ) {
   const profile = await ctx.db.query.routingProfiles.findFirst({
     where: eq(routingProfiles.id, id),
   });
   if (!profile) throw new RoutingError('Routing profile not found');
+  if (
+    patch.rolloutPercent !== undefined &&
+    profile.evidence.mode !== 'tools' &&
+    patch.rolloutPercent !== 100
+  )
+    throw new RoutingError('Gradual rollout requires a tool session profile');
   if (patch.fallbackOnError && profile.evidence.mode === 'tools')
     throw new RoutingError('Tool sessions must keep their model; disable provider fallback');
   if (patch.enabled === true) {

@@ -7,6 +7,7 @@ import { type TestContext, test } from 'node:test';
 import { serve } from '@hono/node-server';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { runCI } from '../comparison/ci.ts';
 import { comparisonRunner } from '../comparison/runner.ts';
 import type { ComparisonInput, ComparisonReport } from '../comparison/types.ts';
 import { openDb } from '../db/client.ts';
@@ -67,6 +68,7 @@ async function fixture(
   const mode = {
     fail: false,
     missingUsage: false,
+    finalText: 'paid',
     streamEnd: 'complete' as 'complete' | 'truncated' | 'error',
     gate: undefined as Promise<void> | undefined,
   };
@@ -157,7 +159,7 @@ async function fixture(
       choices: [
         {
           index: 0,
-          message: final ? { role: 'assistant', content: 'paid' } : assistant,
+          message: final ? { role: 'assistant', content: mode.finalText } : assistant,
           finish_reason: final ? 'stop' : 'tool_calls',
         },
       ],
@@ -466,6 +468,7 @@ async function fixture(
     token,
     report: report!,
     profileInput,
+    input,
     activate,
     request,
     body,
@@ -980,6 +983,114 @@ test('alias API rejects collisions, recursive or duplicate targets and concurren
     headers: { authorization: `Bearer ${f.token.key}` },
   });
   assert.equal(((await hidden.json()) as { data: unknown[] }).data.length, 0);
+});
+
+test('rollout changes affect new sessions only and 0% preserves existing candidate sessions', async (t) => {
+  const f = await fixture(t);
+  const profile = await f.activate();
+  const patch = async (rolloutPercent: number) => {
+    const response = await f.send(
+      `/admin/api/routing-profiles/${profile.id}`,
+      { rolloutPercent },
+      f.admin,
+      'PATCH',
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+  };
+  await patch(0);
+  assert.equal((await f.request(session)).headers.get('x-spillway-model'), 'baseline');
+  await patch(100);
+  assert.equal(
+    (await f.request(session, { messages: history })).headers.get('x-spillway-model'),
+    'baseline',
+  );
+  const candidateSession = 'rollout-candidate-0001';
+  assert.equal((await f.request(candidateSession)).headers.get('x-spillway-model'), 'candidate');
+  await patch(0);
+  const continued = await f.request(candidateSession, { messages: history, stream: true });
+  assert.equal(continued.headers.get('x-spillway-model'), 'candidate');
+  await continued.text();
+  assert.equal(
+    (await f.request('rollout-control-0001')).headers.get('x-spillway-model'),
+    'baseline',
+  );
+  const invalid = await f.send(
+    `/admin/api/routing-profiles/${profile.id}`,
+    { rolloutPercent: 101 },
+    f.admin,
+    'PATCH',
+  );
+  assert.equal(invalid.status, 400);
+});
+
+test('partial rollout is deterministic across concurrent first turns and creates both cohorts', async (t) => {
+  const f = await fixture(t);
+  const profile = await f.activate();
+  await f.send(
+    `/admin/api/routing-profiles/${profile.id}`,
+    { rolloutPercent: 50 },
+    f.admin,
+    'PATCH',
+  );
+  const seen = new Set<string>();
+  for (let i = 0; i < 24; i++)
+    seen.add(
+      (await f.request(`rollout-sample-${String(i).padStart(4, '0')}`)).headers.get(
+        'x-spillway-model',
+      )!,
+    );
+  assert.deepEqual([...seen].sort(), ['baseline', 'candidate']);
+  const first = await Promise.all(
+    Array.from({ length: 4 }, () => f.request('concurrent-rollout-0001')),
+  );
+  assert.equal(new Set(first.map((response) => response.headers.get('x-spillway-model'))).size, 1);
+});
+
+test('CI replays a pinned saved tool scenario against an immutable reference with an explicit cost limit', async (t) => {
+  const f = await fixture(t);
+  const { keyId, modelIds, maxSpendUsd, ...content } = f.input;
+  const saved = (await (await f.send('/admin/api/task-sets', content, f.admin)).json()) as {
+    id: string;
+    revision: number;
+  };
+  const body = { ...f.input, taskSet: { id: saved.id, revision: saved.revision } };
+  const reference = (await (
+    await f.send('/admin/api/comparisons', body, f.admin)
+  ).json()) as ComparisonReport;
+  for (let i = 0; i < 200; i++) {
+    if ((await comparisonRunner(f.ctx).get(reference.id))?.status === 'completed') break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  const selected = await f.send(
+    `/admin/api/task-sets/${saved.id}/reference`,
+    { revision: saved.revision, reportId: reference.id },
+    f.admin,
+  );
+  assert.equal(selected.status, 200, await selected.clone().text());
+  const fetcher = async (url: string, init?: RequestInit) => f.app.request(url, init);
+  const config = { taskSetId: saved.id, revision: saved.revision, keyId, modelIds, maxSpendUsd };
+  const result = await runCI('http://localhost:8080', f.admin, config, fetcher, 5000);
+  assert.equal(result.passed, true);
+  assert.ok(result.regression?.models.every((model) => model.compared === 1));
+  const calls = f.calls.length;
+  await assert.rejects(
+    runCI('http://localhost:8080', f.admin, { ...config, maxSpendUsd: 0 }, fetcher),
+    /budget/,
+  );
+  await assert.rejects(
+    runCI('http://localhost:8080', f.admin, { ...config, revision: saved.revision + 1 }, fetcher),
+    /revision/,
+  );
+  assert.equal(f.calls.length, calls);
+  f.mode.missingUsage = true;
+  const unknown = await runCI('http://localhost:8080', f.admin, config, fetcher, 5000);
+  assert.equal(unknown.passed, false);
+  assert.equal(unknown.unknownCosts, true);
+  f.mode.missingUsage = false;
+  f.mode.finalText = 'wrong answer';
+  const regression = await runCI('http://localhost:8080', f.admin, config, fetcher, 5000);
+  assert.equal(regression.passed, false);
+  assert.ok(regression.regression?.models.every((model) => model.regressions.length === 1));
 });
 
 test('tool profile requires explicit loop mode, full evidence, and provider fallback disabled', async (t) => {

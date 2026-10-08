@@ -28,6 +28,7 @@ export function routingProfileRoutes(ctx: AppContext) {
           candidateModelId: z.string().min(1),
           fallbackOnError: z.boolean(),
           mode: z.enum(['text', 'tools']).default('text'),
+          rolloutPercent: z.number().int().min(0).max(100).default(100),
         }),
       ),
       async (c) => c.json(await createProfile(ctx, c.req.valid('json'), c.get('user').id), 201),
@@ -39,6 +40,7 @@ export function routingProfileRoutes(ctx: AppContext) {
         z.object({
           enabled: z.boolean().optional(),
           fallbackOnError: z.boolean().optional(),
+          rolloutPercent: z.number().int().min(0).max(100).optional(),
         }),
       ),
       async (c) => c.json(await updateProfile(ctx, c.req.param('id'), c.req.valid('json'))),
