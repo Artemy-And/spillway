@@ -16,6 +16,8 @@ Call-only checks cannot create a tool session profile. Reports from before sessi
 introduced need a new comparison: the new report stores hashes of evaluated tool definitions.
 A mixed comparison can include ordinary text tasks and complete loops, with every task passing.
 Tool session profiles route only matching tool sessions, not ordinary text requests.
+Applications can also use a stable [model alias/provider pool](model-aliases.md) with the same
+session header; a pool chooses the concrete baseline before an eligible profile is considered.
 
 The admin API accepts `POST /admin/api/routing-profiles` with the normal profile fields plus
 `"mode": "tools"` and `"fallbackOnError": false`. The default mode remains `"text"` for existing clients.

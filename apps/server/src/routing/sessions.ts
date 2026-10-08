@@ -4,6 +4,7 @@ import { apiKeys, models, routingProfiles, routingSessions } from '../db/schema.
 import type { Format } from '../gateway/handler.ts';
 import { type Caller, findModel } from '../gateway/policy.ts';
 import { sha256 } from '../lib/crypto.ts';
+import { aliasTarget } from './aliases.ts';
 import { sessionContractFor } from './native-contract.ts';
 import {
   allowed,
@@ -42,7 +43,11 @@ export async function resolveSession(
     );
   const id = sha256(`${caller.key.id}\0${token}`);
   let row = await ctx.db.query.routingSessions.findFirst({ where: eq(routingSessions.id, id) });
-  const baseline = await findModel(ctx.db, eq(models.name, body.model as string));
+  const selector = body.model as string;
+  const baseline = row
+    ? await routingTarget(ctx, row.requestedModelId)
+    : ((await aliasTarget(ctx, caller, selector, id)) ??
+      (await findModel(ctx.db, eq(models.name, selector))));
   if (!baseline || !allowed(caller, baseline.model.id))
     throw new RoutingSessionError(
       'The requested session model is unavailable or no longer allowed',
@@ -66,6 +71,7 @@ export async function resolveSession(
               'profile_id',
             ),
             requestedModelId: sql<string>`${baseline.model.id}`.as('requested_model_id'),
+            selector: sql<string>`${selector}`.as('selector'),
             targetModelId: sql<string>`${target.model.id}`.as('target_model_id'),
             contractHash: sql<string>`${contract.hash}`.as('contract_hash'),
             baseline: sql<
@@ -94,7 +100,11 @@ export async function resolveSession(
       'Session expired; start a fresh conversation with a new session ID',
       410,
     );
-  if (row.requestedModelId !== baseline.model.id || row.contractHash !== contract.hash)
+  if (
+    (row.selector ?? baseline.model.name) !== selector ||
+    row.requestedModelId !== baseline.model.id ||
+    row.contractHash !== contract.hash
+  )
     throw new RoutingSessionError(
       'The requested model or tool definitions changed within this session',
     );
@@ -127,7 +137,7 @@ export async function resolveSession(
       !matchesFingerprint(target, profile.evidence.candidate))
   )
     throw new RoutingSessionError('The session routing profile was disabled, removed or changed');
-  return { row, target, profile: profile ?? null };
+  return { row, target, baseline, profile: profile ?? null };
 }
 
 export async function forgetRoutingSessions(ctx: AppContext) {

@@ -719,7 +719,7 @@ export async function handleGateway(
   const scan = maskPii(text.all);
   const decision: Decision = await decide(ctx, {
     caller,
-    requestedName,
+    requestedName: affinity?.baseline.model.name ?? requestedName,
     pii: scan.found,
     settings,
     body,

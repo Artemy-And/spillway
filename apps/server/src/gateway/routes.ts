@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { type AppContext, VERSION } from '../context.ts';
-import { models, providers } from '../db/schema.ts';
+import { modelAliases, models, providers } from '../db/schema.ts';
 import { handleEmbeddings } from './embeddings.ts';
 import { authenticate, errorResponse, type Format, handleGateway } from './handler.ts';
 import { findModel } from './policy.ts';
@@ -70,6 +70,31 @@ export function gatewayRoutes(ctx: AppContext) {
       owned_by: 'spillway',
       display_name: model.label ?? model.name,
     }));
+    const aliases = await ctx.db.select().from(modelAliases).where(eq(modelAliases.enabled, true));
+    for (const alias of aliases) {
+      if (
+        data.some((entry) => entry.id === alias.name) ||
+        !alias.targets.some((entry) =>
+          rows.some(
+            ({ model, provider }) =>
+              model.id === entry.modelId &&
+              (alias.strategy !== 'lowest-cost' ||
+                provider.isLocal ||
+                (model.inputPrice !== null && model.outputPrice !== null)),
+          ),
+        )
+      )
+        continue;
+      data.push({
+        id: alias.name,
+        object: 'model',
+        type: 'model',
+        created: Math.floor(alias.createdAt.getTime() / 1000),
+        created_at: alias.createdAt.toISOString(),
+        owned_by: 'spillway',
+        display_name: alias.name,
+      });
+    }
     return c.json({
       object: 'list',
       data,

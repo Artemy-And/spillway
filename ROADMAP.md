@@ -155,11 +155,24 @@ function calls; native stateful protocols and streamed tool sessions remain plan
 Provider-stored Responses state, conversations, encrypted reasoning and Anthropic thinking/signatures
 remain a separate extension. Stage 8 supports the documented bounded full-history function contract.
 
+## Stage 9 — Model aliases and provider pools
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Add flat aliases over 1–16 concrete model/provider targets with weighted or lowest-token-price selection.
+- [x] Preserve the original selector and first concrete choice in durable tool-session bindings.
+- [x] Apply permissions and normal per-turn policy; never change a started session after pool edits/deletion or failures.
+- [x] Add the model-page editor in all six languages and permission-filtered aliases in `/v1/models`.
+- [x] Reject recursive/duplicate targets and model-name collisions; retain existing pre-alias session compatibility.
+- [x] Add three integration tests for selection, pool edits, unknown prices, permission filtering and concurrent first turns.
+- [x] Validate the implementation: all 262 server tests, both type checks, lint and web build passed.
+
+Implementation and limits: [model aliases](docs/model-aliases.md). Pools are explicit operator
+configuration; they do not by themselves establish quality or comparison evidence.
+
 ## Next stages — Planned
 
 - [ ] Support provider-stored native context and reasoning continuity on a pinned provider.
-- [ ] Add model aliases, provider pools and session affinity, taking inspiration from
-  [GoModel](https://github.com/ENTERPILOT/GoModel).
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.
 - [ ] Report recorded/uncertain spend, tokens, errors and slow calls across an entire agent session.
 - [ ] Run saved evaluation scenarios from CI with an explicit spending limit and regression verdict.

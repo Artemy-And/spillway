@@ -852,6 +852,136 @@ test('native streamed sessions retain uncertain charges on errors and recheck pr
   assert.equal(f.calls.length, 4);
 });
 
+test('weighted aliases choose permitted concrete providers once and preserve existing sessions after pool edits or deletion', async (t) => {
+  const f = await fixture(t);
+  const alias = {
+    name: 'agent-pool',
+    strategy: 'weighted',
+    targets: [
+      { modelId: f.baseline.id, weight: 1 },
+      { modelId: f.candidate.id, weight: 1 },
+    ],
+  };
+  assert.equal((await f.send('/admin/api/model-aliases', alias, f.admin, 'PUT')).status, 200);
+  const choices = new Map<string, string>();
+  for (let i = 0; i < 24; i++) {
+    const id = `pool-session-${String(i).padStart(4, '0')}`;
+    const response = await f.request(id, { model: alias.name });
+    assert.equal(response.status, 200, await response.clone().text());
+    choices.set(id, response.headers.get('x-spillway-model')!);
+  }
+  assert.deepEqual([...new Set(choices.values())].sort(), ['baseline', 'candidate']);
+  const selected = choices.keys().next().value!;
+  assert.equal(
+    (await f.request(selected, { model: choices.get(selected), messages: history })).status,
+    409,
+  );
+  await f.send(
+    '/admin/api/model-aliases',
+    { ...alias, enabled: false, targets: [{ modelId: f.candidate.id, weight: 100 }] },
+    f.admin,
+    'PUT',
+  );
+  assert.equal((await f.request('disabled-pool-0001', { model: alias.name })).status, 403);
+  const continuation = await f.request(selected, { model: alias.name, messages: history });
+  assert.equal(continuation.headers.get('x-spillway-model'), choices.get(selected));
+  await f.send(`/admin/api/model-aliases/${alias.name}`, undefined, f.admin, 'DELETE');
+  assert.equal(
+    (await f.request(selected, { model: alias.name, messages: history })).headers.get(
+      'x-spillway-model',
+    ),
+    choices.get(selected),
+  );
+});
+
+test('lowest-price pools skip unknown prices, enforce permissions and never fail over a pinned provider', async (t) => {
+  const f = await fixture(t);
+  const alias = {
+    name: 'cheap-agent',
+    strategy: 'lowest-cost',
+    targets: [
+      { modelId: f.baseline.id, weight: 1 },
+      { modelId: f.candidate.id, weight: 1 },
+    ],
+  };
+  await f.send('/admin/api/model-aliases', alias, f.admin, 'PUT');
+  const first = await f.request(session, { model: alias.name });
+  assert.equal(first.headers.get('x-spillway-model'), 'candidate');
+  f.mode.fail = true;
+  assert.equal((await f.request(session, { model: alias.name, messages: history })).status, 503);
+  assert.ok(f.calls.every((call) => call.model === 'candidate-wire'));
+  f.mode.fail = false;
+  await f.ctx.db.update(models).set({ inputPrice: null }).where(eq(models.id, f.candidate.id));
+  const fresh = await f.request('price-pool-0000001', { model: alias.name });
+  assert.equal(fresh.headers.get('x-spillway-model'), 'baseline');
+  await f.ctx.db
+    .update(apiKeys)
+    .set({ allowedModelIds: [f.candidate.id] })
+    .where(eq(apiKeys.id, f.key.id));
+  assert.equal((await f.request('price-pool-0000002', { model: alias.name })).status, 409);
+  assert.equal((await f.request(session, { model: alias.name, messages: history })).status, 409);
+});
+
+test('alias API rejects collisions, recursive or duplicate targets and concurrent sessions have one selected provider', async (t) => {
+  const f = await fixture(t);
+  const alias = {
+    name: 'agent-alias',
+    targets: [
+      { modelId: f.baseline.id, weight: 1 },
+      { modelId: f.candidate.id, weight: 1 },
+    ],
+  };
+  assert.equal(
+    (await f.send('/admin/api/model-aliases', { ...alias, name: 'baseline' }, f.admin, 'PUT'))
+      .status,
+    400,
+  );
+  assert.equal(
+    (
+      await f.send(
+        '/admin/api/model-aliases',
+        { ...alias, targets: [alias.targets[0], alias.targets[0]] },
+        f.admin,
+        'PUT',
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await f.send(
+        '/admin/api/model-aliases',
+        { ...alias, targets: [{ modelId: 'alias-other', weight: 1 }] },
+        f.admin,
+        'PUT',
+      )
+    ).status,
+    400,
+  );
+  await f.send('/admin/api/model-aliases', alias, f.admin, 'PUT');
+  const responses = await Promise.all(
+    Array.from({ length: 6 }, () => f.request(session, { model: alias.name })),
+  );
+  assert.equal(
+    new Set(responses.map((response) => response.headers.get('x-spillway-model'))).size,
+    1,
+  );
+  assert.equal((await f.ctx.db.select().from(routingSessions)).length, 1);
+  const listing = await f.app.request('/v1/models', {
+    headers: { authorization: `Bearer ${f.token.key}` },
+  });
+  assert.ok(
+    ((await listing.json()) as { data: { id: string }[] }).data.some(
+      (entry) => entry.id === alias.name,
+    ),
+  );
+  await f.ctx.db.update(apiKeys).set({ allowedModelIds: [] }).where(eq(apiKeys.id, f.key.id));
+  const hidden = await f.app.request('/v1/models', {
+    headers: { authorization: `Bearer ${f.token.key}` },
+  });
+  assert.equal(((await hidden.json()) as { data: unknown[] }).data.length, 0);
+});
+
 test('tool profile requires explicit loop mode, full evidence, and provider fallback disabled', async (t) => {
   const f = await fixture(t);
   for (const patch of [{ mode: 'text' }, { fallbackOnError: true }]) {

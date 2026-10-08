@@ -13,6 +13,7 @@ import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
   apiKeys,
   KEY_KINDS,
+  modelAliases,
   models,
   PROVIDER_KINDS,
   providers,
@@ -30,6 +31,7 @@ import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { SERVER_ZONE } from '../lib/time.ts';
 import { mailFrom, send } from '../notify.ts';
+import { aliasRoutes } from '../routing/aliases.ts';
 import { routingProfileRoutes } from '../routing/routes.ts';
 import {
   calendarOf,
@@ -625,6 +627,8 @@ export function adminRoutes(ctx: AppContext) {
 
       .post('/models', adminOnly, zValidator('json', modelInput), async (c) => {
         const input = c.req.valid('json');
+        if (await db.query.modelAliases.findFirst({ where: eq(modelAliases.name, input.name) }))
+          return c.json({ error: 'Model name conflicts with an alias' }, 400);
         const provider = await db.query.providers.findFirst({
           where: eq(providers.id, input.providerId),
         });
@@ -661,6 +665,8 @@ export function adminRoutes(ctx: AppContext) {
           const { id } = c.req.valid('param');
           const input = c.req.valid('json');
           if (input.name) {
+            if (await db.query.modelAliases.findFirst({ where: eq(modelAliases.name, input.name) }))
+              return c.json({ error: 'Model name conflicts with an alias' }, 400);
             const taken = await db.query.models.findFirst({
               where: and(eq(models.name, input.name), ne(models.id, id)),
             });
@@ -861,6 +867,7 @@ export function adminRoutes(ctx: AppContext) {
       .route('/comparisons', comparisonRoutes(ctx))
       .route('/task-sets', taskSetRoutes(ctx))
       .route('/routing-profiles', routingProfileRoutes(ctx))
+      .route('/model-aliases', aliasRoutes(ctx))
       .get('/budget-holds', async (c) =>
         c.json(await listHolds(db, await ownKeyIds(ctx, c.get('user')))),
       )

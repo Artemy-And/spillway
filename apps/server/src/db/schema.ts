@@ -315,6 +315,7 @@ export const routingSessions = sqliteTable(
     // No model/profile foreign keys: deleting them must not silently erase an active binding.
     profileId: text('profile_id'),
     requestedModelId: text('requested_model_id').notNull(),
+    selector: text('selector'),
     targetModelId: text('target_model_id').notNull(),
     contractHash: text('contract_hash').notNull(),
     baseline: text('baseline', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
@@ -327,3 +328,16 @@ export const routingSessions = sqliteTable(
     index('routing_sessions_expiry').on(table.expiresAt),
   ],
 );
+
+/** Flat pools only: a target is a concrete model with its own provider configuration. */
+export const modelAliases = sqliteTable('model_aliases', {
+  name: text('name').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  strategy: text('strategy', { enum: ['weighted', 'lowest-cost'] })
+    .notNull()
+    .default('weighted'),
+  targets: text('targets', { mode: 'json' })
+    .$type<{ modelId: string; weight: number }[]>()
+    .notNull(),
+  createdAt: createdAt(),
+});
