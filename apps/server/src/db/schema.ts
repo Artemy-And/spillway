@@ -5,7 +5,7 @@ import type {
   ReferenceRun,
   TaskSetInput,
 } from '../comparison/types.ts';
-import { ROUTING_OUTCOMES, type RoutingEvidence } from '../routing/types.ts';
+import { type ModelFingerprint, ROUTING_OUTCOMES, type RoutingEvidence } from '../routing/types.ts';
 
 const id = () =>
   text('id')
@@ -277,7 +277,7 @@ export const taskSets = sqliteTable('task_sets', {
   expiresAt: timestamp('expires_at').notNull(),
 });
 
-/** One explicit text-routing choice per key, backed by a completed comparison. */
+/** One explicit text or tool-session choice per key, backed by a completed comparison. */
 export const routingProfiles = sqliteTable('routing_profiles', {
   id: id(),
   name: text('name').notNull(),
@@ -303,3 +303,27 @@ export const routingProfiles = sqliteTable('routing_profiles', {
 });
 
 export type RoutingProfile = typeof routingProfiles.$inferSelect;
+
+/** Durable affinity contains hashes and model configuration only, never a conversation. */
+export const routingSessions = sqliteTable(
+  'routing_sessions',
+  {
+    id: text('id').primaryKey(),
+    keyId: text('key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    // No model/profile foreign keys: deleting them must not silently erase an active binding.
+    profileId: text('profile_id'),
+    requestedModelId: text('requested_model_id').notNull(),
+    targetModelId: text('target_model_id').notNull(),
+    contractHash: text('contract_hash').notNull(),
+    baseline: text('baseline', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
+    target: text('target', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => [
+    index('routing_sessions_key').on(table.keyId),
+    index('routing_sessions_expiry').on(table.expiresAt),
+  ],
+);

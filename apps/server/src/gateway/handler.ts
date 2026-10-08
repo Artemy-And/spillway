@@ -24,6 +24,7 @@ import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii, type PiiCounts } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
 import { allowed, matchesFingerprint, routingTarget } from '../routing/resolve.ts';
+import { RoutingSessionError, resolveSession } from '../routing/sessions.ts';
 import type { Settings } from '../settings.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
@@ -645,6 +646,37 @@ export async function handleGateway(
   }
 
   const settings = await ctx.settings.get();
+  const sessionToken = !internalCaller ? c.req.header('x-spillway-session') : undefined;
+  let affinity: Awaited<ReturnType<typeof resolveSession>> | undefined;
+  if (sessionToken !== undefined) {
+    try {
+      affinity = await resolveSession(ctx, caller, body, format, sessionToken);
+    } catch (error) {
+      if (!(error instanceof RoutingSessionError)) throw error;
+      const id = shortId('req');
+      await writeLog(
+        ctx,
+        {
+          id,
+          keyId: caller.key.id,
+          teamId: caller.key.teamId,
+          requestedModel: body.model,
+          format: isOllama(format) ? 'ollama' : format,
+          status: error.status,
+          result: 'blocked_model',
+          latencyMs: Date.now() - started,
+          costKnown: true,
+          trace: [step('block', error.message, 'sessionBlocked', { message: error.message })],
+        },
+        caller.key.id,
+      );
+      const response = errorResponse(format, error.status, error.message, 'blocked_model');
+      response.headers.set('x-spillway-request-id', id);
+      response.headers.set('x-spillway-session-status', 'blocked');
+      response.headers.set('x-spillway-result', 'blocked_model');
+      return response;
+    }
+  }
   const text = promptText(format, body);
   const scan = maskPii(text.all);
   const decision: Decision = await decide(ctx, {
@@ -655,6 +687,7 @@ export async function handleGateway(
     body,
     format,
     skipProfiles: !!internalCaller,
+    affinity,
   });
   const stream = isOllama(format) ? body.stream !== false : body.stream === true;
 
@@ -696,12 +729,14 @@ export async function handleGateway(
     const response = errorResponse(format, decision.status, decision.message, decision.result);
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', decision.result);
+    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
     return response;
   }
 
   // With the cache on, a repeated request gets the stored answer. Only whole answers from the
   // model that was asked for are kept, and never for prompts with personal data in them.
   let cacheId =
+    !affinity &&
     settings.cache.enabled &&
     !stream &&
     (decision.result === 'ok' ||
@@ -765,6 +800,7 @@ export async function handleGateway(
     body,
     format,
     settings,
+    allowLocal: affinity ? false : undefined,
   });
   if (admission.denied) {
     await writeLog(
@@ -787,6 +823,7 @@ export async function handleGateway(
     const response = errorResponse(format, admission.status, admission.message, 'blocked_budget');
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', 'blocked_budget');
+    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
     return response;
   }
   let target = admission.target;
@@ -920,6 +957,7 @@ export async function handleGateway(
       forwarded = await forward(ctx, c, format, body, target, stream, meter);
     } catch (error) {
       await settleAttempt(error);
+      if (affinity) throw error;
       if (c.req.raw.signal.aborted) throw error;
       const freshCaller = await callerForKey(ctx, caller.key.id);
       if (!freshCaller) throw error;
@@ -1006,6 +1044,10 @@ export async function handleGateway(
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);
+    if (affinity) {
+      response.headers.set('x-spillway-session-status', 'pinned');
+      response.headers.set('x-spillway-session-expires-at', affinity.row.expiresAt.toISOString());
+    }
     if (internalCaller && !stream) {
       response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
     }
@@ -1020,6 +1062,7 @@ export async function handleGateway(
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', 'error');
     response.headers.set('x-spillway-model', target.model.name);
+    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
     if (internalCaller && !stream) {
       response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
     }

@@ -6,6 +6,7 @@ import { callerForKey, handleGateway } from '../gateway/handler.ts';
 import { findModel, type Target } from '../gateway/policy.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
+import { toolContractHash } from '../routing/tool-contract.ts';
 import { checkAnswer } from './checks.ts';
 import { evaluationSource } from './task-sets.ts';
 import { estimateToolTask, maximumTaskCalls, runToolTask } from './tool-runner.ts';
@@ -191,7 +192,12 @@ export class ComparisonRunner {
           id: crypto.randomUUID(),
           name: maskPii(task.name).text,
           check: task.check,
-          ...(task.tools ? { toolMode: task.tools.mode } : {}),
+          ...(task.tools
+            ? {
+                toolMode: task.tools.mode,
+                toolContractHash: toolContractHash(task.tools.definitions),
+              }
+            : {}),
         })),
         cells: input.cases.flatMap((_, caseIndex) =>
           targets.map(

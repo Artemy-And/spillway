@@ -137,7 +137,13 @@ export interface ComparisonReport {
   maxOutputTokens: number;
   storesOutputs: boolean;
   models: ComparisonModel[];
-  cases: { id: string; name: string; check: Check; toolMode?: ToolScenario['mode'] }[];
+  cases: {
+    id: string;
+    name: string;
+    check: Check;
+    toolMode?: ToolScenario['mode'];
+    toolContractHash?: string;
+  }[];
   cells: ComparisonCell[];
   evaluation?: EvaluationSource;
 }

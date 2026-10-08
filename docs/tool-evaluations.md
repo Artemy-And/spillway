@@ -50,10 +50,10 @@ saved provider conversation state or an unrestricted coding agent. Models that d
 the tested function-call contract can fail or return a provider error. One successful run
 establishes success on these fixtures, without guaranteeing general agent quality.
 
-A report containing any tool scenario cannot create a live text routing profile. Existing
-profiles continue to keep tool requests and tool histories on the originally requested model.
-These evaluations add evidence for review; they do not switch an application's model midway
-through a live agent session.
+A report containing tool scenarios cannot create a live text routing profile. New comparisons
+with complete tool loops can create a separate [tool session profile](tool-session-routing.md).
+Call-only checks cannot activate routing. Session routing requires matching evaluated definitions
+and explicit session IDs; it keeps the chosen model throughout the conversation.
 
 ## Costs, limits and reports
 

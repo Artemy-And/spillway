@@ -1,4 +1,5 @@
 import type { TraceParams } from './helpers.ts';
+import { sessionRoutingMessages } from './session-routing.ts';
 
 const en = {
   title: 'Routing profiles',
@@ -154,6 +155,14 @@ export const profileErrors: Record<string, Record<string, string>> = {
     'Routing profile could not be saved': '无法保存路由配置',
   },
 };
+
+for (const [locale, messages] of Object.entries(sessionRoutingMessages)) {
+  Object.assign(profileErrors[locale]!, {
+    'Tool routing requires a new completed tool-loop comparison': messages.newEvidence,
+    'Tool sessions must keep their model; disable provider fallback': messages.fallbackHint,
+    'Tool evaluations cannot create text routing profiles': messages.profileHint,
+  });
+}
 
 export const profileMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | 'zh', Catalog> = {
   en,

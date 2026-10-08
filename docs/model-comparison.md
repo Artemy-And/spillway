@@ -73,6 +73,7 @@ Example task file:
 
 After a completed text-only comparison, **Apply to real requests** offers candidates that passed
 every task and cost less than the first selected baseline. Applying is an explicit admin action for a chosen
-key; see [routing profiles](routing-profiles.md). Reports with tool scenarios cannot activate those
-profiles. Fixed tool scenarios evaluate the chosen examples, without establishing full
+key; see [routing profiles](routing-profiles.md). Complete tool-loop comparisons can create separate
+[tool session profiles](tool-session-routing.md); call-only checks cannot activate routing.
+Fixed tool scenarios evaluate the chosen examples, without establishing full
 coding-agent quality.

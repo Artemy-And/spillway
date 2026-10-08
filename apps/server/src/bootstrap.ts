@@ -6,6 +6,7 @@ import { invites, models, providers, requestLogs, sessions, users } from './db/s
 import { forgetExpired } from './gateway/cache.ts';
 import { listUpstreamModels } from './gateway/upstream.ts';
 import { hashPassword } from './lib/crypto.ts';
+import { forgetRoutingSessions } from './routing/sessions.ts';
 
 /** Makes sure someone can sign in, and adds providers from the environment on first start. */
 export async function bootstrap(ctx: AppContext): Promise<void> {
@@ -94,4 +95,5 @@ export async function cleanup(ctx: AppContext): Promise<void> {
   await forgetExpired(ctx);
   await forgetComparisons(ctx);
   await forgetTaskSets(ctx);
+  await forgetRoutingSessions(ctx);
 }

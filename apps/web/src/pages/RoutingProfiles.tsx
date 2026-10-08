@@ -61,11 +61,15 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
     }).format(value);
   const disabled = update.isPending || remove.isPending || !!me?.gateway.demo;
   const stats = profile.metrics;
+  const tools = profile.evidence.mode === 'tools';
   return (
     <Card className="space-y-5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{profile.name}</h2>
+          <Status tone="info">
+            {tools ? m.sessionRouting.toolsMode : m.sessionRouting.textMode}
+          </Status>
           <p className="text-sm text-muted">
             {profile.keyName} · {profile.evidence.baselineLabel} → {profile.evidence.candidateLabel}
           </p>
@@ -87,13 +91,18 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
         label={t.enabled}
         disabled={disabled || !!profile.revokedAt}
       />
-      <Switch
-        checked={profile.fallbackOnError}
-        onChange={(fallbackOnError) => update.mutate({ fallbackOnError })}
-        label={t.fallback}
-        description={t.fallbackHint}
-        disabled={disabled}
-      />
+      {tools ? (
+        <p className="text-sm text-muted">{m.sessionRouting.fallbackHint}</p>
+      ) : (
+        <Switch
+          checked={profile.fallbackOnError}
+          onChange={(fallbackOnError) => update.mutate({ fallbackOnError })}
+          label={t.fallback}
+          description={t.fallbackHint}
+          disabled={disabled}
+        />
+      )}
+      {tools && <p className="text-sm text-muted">{m.sessionRouting.connectionHint}</p>}
       <ErrorNote error={update.error ?? remove.error} />
       <p className="text-xs text-muted">{t.proofHint}</p>
       <p className="text-xs text-muted">{t.window}</p>
@@ -118,6 +127,7 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
             [t.errors, stats.errors],
             [t.eligible, stats.eligibleRequests],
             [t.unknown, stats.unknownCostRequests],
+            ...(tools ? [[m.sessionRouting.activeSessions, profile.activeSessions] as const] : []),
           ] as const
         ).map(([label, value]) => (
           <div key={label}>

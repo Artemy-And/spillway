@@ -8,8 +8,13 @@ tested tasks does not establish general model quality. Choose tasks representati
 you will send through this key.
 
 [Tool evaluations](tool-evaluations.md) can check function calls and short loops with fixed results,
-but a report containing any tool scenario cannot create a text routing profile. Passing a tool
-fixture does not enable substitution of live tool traffic or certify a coding agent.
+but a report containing any tool scenario cannot create a text routing profile. Complete loops
+can instead create a separate [tool session profile](tool-session-routing.md) with explicit
+session IDs and model affinity. Call-only checks cannot activate routing or certify a coding agent.
+
+The behavior below describes text profiles. Tool sessions require non-streaming Chat function
+calls and matching definitions. They keep their model through rules and provider errors, and
+block continuation when their applied profile is disabled or removed.
 
 Select an active gateway key, name the profile, choose a candidate, and decide whether provider
 failures should retry the baseline. The application continues to request the baseline's existing

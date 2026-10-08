@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { sessionRoutingMessages } from './session-routing.ts';
 import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 // Chinese has one plural form; the helper still formats the number for us.
@@ -28,6 +29,7 @@ export const zh: Messages = {
   comparisons: comparisonMessages.zh,
   evaluations: evaluationMessages.zh,
   toolEvaluations: toolEvaluationMessages.zh,
+  sessionRouting: sessionRoutingMessages.zh,
   reservations: budgetMessages.zh,
   profiles: profileMessages.zh,
   common: {
@@ -494,6 +496,11 @@ export const zh: Messages = {
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceFallback', t),
+    sessionPinned: (t: TraceParams) =>
+      sessionRoutingMessages.zh.tracePinned.replace('{model}', String(t.model ?? '')),
+    sessionBlocked: (t: TraceParams) =>
+      sessionRoutingMessages.zh.traceBlocked + (t.message ? `: ${t.message}` : ''),
+    sessionKept: () => sessionRoutingMessages.zh.traceKept,
     modelMissing: (t: TraceParams) => `此网关上没有模型“${t.model}”`,
     modelNotAllowedTeam: (t: TraceParams) => `团队 ${t.name} 不允许使用 ${t.model}`,
     modelNotAllowedKey: (t: TraceParams) => `密钥 ${t.name} 不允许使用 ${t.model}`,

@@ -14,6 +14,8 @@ export interface ModelFingerprint {
 
 /** Evidence is retained even after the source report expires. It contains no task text. */
 export interface RoutingEvidence {
+  mode?: 'text' | 'tools';
+  toolContracts?: string[];
   comparisonName: string;
   caseCount: number;
   baselineLabel: string;

@@ -18,6 +18,10 @@ export function ProfileFromComparison({
   const navigate = useNavigate();
   const { data: me } = useQuery(meQuery);
   const baseline = report.models[0];
+  const tools = report.cases.some((task) => task.toolMode);
+  const toolEligible = report.cases.every(
+    (task) => !task.toolMode || (task.toolMode === 'loop' && !!task.toolContractHash),
+  );
   const cost = (id: string) => {
     const cells = report.cells.filter((cell) => cell.modelId === id);
     return cells.length === report.cases.length &&
@@ -29,7 +33,11 @@ export function ProfileFromComparison({
   const candidates = report.models.filter((model) => {
     const value = cost(model.id);
     return (
-      model.id !== baseline?.id && value !== null && baselineCost !== null && value < baselineCost
+      model.id !== baseline?.id &&
+      value !== null &&
+      baselineCost !== null &&
+      value < baselineCost &&
+      (!tools || toolEligible)
     );
   });
   const activeKeys = keys.filter((key) => !key.revokedAt);
@@ -49,7 +57,8 @@ export function ProfileFromComparison({
             comparisonId: report.id,
             baselineModelId: baseline!.id,
             candidateModelId: chosen!.id,
-            fallbackOnError,
+            fallbackOnError: tools ? false : fallbackOnError,
+            mode: tools ? 'tools' : 'text',
           },
         }),
       ),
@@ -62,9 +71,10 @@ export function ProfileFromComparison({
   return (
     <Card className="space-y-5 p-5">
       <h2 className="text-lg font-semibold">{t.applyTitle}</h2>
-      <p className="text-sm text-muted">{t.applyHint}</p>
+      <p className="text-sm text-muted">{tools ? m.sessionRouting.applyHint : t.applyHint}</p>
+      {tools && <p className="text-sm text-muted">{m.sessionRouting.connectionHint}</p>}
       {!baseline || !candidates.length ? (
-        <p className="text-sm text-muted">{t.unavailable}</p>
+        <p className="text-sm text-muted">{tools ? m.sessionRouting.newEvidence : t.unavailable}</p>
       ) : (
         <form
           className="space-y-5"
@@ -116,13 +126,17 @@ export function ProfileFromComparison({
               </Select>
             </Field>
           </div>
-          <Switch
-            checked={fallbackOnError}
-            onChange={setFallbackOnError}
-            label={t.fallback}
-            description={t.fallbackHint}
-            disabled={disabled}
-          />
+          {tools ? (
+            <p className="text-sm text-muted">{m.sessionRouting.fallbackHint}</p>
+          ) : (
+            <Switch
+              checked={fallbackOnError}
+              onChange={setFallbackOnError}
+              label={t.fallback}
+              description={t.fallbackHint}
+              disabled={disabled}
+            />
+          )}
           <ErrorNote error={create.error} />
           <Button
             type="submit"

@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { sessionRoutingMessages } from './session-routing.ts';
 import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('ru');
@@ -29,6 +30,7 @@ export const ru: Messages = {
   comparisons: comparisonMessages.ru,
   evaluations: evaluationMessages.ru,
   toolEvaluations: toolEvaluationMessages.ru,
+  sessionRouting: sessionRoutingMessages.ru,
   reservations: budgetMessages.ru,
   profiles: profileMessages.ru,
   common: {
@@ -542,6 +544,11 @@ export const ru: Messages = {
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceFallback', t),
+    sessionPinned: (t: TraceParams) =>
+      sessionRoutingMessages.ru.tracePinned.replace('{model}', String(t.model ?? '')),
+    sessionBlocked: (t: TraceParams) =>
+      sessionRoutingMessages.ru.traceBlocked + (t.message ? `: ${t.message}` : ''),
+    sessionKept: () => sessionRoutingMessages.ru.traceKept,
     modelMissing: (t: TraceParams) => `Модели «${t.model}» на этом шлюзе нет`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} недоступна команде ${t.name}`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} недоступна ключу ${t.name}`,

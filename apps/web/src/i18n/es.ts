@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { sessionRoutingMessages } from './session-routing.ts';
 import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('es');
@@ -29,6 +30,7 @@ export const es: Messages = {
   comparisons: comparisonMessages.es,
   evaluations: evaluationMessages.es,
   toolEvaluations: toolEvaluationMessages.es,
+  sessionRouting: sessionRoutingMessages.es,
   reservations: budgetMessages.es,
   profiles: profileMessages.es,
   common: {
@@ -519,6 +521,11 @@ export const es: Messages = {
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.es, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.es, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.es, 'traceFallback', t),
+    sessionPinned: (t: TraceParams) =>
+      sessionRoutingMessages.es.tracePinned.replace('{model}', String(t.model ?? '')),
+    sessionBlocked: (t: TraceParams) =>
+      sessionRoutingMessages.es.traceBlocked + (t.message ? `: ${t.message}` : ''),
+    sessionKept: () => sessionRoutingMessages.es.traceKept,
     modelMissing: (t: TraceParams) => `El modelo «${t.model}» no está disponible en esta pasarela`,
     modelNotAllowedTeam: (t: TraceParams) =>
       `${t.model} no está permitido para el equipo ${t.name}`,

@@ -60,6 +60,11 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
   baseline on provider failure. Follow recorded API spend and clearly labelled estimated savings.
   [Routing profiles](docs/routing-profiles.md).
 
+- **Keep tool conversations on a tested model.** Create a profile from a complete tool-loop
+  comparison and give new conversations a session ID. Spillway pins their model across turns
+  and restarts, while retaining permissions, privacy and hard budgets.
+  [Tool session routing](docs/tool-session-routing.md).
+
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
   `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
   `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool

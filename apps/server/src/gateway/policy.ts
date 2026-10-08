@@ -97,6 +97,7 @@ interface Input {
   /** Comparisons and a fallback must not apply a profile recursively. */
   skipProfiles?: boolean;
   skipRateLimit?: boolean;
+  affinity?: { target: Target; profile: RoutingProfile | null };
 }
 
 export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
@@ -186,11 +187,28 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     }
   }
 
-  let target = requested;
-  let result: Result = 'ok';
+  let target = input.affinity?.target ?? requested;
+  let result: Result = target.model.id === requested.model.id ? 'ok' : 'rerouted';
   let ruleId: RuleId | null = null;
 
-  if (!embeddings && !input.skipProfiles && input.body && input.format) {
+  if (input.affinity) {
+    if (!allowed(caller, target.model.id))
+      return stop(
+        'blocked_model',
+        403,
+        step('block', 'The session model is no longer allowed', 'sessionBlocked'),
+        requested,
+      );
+    routingProfile = input.affinity.profile;
+    routingApplied = !!routingProfile && target.model.id === routingProfile.candidateModelId;
+    trace.push(
+      step('info', `Session stays on ${plainName(target)}`, 'sessionPinned', {
+        model: plainName(target),
+      }),
+    );
+  }
+
+  if (!embeddings && !input.affinity && !input.skipProfiles && input.body && input.format) {
     const choice = await chooseProfile(ctx, caller, requested, input.body, input.format);
     if (choice) {
       routingProfile = choice.profile;
@@ -302,7 +320,29 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
 
     // Vectors from another model do not match the ones already stored, so embeddings never
     // switch: a rule that would save money early lets them through, a used-up limit blocks them.
-    if (reroute && embeddings) {
+    if (reroute && input.affinity) {
+      trace.push(reroute.reason);
+      if (reroute.hard)
+        return stop(
+          'blocked_budget',
+          429,
+          step(
+            'block',
+            'Session blocked: its model cannot change when a budget is exhausted',
+            'sessionBlocked',
+          ),
+          requested,
+          reroute.ruleId,
+        );
+      trace.push(
+        step(
+          'info',
+          'Session keeps its model through budget-threshold and schedule rules',
+          'sessionKept',
+        ),
+      );
+      reroute = null;
+    } else if (reroute && embeddings) {
       trace.push(reroute.reason);
       if (reroute.hard) {
         return stop(

@@ -27,6 +27,7 @@ export function routingProfileRoutes(ctx: AppContext) {
           baselineModelId: z.string().min(1),
           candidateModelId: z.string().min(1),
           fallbackOnError: z.boolean(),
+          mode: z.enum(['text', 'tools']).default('text'),
         }),
       ),
       async (c) => c.json(await createProfile(ctx, c.req.valid('json'), c.get('user').id), 201),

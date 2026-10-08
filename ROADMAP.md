@@ -104,9 +104,32 @@ Runs are started manually; this stage does not introduce scheduled provider spen
 Implementation details and limits: [tool evaluations](docs/tool-evaluations.md).
 These fixed scenarios establish evidence on the tested decisions; live tool-session routing remains planned.
 
+## Stage 6 — Keep live tool sessions on an evaluated model
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Create a separate tool session profile from a new complete loop comparison, with both models passing and known paired costs.
+- [x] Store hashes of evaluated function definitions; require a matching tool contract on live requests.
+- [x] Require an explicit session ID from the first non-streaming Chat request and preserve actual call IDs/history supplied by the client.
+- [x] Pin the first model choice atomically in SQLite, scoped to the gateway key, across turns and restarts.
+- [x] Keep existing original-model bindings after profile activation; reject adoption of prior tool/assistant history by an unknown session.
+- [x] Block continuation after expiry, definition/configuration drift, revoked permissions or profile removal/disablement.
+- [x] Recheck privacy and key/team budget admission per turn; block exhausted limits and prevent provider/local fallback from switching a session's model.
+- [x] Keep pinned models through soft threshold/schedule rules and bypass the response cache for session calls.
+- [x] Bound affinity to 24 hours and 1,000 unexpired bindings per key; retain hashes/configuration only and clean up expired metadata.
+- [x] Add profile creation, session counts, connection guidance and request traces in all six supported languages.
+- [x] Verify the supported Chat contract through OpenAI, Anthropic and Ollama provider translations.
+- [x] Add 16 tests including live loop routing, key isolation, concurrent first turns, SQLite reopening,
+  expiry, capacity, configuration drift, privacy, hard/soft budgets, provider failure and translation.
+- [x] Validate the implementation: all 251 server tests, both type checks, lint and web build passed.
+
+Implementation and client setup: [tool session routing](docs/tool-session-routing.md).
+Clients supply full history and execute their own tools. This stage supports non-streaming Chat
+function calls; native stateful protocols and streamed tool sessions remain planned.
+
 ## Later stages — Planned
 
-- [ ] Apply evaluated model choices to supported live tool workflows with session continuity and affinity.
+- [ ] Extend tool-session continuity to streaming and native Responses/Anthropic client protocols.
 - [ ] Explore model aliases, provider pools and session affinity, taking inspiration from
   [GoModel](https://github.com/ENTERPILOT/GoModel).
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.

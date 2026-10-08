@@ -570,7 +570,7 @@ export function ComparisonsPage() {
           </Button>
         </ComparisonResults>
       )}
-      {report.data?.status === 'completed' && !report.data.cases.some((task) => task.toolMode) && (
+      {report.data?.status === 'completed' && (
         <ProfileFromComparison key={report.data.id} report={report.data} keys={keys.data ?? []} />
       )}
       {report.data?.evaluation && (
@@ -640,7 +640,7 @@ function ComparisonResults({
       )}
       {report.cases.some((task) => task.toolMode) && (
         <p className="text-xs text-muted">
-          {tools.fixtureHint} {tools.profileHint}
+          {tools.fixtureHint} {m.sessionRouting.profileHint}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">

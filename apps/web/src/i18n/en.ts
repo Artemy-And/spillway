@@ -5,6 +5,7 @@ import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
 import { budgetMessages, budgetTrace } from './reservations.ts';
+import { sessionRoutingMessages } from './session-routing.ts';
 import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('en');
@@ -30,6 +31,7 @@ export const en = {
   comparisons: comparisonMessages.en,
   evaluations: evaluationMessages.en,
   toolEvaluations: toolEvaluationMessages.en,
+  sessionRouting: sessionRoutingMessages.en,
   reservations: budgetMessages.en,
   profiles: profileMessages.en,
   common: {
@@ -498,6 +500,11 @@ export const en = {
     profileApplied: (t: TraceParams) => profileTrace(profileMessages.en, 'traceApplied', t),
     profileSkipped: (t: TraceParams) => profileTrace(profileMessages.en, 'traceSkipped', t),
     profileFallback: (t: TraceParams) => profileTrace(profileMessages.en, 'traceFallback', t),
+    sessionPinned: (t: TraceParams) =>
+      sessionRoutingMessages.en.tracePinned.replace('{model}', String(t.model ?? '')),
+    sessionBlocked: (t: TraceParams) =>
+      sessionRoutingMessages.en.traceBlocked + (t.message ? `: ${t.message}` : ''),
+    sessionKept: () => sessionRoutingMessages.en.traceKept,
     modelMissing: (t: TraceParams) => `Model "${t.model}" is not available on this gateway`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} is not allowed for team ${t.name}`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} is not allowed for key ${t.name}`,

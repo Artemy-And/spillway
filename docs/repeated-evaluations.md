@@ -65,7 +65,8 @@ and electricity. Prices, server load and provider variation can affect the measu
 One run is an observation on the chosen tasks, not statistical proof or a general quality claim.
 Spillway shows changes for review and does not disable or replace active routing profiles.
 [Function-call and tool-loop tasks](tool-evaluations.md) use the same reference workflow, with
-cost and latency measured across their whole sequence. Their reports cannot create live text profiles.
+cost and latency measured across their whole sequence. Complete loops can create
+[tool session profiles](tool-session-routing.md), while their reports cannot create text profiles.
 
 ## Storage and access
 

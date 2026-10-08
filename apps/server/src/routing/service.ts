@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { comparisonRunner } from '../comparison/runner.ts';
 import type { ComparisonModel } from '../comparison/types.ts';
 import type { AppContext } from '../context.ts';
-import { apiKeys, requestLogs, routingProfiles } from '../db/schema.ts';
+import { apiKeys, requestLogs, routingProfiles, routingSessions } from '../db/schema.ts';
 import { callerForKey } from '../gateway/handler.ts';
 import type { Target } from '../gateway/policy.ts';
 import { maskPii } from '../lib/pii.ts';
@@ -19,6 +19,7 @@ export interface ProfileInput {
   baselineModelId: string;
   candidateModelId: string;
   fallbackOnError: boolean;
+  mode?: 'text' | 'tools';
 }
 
 function matchesReport(target: Target, saved: ComparisonModel): boolean {
@@ -39,8 +40,17 @@ function matchesReport(target: Target, saved: ComparisonModel): boolean {
 export async function createProfile(ctx: AppContext, input: ProfileInput, createdBy: string) {
   const report = await comparisonRunner(ctx).get(input.comparisonId);
   if (report?.status !== 'completed') throw new RoutingError('Choose a completed comparison');
-  if (report.cases.some((task) => task.toolMode))
+  const toolCases = report.cases.filter((task) => task.toolMode);
+  if (input.mode !== 'tools' && toolCases.length)
     throw new RoutingError('Tool evaluations cannot create text routing profiles');
+  if (
+    input.mode === 'tools' &&
+    (!toolCases.length ||
+      toolCases.some((task) => task.toolMode !== 'loop' || !task.toolContractHash))
+  )
+    throw new RoutingError('Tool routing requires a new completed tool-loop comparison');
+  if (input.mode === 'tools' && input.fallbackOnError)
+    throw new RoutingError('Tool sessions must keep their model; disable provider fallback');
   if (input.baselineModelId === input.candidateModelId)
     throw new RoutingError('Choose different baseline and candidate models');
   const baselineSaved = report.models.find((model) => model.id === input.baselineModelId);
@@ -84,6 +94,10 @@ export async function createProfile(ctx: AppContext, input: ProfileInput, create
     throw new RoutingError('This key already has a profile; remove it before applying a new one');
   }
   const evidence: RoutingEvidence = {
+    mode: input.mode ?? 'text',
+    ...(input.mode === 'tools'
+      ? { toolContracts: [...new Set(toolCases.map((task) => task.toolContractHash!))] }
+      : {}),
     comparisonName: report.name,
     caseCount: report.cases.length,
     baselineLabel: baselineSaved.label,
@@ -121,6 +135,8 @@ export async function updateProfile(
     where: eq(routingProfiles.id, id),
   });
   if (!profile) throw new RoutingError('Routing profile not found');
+  if (patch.fallbackOnError && profile.evidence.mode === 'tools')
+    throw new RoutingError('Tool sessions must keep their model; disable provider fallback');
   if (patch.enabled === true) {
     const caller = await callerForKey(ctx, profile.keyId);
     const baseline = await routingTarget(ctx, profile.baselineModelId);
@@ -183,10 +199,16 @@ export async function listProfiles(ctx: AppContext) {
         )
         .groupBy(requestLogs.routingProfileId)
     : [];
+  const sessions = await ctx.db
+    .select({ id: routingSessions.profileId, count: sql<number>`count(*)` })
+    .from(routingSessions)
+    .where(gte(routingSessions.expiresAt, new Date()))
+    .groupBy(routingSessions.profileId);
   return rows.map(({ profile, ...key }) => ({
     ...profile,
     ...key,
     since: since.toISOString(),
+    activeSessions: sessions.find((entry) => entry.id === profile.id)?.count ?? 0,
     metrics: metrics.find((metric) => metric.id === profile.id) ?? {
       requests: 0,
       selected: 0,

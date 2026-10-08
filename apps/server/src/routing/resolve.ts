@@ -118,6 +118,7 @@ export async function chooseProfile(
   baseline: Target,
   body: Record<string, unknown>,
   format: Format,
+  toolContract?: string,
 ) {
   const profile = await ctx.db.query.routingProfiles.findFirst({
     where: and(
@@ -129,7 +130,12 @@ export async function chooseProfile(
   if (!profile) return null;
   let reason: RoutingSkipReason | null = null;
   let target: Target | null = null;
-  if (!supportsProfileRequest(format, body)) reason = 'unsupported';
+  if (
+    profile.evidence.mode === 'tools'
+      ? !toolContract || !profile.evidence.toolContracts?.includes(toolContract)
+      : !supportsProfileRequest(format, body)
+  )
+    reason = 'unsupported';
   else if (!allowed(caller, profile.candidateModelId)) reason = 'permission';
   else {
     target = await routingTarget(ctx, profile.candidateModelId);
