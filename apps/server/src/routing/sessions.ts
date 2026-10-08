@@ -4,6 +4,7 @@ import { apiKeys, models, routingProfiles, routingSessions } from '../db/schema.
 import type { Format } from '../gateway/handler.ts';
 import { type Caller, findModel } from '../gateway/policy.ts';
 import { sha256 } from '../lib/crypto.ts';
+import { sessionContractFor } from './native-contract.ts';
 import {
   allowed,
   chooseProfile,
@@ -11,7 +12,6 @@ import {
   matchesFingerprint,
   routingTarget,
 } from './resolve.ts';
-import { sessionContract } from './tool-contract.ts';
 
 export class RoutingSessionError extends Error {
   status: number;
@@ -34,10 +34,10 @@ export async function resolveSession(
       'Use a random session ID of 16–128 letters, digits, underscores or hyphens',
       400,
     );
-  const contract = format === 'openai' ? sessionContract(body) : null;
+  const contract = sessionContractFor(format, body);
   if (!contract)
     throw new RoutingSessionError(
-      'Session routing supports Chat function calls with parallel_tool_calls:false',
+      'Session routing requires supported full-history Chat, Responses or Messages function calls with parallel tools disabled; provider-stored context is not supported',
       400,
     );
   const id = sha256(`${caller.key.id}\0${token}`);

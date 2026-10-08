@@ -61,6 +61,7 @@ async function fixture(
   local = false,
   file?: string,
   kind: 'openai' | 'anthropic' | 'ollama' = 'openai',
+  nativeResponses = false,
 ) {
   const calls: Record<string, unknown>[] = [];
   const mode = {
@@ -167,8 +168,10 @@ async function fixture(
     const body = await c.req.json<Record<string, unknown>>();
     calls.push(body);
     const messages = body.messages as { content: { type: string }[] }[];
-    const final = messages.some((message) =>
-      message.content.some((block) => block.type === 'tool_result'),
+    const final = messages.some(
+      (message) =>
+        Array.isArray(message.content) &&
+        message.content.some((block) => block.type === 'tool_result'),
     );
     if (body.stream) {
       const events = [
@@ -244,8 +247,78 @@ async function fixture(
       usage: { input_tokens: 100, output_tokens: 10 },
     });
   });
+  upstream.post('/v1/responses', async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+    calls.push(body);
+    const final = (body.input as { type?: string }[]).some(
+      (item) => item.type === 'function_call_output',
+    );
+    const output = final
+      ? [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'paid', annotations: [] }],
+          },
+        ]
+      : [
+          {
+            type: 'function_call',
+            id: 'fc-demo',
+            call_id: 'call-demo',
+            name: 'get_order',
+            arguments: '{"orderId":"DEMO-A"}',
+            status: 'completed',
+          },
+        ];
+    const response = {
+      id: 'resp-demo',
+      object: 'response',
+      status: 'completed',
+      model: body.model,
+      output,
+      ...(!mode.missingUsage ? { usage: { input_tokens: 100, output_tokens: 10 } } : {}),
+    };
+    if (!body.stream) return c.json(response);
+    const events = [
+      sse(
+        { type: 'response.created', response: { ...response, output: [], usage: null } },
+        'response.created',
+      ),
+      sse(
+        { type: 'response.output_text.delta', delta: final ? 'paid' : '' },
+        'response.output_text.delta',
+      ),
+    ];
+    if (mode.streamEnd === 'complete')
+      events.push(sse({ type: 'response.completed', response }, 'response.completed'));
+    else if (mode.streamEnd === 'error')
+      events.push(
+        sse(
+          { type: 'response.failed', response: { error: { message: 'Synthetic stream failure' } } },
+          'response.failed',
+        ),
+      );
+    return streamed(events);
+  });
   const server = serve({ fetch: upstream.fetch, port: 0 });
   await new Promise((resolve) => server.once('listening', resolve));
+  const localUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+  if (nativeResponses) {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (input, init) => {
+      const url = String(input);
+      return realFetch(
+        url.startsWith('https://api.openai.com/v1/')
+          ? url.replace('https://api.openai.com/v1', localUrl)
+          : input,
+        init,
+      );
+    };
+    t.after(() => {
+      globalThis.fetch = realFetch;
+    });
+  }
   t.after(() => {
     if ('closeAllConnections' in server) server.closeAllConnections();
     server.close();
@@ -270,7 +343,11 @@ async function fixture(
     .values({
       name: 'Candidate',
       kind,
-      baseUrl: kind === 'openai' ? provider!.baseUrl : provider!.baseUrl.replace(/\/v1$/, ''),
+      baseUrl: nativeResponses
+        ? 'https://api.openai.com/v1'
+        : kind === 'openai'
+          ? provider!.baseUrl
+          : provider!.baseUrl.replace(/\/v1$/, ''),
       isLocal: local,
     })
     .returning();
@@ -552,6 +629,227 @@ test('translated Anthropic and Ollama tool streams preserve IDs, usage and failu
     assert.equal((await finishedLog(f, truncated)).costKnown, false);
     assert.ok(f.calls.every((call) => call.model === 'candidate-wire'));
   }
+});
+
+function nativeBody(format: 'responses' | 'anthropic', continued = false, stream = false) {
+  if (format === 'responses')
+    return {
+      model: 'baseline',
+      input: continued
+        ? [
+            ...initial,
+            {
+              type: 'function_call',
+              call_id: 'call-demo',
+              name: 'get_order',
+              arguments: '{"orderId":"DEMO-A"}',
+            },
+            { type: 'function_call_output', call_id: 'call-demo', output: '{"status":"paid"}' },
+          ]
+        : initial,
+      tools: [
+        {
+          type: 'function',
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters,
+          strict: false,
+        },
+      ],
+      parallel_tool_calls: false,
+      tool_choice: 'auto',
+      max_output_tokens: 64,
+      store: false,
+      stream,
+    };
+  return {
+    model: 'baseline',
+    messages: continued
+      ? [
+          ...initial,
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'call-demo',
+                name: 'get_order',
+                input: { orderId: 'DEMO-A' },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: 'call-demo', content: '{"status":"paid"}' },
+            ],
+          },
+        ]
+      : initial,
+    tools: [
+      {
+        name: tool.function.name,
+        description: tool.function.description,
+        input_schema: parameters,
+      },
+    ],
+    tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+    max_tokens: 64,
+    stream,
+  };
+}
+
+function nativeRequest(
+  f: Awaited<ReturnType<typeof fixture>>,
+  format: 'responses' | 'anthropic',
+  body: Record<string, unknown>,
+  id = session,
+) {
+  return f.app.request(format === 'responses' ? '/v1/responses' : '/v1/messages', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${f.token.key}`,
+      'content-type': 'application/json',
+      'x-spillway-session': id,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+test('native Responses and Messages clients keep full tool history through provider translations and streaming', async (t) => {
+  for (const format of ['responses', 'anthropic'] as const) {
+    for (const kind of ['openai', 'anthropic'] as const) {
+      const f = await fixture(t, false, undefined, kind);
+      await f.activate();
+      const first = await nativeRequest(f, format, nativeBody(format));
+      assert.equal(first.status, 200, await first.clone().text());
+      assert.ok((await first.text()).includes('call-demo'));
+      assert.equal(first.headers.get('x-spillway-model'), 'candidate');
+      const final = await nativeRequest(f, format, nativeBody(format, true, true));
+      assert.equal(final.status, 200);
+      const output = await final.text();
+      assert.ok(
+        output.includes('paid') || (output.includes('"pa"') && output.includes('"id"')),
+        `${format}/${kind}: ${output}`,
+      );
+      assert.ok(output.includes(format === 'responses' ? 'response.completed' : 'message_stop'));
+      assert.equal((await finishedLog(f, final)).costKnown, true);
+      assert.ok(f.calls.every((call) => call.model === 'candidate-wire'));
+      if (kind === 'openai') assert.ok(f.calls.every((call) => call.parallel_tool_calls === false));
+    }
+  }
+});
+
+test('native Responses provider preserves raw call IDs and history, disables storage and validates stream completion', async (t) => {
+  const f = await fixture(t, false, undefined, 'openai', true);
+  await f.activate();
+  const body: Record<string, unknown> = nativeBody('responses');
+  delete body.store;
+  const first = await nativeRequest(f, 'responses', body);
+  assert.equal(first.status, 200, await first.clone().text());
+  assert.equal(
+    ((await first.json()) as { output: { call_id: string }[] }).output[0]!.call_id,
+    'call-demo',
+  );
+  assert.equal(f.calls[0]!.store, false);
+  for (const streamEnd of ['complete', 'truncated', 'error'] as const) {
+    f.mode.streamEnd = streamEnd;
+    const continued = nativeBody('responses', true, true);
+    const response = await nativeRequest(f, 'responses', continued);
+    try {
+      await response.text();
+    } catch {
+      /* Expected failures. */
+    }
+    const log = await finishedLog(f, response);
+    assert.equal(log.costKnown, streamEnd === 'complete');
+    assert.deepEqual(f.calls.at(-1)!.input, continued.input);
+    assert.equal(f.calls.at(-1)!.model, 'candidate-wire');
+  }
+});
+
+test('native sessions reject unbound history, stored state and context that cannot be translated', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  for (const format of ['responses', 'anthropic'] as const) {
+    assert.equal((await nativeRequest(f, format, nativeBody(format, true))).status, 409);
+    const base = nativeBody(format);
+    const patches =
+      format === 'responses'
+        ? [
+            { previous_response_id: 'resp-old' },
+            { store: true },
+            { input: [{ type: 'reasoning', encrypted_content: 'opaque' }] },
+            { input: [{ type: 'function_call_output', call_id: 'unknown', output: 'paid' }] },
+            { tools: [{ type: 'web_search' }] },
+            { parallel_tool_calls: true },
+          ]
+        : [
+            { thinking: { type: 'enabled' } },
+            {
+              messages: [
+                {
+                  role: 'assistant',
+                  content: [{ type: 'thinking', thinking: 'opaque', signature: 'sig' }],
+                },
+              ],
+            },
+            { messages: [{ role: 'user', content: [{ type: 'image' }] }] },
+            { tool_choice: { type: 'auto' } },
+          ];
+    for (const patch of patches)
+      assert.equal((await nativeRequest(f, format, { ...base, ...patch })).status, 400);
+  }
+  assert.equal(f.calls.length, 0);
+});
+
+test('native streamed sessions retain uncertain charges on errors and recheck privacy on tool results', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  for (const format of ['responses', 'anthropic'] as const) {
+    const id = `native-${format}-session-01`;
+    await nativeRequest(f, format, nativeBody(format), id);
+    f.mode.streamEnd = 'truncated';
+    const response = await nativeRequest(f, format, nativeBody(format, true, true), id);
+    try {
+      await response.text();
+    } catch {
+      /* Expected truncation. */
+    }
+    assert.equal((await finishedLog(f, response)).costKnown, false);
+    f.mode.streamEnd = 'complete';
+    const body = nativeBody(format, true);
+    const secret = 'sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop';
+    if (format === 'responses')
+      body.input = [
+        ...initial,
+        {
+          type: 'function_call',
+          call_id: 'call-demo',
+          name: 'get_order',
+          arguments: '{"orderId":"DEMO-A"}',
+        },
+        { type: 'function_call_output', call_id: 'call-demo', output: secret },
+      ];
+    else
+      body.messages = [
+        ...initial,
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call-demo', name: 'get_order', input: { orderId: 'DEMO-A' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'call-demo', content: secret }],
+        },
+      ];
+    const blocked = await nativeRequest(f, format, body, id);
+    assert.equal(blocked.status, format === 'responses' ? 400 : 403);
+    assert.equal(blocked.headers.get('x-spillway-result'), 'blocked_pii');
+  }
+  assert.equal(f.calls.length, 4);
 });
 
 test('tool profile requires explicit loop mode, full evidence, and provider fallback disabled', async (t) => {

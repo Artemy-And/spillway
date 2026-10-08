@@ -220,6 +220,7 @@ export interface RRequest {
   instructions?: string | null;
   tools?: RTool[];
   tool_choice?: RToolChoice;
+  parallel_tool_calls?: boolean;
   stream?: boolean;
   max_output_tokens?: number | null;
   temperature?: number | null;

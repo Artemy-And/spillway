@@ -673,6 +673,7 @@ export async function handleGateway(
   if (typeof body.model !== 'string' || !body.model) {
     return errorResponse(format, 400, 'Field "model" is required');
   }
+  const requestedName = body.model;
   if (format === 'responses') {
     if (typeof body.input !== 'string' && !Array.isArray(body.input)) {
       return errorResponse(format, 400, 'Field "input" must be a string or an array');
@@ -687,6 +688,7 @@ export async function handleGateway(
   if (sessionToken !== undefined) {
     try {
       affinity = await resolveSession(ctx, caller, body, format, sessionToken);
+      if (format === 'responses') body = { ...body, store: false };
     } catch (error) {
       if (!(error instanceof RoutingSessionError)) throw error;
       const id = shortId('req');
@@ -696,7 +698,7 @@ export async function handleGateway(
           id,
           keyId: caller.key.id,
           teamId: caller.key.teamId,
-          requestedModel: body.model,
+          requestedModel: requestedName,
           format: isOllama(format) ? 'ollama' : format,
           status: error.status,
           result: 'blocked_model',
@@ -717,7 +719,7 @@ export async function handleGateway(
   const scan = maskPii(text.all);
   const decision: Decision = await decide(ctx, {
     caller,
-    requestedName: body.model,
+    requestedName,
     pii: scan.found,
     settings,
     body,
@@ -734,7 +736,7 @@ export async function handleGateway(
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
-    requestedModel: body.model,
+    requestedModel: requestedName,
     requestedModelId: decision.requested?.model.id ?? null,
     routingProfileId: decision.routingProfile?.id ?? null,
     routingProfileName: decision.routingProfile?.name ?? null,

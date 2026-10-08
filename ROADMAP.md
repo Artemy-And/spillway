@@ -140,9 +140,24 @@ function calls; native stateful protocols and streamed tool sessions remain plan
 - [x] Add four integration tests covering incremental delivery, cancellation, missing usage and interrupted translations.
 - [x] Validate the implementation: all 255 server tests, both type checks, lint and web build passed.
 
+## Stage 8 — Route native full-history tool clients
+
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Apply durable evaluated-model bindings to Responses and Anthropic Messages clients, including streaming.
+- [x] Validate complete native function call/result history and preserve actual IDs through provider translations.
+- [x] Compare native definitions to the same evaluated contract; explicitly disable parallel functions and Responses storage.
+- [x] Reject opaque/stored context, thinking, images, hosted/strict tools and unbound history before provider spending.
+- [x] Check native Responses passthrough and cross-provider Messages/Responses cycles with local fixtures only.
+- [x] Add four integration tests for native history, streaming, privacy, unknown charges and unsupported context.
+- [x] Validate the implementation: all 259 server tests, both type checks, lint and web build passed.
+
+Provider-stored Responses state, conversations, encrypted reasoning and Anthropic thinking/signatures
+remain a separate extension. Stage 8 supports the documented bounded full-history function contract.
+
 ## Next stages — Planned
 
-- [ ] Extend tool-session continuity to native Responses/Anthropic client protocols and their full tool history.
+- [ ] Support provider-stored native context and reasoning continuity on a pinned provider.
 - [ ] Add model aliases, provider pools and session affinity, taking inspiration from
   [GoModel](https://github.com/ENTERPILOT/GoModel).
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.

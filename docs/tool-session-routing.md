@@ -116,6 +116,31 @@ use the client's error event/transport; an HTTP 200 by itself does not mean the 
 Canceling the response body aborts the upstream request. These conditions never switch the
 session's model. See [official streaming guidance](https://developers.openai.com/api/docs/guides/streaming-responses).
 
+### Native Responses and Anthropic Messages clients
+
+The same session header also works on `/v1/responses` and `/v1/messages`, with either whole
+responses or streaming. Continue to send full history and the evaluated function definitions.
+The pinned model/provider and budget rules are identical to Chat.
+
+For Responses, use flat `type: "function"` tools with `strict: false`, `parallel_tool_calls: false`,
+automatic tool choice and `max_output_tokens: 1–2048`. Spillway sets `store: false`. Preserve the
+actual `function_call.call_id`, `name` and `arguments` in `input`, followed by its
+`function_call_output` with matching `call_id` and a string `output`. Text message content may
+be a string or input/output text blocks; returned message/function IDs and statuses are accepted.
+
+For Messages, use tools with `name`, `description` and `input_schema`, `max_tokens: 1–2048`,
+and `tool_choice: { type: "auto", disable_parallel_tool_use: true }`. Preserve actual `tool_use`
+IDs/input objects in assistant content and matching `tool_result` blocks in the next user
+message. Text-only system/message blocks are supported, including string/array tool results.
+Keep tool results before any ordinary user text in that message.
+
+Unknown sessions cannot adopt native assistant/tool history either. Parallel calls, strict
+schemas, images, hosted tools, thinking/signature blocks, encrypted reasoning, item references,
+`previous_response_id` and stored conversations are rejected before a provider call. This
+bounded full-history contract does not claim support for every SDK/agent configuration.
+Native provider formats pass supported history through; translated providers preserve call IDs
+and disable parallel tools. Clients must recognize the native completion/error events.
+
 ## Continuity, limits and failure behavior
 
 SQLite atomically pins the first model choice. Concurrent first requests cannot choose different
@@ -144,6 +169,7 @@ The admin profile page shows unexpired session counts, recorded spend and the ex
 cost estimates. Request traces explain the pinned model and rejected continuation.
 
 This stage supports the evaluated Chat function-call contract through existing OpenAI, Anthropic
-and Ollama provider translations, including streamed tool arguments and text. Native Responses/Anthropic clients,
-parallel functions, provider-hosted tools, strict-mode fields, images, saved provider conversation
+and Ollama provider translations, including native full-history Responses/Messages clients,
+streamed tool arguments and text. Parallel functions, provider-hosted tools, strict-mode fields,
+images, saved provider conversation
 state and automatic migration between models remain outside this contract.
