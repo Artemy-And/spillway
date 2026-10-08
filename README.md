@@ -41,6 +41,12 @@ For a setup you keep, use [Docker Compose](#quick-start).
 
 ## What it does
 
+Completed milestones and upcoming development: [roadmap](ROADMAP.md).
+
+- **Compare models on your own tasks.** Run the same text or JSON tasks on 2–4 models, check their
+  answers, compare recorded costs and latency, and manually review free-text results. Includes a
+  comparison budget, cancellation, and downloadable reports. [How it works](docs/model-comparison.md).
+
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
   `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
   `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool

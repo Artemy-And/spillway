@@ -1,5 +1,6 @@
 import type { Overview } from '../lib/api.ts';
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
+import { comparisonMessages } from './comparisons.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('en');
@@ -22,6 +23,7 @@ const pii = {
 };
 
 export const en = {
+  comparisons: comparisonMessages.en,
   common: {
     save: 'Save',
     saved: 'Saved',
@@ -83,6 +85,7 @@ export const en = {
   errors: {} as Record<string, string>,
 
   nav: {
+    comparisons: 'Compare models',
     main: 'Main',
     overview: 'Overview',
     keys: 'Keys',

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, type SQL } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { AppContext } from '../context.ts';
 import {
@@ -121,12 +121,21 @@ export async function authenticate(ctx: AppContext, headers: Headers): Promise<C
   const bearer = headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
   const token = bearer ?? headers.get('x-api-key');
   if (!token) return null;
+  return callerWhere(ctx, eq(apiKeys.hash, sha256(token.trim())));
+}
+
+/** Internal admin jobs can charge an existing key without retrieving its plaintext secret. */
+export function callerForKey(ctx: AppContext, keyId: string): Promise<Caller | null> {
+  return callerWhere(ctx, eq(apiKeys.id, keyId));
+}
+
+async function callerWhere(ctx: AppContext, where: SQL): Promise<Caller | null> {
   const row = await ctx.db
     .select({ key: apiKeys, team: teams, user: users })
     .from(apiKeys)
     .leftJoin(teams, eq(apiKeys.teamId, teams.id))
     .leftJoin(users, eq(apiKeys.userId, users.id))
-    .where(and(eq(apiKeys.hash, sha256(token.trim())), isNull(apiKeys.revokedAt)))
+    .where(and(where, isNull(apiKeys.revokedAt)))
     .get();
   if (!row || row.user?.disabledAt) return null;
   return row;
@@ -544,9 +553,10 @@ export async function handleGateway(
   ctx: AppContext,
   c: Context,
   format: Format,
+  internalCaller?: Caller,
 ): Promise<Response> {
   const started = Date.now();
-  const caller = await authenticate(ctx, c.req.raw.headers);
+  const caller = internalCaller ?? (await authenticate(ctx, c.req.raw.headers));
   if (!caller) {
     return errorResponse(
       format,
@@ -606,7 +616,10 @@ export async function handleGateway(
 
   if (!decision.target) {
     await writeLog(ctx, { ...base, latencyMs: Date.now() - started }, caller.key.id);
-    return errorResponse(format, decision.status, decision.message, decision.result);
+    const response = errorResponse(format, decision.status, decision.message, decision.result);
+    response.headers.set('x-spillway-request-id', id);
+    response.headers.set('x-spillway-result', decision.result);
+    return response;
   }
 
   // With the cache on, a repeated request gets the stored answer. Only whole answers from the
@@ -730,7 +743,7 @@ export async function handleGateway(
     const { response, done } = forwarded;
     // An answer the local model gave in a provider's place is not what was asked for.
     const fresh = cacheId && !outage ? await response.clone().text() : null;
-    void done.then(async (error) => {
+    const logged = done.then(async (error) => {
       await finish(200, error);
       if (cacheId && fresh && error === undefined) {
         const entry = { id: cacheId, keyId: caller.key.id, modelId: target.model.id, body: fresh };
@@ -741,6 +754,9 @@ export async function handleGateway(
         );
       }
     });
+    // Comparisons read the finished log before sending the next request or checking its budget.
+    if (internalCaller && !stream) await logged;
+    else void logged;
     if (cacheId) response.headers.set('x-spillway-cache', 'miss');
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
@@ -750,7 +766,11 @@ export async function handleGateway(
     const status = error instanceof UpstreamError ? error.status : 502;
     const message = error instanceof Error ? error.message : 'Upstream request failed';
     await finish(status, error);
-    return errorResponse(format, status, message);
+    const response = errorResponse(format, status, message);
+    response.headers.set('x-spillway-request-id', id);
+    response.headers.set('x-spillway-result', 'error');
+    response.headers.set('x-spillway-model', target.model.name);
+    return response;
   }
 }
 

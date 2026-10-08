@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createInvite } from '../auth/invites.ts';
 import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
+import { comparisonRoutes } from '../comparison/routes.ts';
 import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
   apiKeys,
@@ -827,5 +828,6 @@ export function adminRoutes(ctx: AppContext) {
         await db.delete(responseCache);
         return c.json({ ok: true });
       })
+      .route('/comparisons', comparisonRoutes(ctx))
   );
 }

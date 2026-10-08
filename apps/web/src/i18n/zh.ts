@@ -1,4 +1,5 @@
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
+import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -20,6 +21,7 @@ const pii = {
 };
 
 export const zh: Messages = {
+  comparisons: comparisonMessages.zh,
   common: {
     save: '保存',
     saved: '已保存',
@@ -107,6 +109,7 @@ export const zh: Messages = {
   },
 
   nav: {
+    comparisons: '模型对比',
     main: '主菜单',
     overview: '概览',
     keys: '密钥',

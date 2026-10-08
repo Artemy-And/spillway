@@ -10,6 +10,7 @@ import { Layout } from './components/Layout.tsx';
 import { ApiError, meQuery } from './lib/api.ts';
 import { AccountPage } from './pages/Account.tsx';
 import { BudgetsPage } from './pages/Budgets.tsx';
+import { ComparisonsPage } from './pages/Comparisons.tsx';
 import { InvitePage } from './pages/Invite.tsx';
 import { KeysPage } from './pages/Keys.tsx';
 import { LoginPage } from './pages/Login.tsx';
@@ -87,6 +88,15 @@ const routeTree = root.addChildren([
       path: '/models',
       beforeLoad: adminOnly,
       component: ModelsPage,
+    }),
+    createRoute({
+      getParentRoute: () => app,
+      path: '/comparisons',
+      beforeLoad: adminOnly,
+      validateSearch: (search: Record<string, unknown>) => ({
+        id: typeof search.id === 'string' ? search.id : undefined,
+      }),
+      component: ComparisonsPage,
     }),
     createRoute({
       getParentRoute: () => app,

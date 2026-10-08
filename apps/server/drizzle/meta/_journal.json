@@ -36,6 +36,13 @@
       "when": 1791225933744,
       "tag": "0004_response_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791450154583,
+      "tag": "0005_bitter_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

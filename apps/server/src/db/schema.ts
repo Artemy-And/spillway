@@ -1,4 +1,5 @@
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { ComparisonReport, ComparisonSummary } from '../comparison/types.ts';
 
 const id = () =>
   text('id')
@@ -209,3 +210,13 @@ export type Provider = typeof providers.$inferSelect;
 export type Model = typeof models.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type RequestLog = typeof requestLogs.$inferSelect;
+
+/** Comparison reports contain masked outputs when text storage is enabled; never task prompts. */
+export const comparisons = sqliteTable('comparisons', {
+  id: id(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+  expiresAt: timestamp('expires_at').notNull(),
+  report: text('report', { mode: 'json' }).$type<ComparisonReport>().notNull(),
+  summary: text('summary', { mode: 'json' }).$type<ComparisonSummary>().notNull(),
+});

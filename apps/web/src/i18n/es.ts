@@ -1,4 +1,5 @@
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
+import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
 
@@ -21,6 +22,7 @@ const pii = {
 const times = (n: number) => p(n, { one: 'una vez', other: '# veces' });
 
 export const es: Messages = {
+  comparisons: comparisonMessages.es,
   common: {
     save: 'Guardar',
     saved: 'Guardado',
@@ -110,6 +112,7 @@ export const es: Messages = {
   },
 
   nav: {
+    comparisons: 'Comparar modelos',
     main: 'Menú principal',
     overview: 'Resumen',
     keys: 'Claves',
