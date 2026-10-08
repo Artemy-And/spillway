@@ -5,7 +5,7 @@ const en = {
   applyHint:
     'Use the tested model for new sessions with matching tool definitions. Every session keeps its model.',
   connectionHint:
-    'Send x-spillway-session with a new random ID from the first request, then reuse it on each turn. Supports non-streaming Chat function calls for up to 24 hours.',
+    'Send x-spillway-session with a new random ID from the first request, then reuse it on each turn. Supports Chat function calls with streaming for up to 24 hours.',
   fallbackHint:
     'Provider errors stop the request. Continuing on another model requires a new conversation.',
   newEvidence:
@@ -26,7 +26,7 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     applyHint:
       'Примените проверенную модель к новым сессиям с совпадающими определениями инструментов. Каждая сессия сохраняет свою модель.',
     connectionHint:
-      'Передайте x-spillway-session с новым случайным ID с первого запроса и повторяйте его на каждом ходу. Поддерживаются вызовы функций Chat без стриминга, до 24 часов.',
+      'Передайте x-spillway-session с новым случайным ID с первого запроса и повторяйте его на каждом ходу. Поддерживаются вызовы функций Chat со стримингом, до 24 часов.',
     fallbackHint:
       'При ошибке провайдера запрос останавливается. Продолжение на другой модели требует нового разговора.',
     newEvidence:
@@ -44,7 +44,7 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     applyHint:
       'Das getestete Modell für neue Sitzungen mit passenden Werkzeugdefinitionen verwenden. Jede Sitzung behält ihr Modell.',
     connectionHint:
-      'Ab der ersten Anfrage x-spillway-session mit einer neuen zufälligen ID senden und bei jedem Schritt wiederverwenden. Unterstützt Chat-Funktionsaufrufe ohne Streaming für bis zu 24 Stunden.',
+      'Ab der ersten Anfrage x-spillway-session mit einer neuen zufälligen ID senden und bei jedem Schritt wiederverwenden. Unterstützt Chat-Funktionsaufrufe mit Streaming für bis zu 24 Stunden.',
     fallbackHint:
       'Anbieterfehler stoppen die Anfrage. Ein anderes Modell erfordert eine neue Unterhaltung.',
     newEvidence:
@@ -62,7 +62,7 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     applyHint:
       'Utilisez le modèle testé pour les nouvelles sessions aux définitions d’outils identiques. Chaque session conserve son modèle.',
     connectionHint:
-      'Envoyez x-spillway-session avec un nouvel ID aléatoire dès la première requête, puis réutilisez-le à chaque tour. Appels de fonctions Chat sans streaming, jusqu’à 24 heures.',
+      'Envoyez x-spillway-session avec un nouvel ID aléatoire dès la première requête, puis réutilisez-le à chaque tour. Appels de fonctions Chat avec streaming, jusqu’à 24 heures.',
     fallbackHint:
       'Une erreur du fournisseur arrête la requête. Un autre modèle nécessite une nouvelle conversation.',
     newEvidence:
@@ -80,7 +80,7 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     applyHint:
       'Usa el modelo probado para nuevas sesiones con definiciones de herramientas coincidentes. Cada sesión conserva su modelo.',
     connectionHint:
-      'Envía x-spillway-session con un ID aleatorio nuevo desde la primera solicitud y reutilízalo en cada turno. Admite funciones Chat sin streaming durante un máximo de 24 horas.',
+      'Envía x-spillway-session con un ID aleatorio nuevo desde la primera solicitud y reutilízalo en cada turno. Admite funciones Chat con streaming durante un máximo de 24 horas.',
     fallbackHint:
       'Los errores del proveedor detienen la solicitud. Otro modelo requiere una conversación nueva.',
     newEvidence:
@@ -97,7 +97,7 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     activeSessions: '活跃工具会话',
     applyHint: '将测试过的模型用于工具定义匹配的新会话。每个会话保持同一模型。',
     connectionHint:
-      '从首次请求起发送带随机新 ID 的 x-spillway-session，并在每轮重复使用。支持非流式 Chat 函数调用，有效期最长24小时。',
+      '从首次请求起发送带随机新 ID 的 x-spillway-session，并在每轮重复使用。支持流式 Chat 函数调用，有效期最长24小时。',
     fallbackHint: '供应商出错会停止请求。使用其他模型需要新建对话。',
     newEvidence: '启用工具路由前，请对比完整工具循环：两个模型必须通过检查且费用已知。',
     profileHint: '完整工具循环可以创建会话路由配置。单次调用检查不能启用路由。',

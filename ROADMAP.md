@@ -127,11 +127,28 @@ Implementation and client setup: [tool session routing](docs/tool-session-routin
 Clients supply full history and execute their own tools. This stage supports non-streaming Chat
 function calls; native stateful protocols and streamed tool sessions remain planned.
 
-## Later stages — Planned
+## Stage 7 — Stream evaluated tool sessions
 
-- [ ] Extend tool-session continuity to streaming and native Responses/Anthropic client protocols.
-- [ ] Explore model aliases, provider pools and session affinity, taking inspiration from
+**Completed: 2026-10-08. Started: 2026-10-08.**
+
+- [x] Allow streaming Chat turns on the same durable binding and evaluated function contract.
+- [x] Forward incremental text, call IDs and argument deltas through OpenAI, Anthropic and Ollama providers.
+- [x] Request native usage, without treating translated compatibility defaults as proof of a charge.
+- [x] Require a completion marker; keep charges uncertain on truncation, provider errors and client cancellation.
+- [x] Abort upstream work on body cancellation; prevent every mid-session model/provider fallback.
+- [x] Update connection guidance in all six languages and document client assembly of tool calls.
+- [x] Add four integration tests covering incremental delivery, cancellation, missing usage and interrupted translations.
+- [x] Validate the implementation: all 255 server tests, both type checks, lint and web build passed.
+
+## Next stages — Planned
+
+- [ ] Extend tool-session continuity to native Responses/Anthropic client protocols and their full tool history.
+- [ ] Add model aliases, provider pools and session affinity, taking inspiration from
   [GoModel](https://github.com/ENTERPILOT/GoModel).
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.
+- [ ] Report recorded/uncertain spend, tokens, errors and slow calls across an entire agent session.
+- [ ] Run saved evaluation scenarios from CI with an explicit spending limit and regression verdict.
+- [ ] Roll out evaluated models to a chosen fraction of new sessions; keep existing bindings unchanged.
+- [ ] Connect evaluation evidence, measured costs, gradual rollout and regression detection in one workflow.
 
 These later items are priorities to investigate, without committed completion dates.

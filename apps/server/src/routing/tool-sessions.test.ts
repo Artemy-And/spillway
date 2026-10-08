@@ -21,6 +21,7 @@ import {
   teams,
 } from '../db/schema.ts';
 import { callerForKey } from '../gateway/handler.ts';
+import { sse } from '../gateway/sse.ts';
 import { newGatewayKey } from '../lib/crypto.ts';
 import { testApp } from '../testing.ts';
 import { listProfiles } from './service.ts';
@@ -62,7 +63,35 @@ async function fixture(
   kind: 'openai' | 'anthropic' | 'ollama' = 'openai',
 ) {
   const calls: Record<string, unknown>[] = [];
-  const mode = { fail: false, missingUsage: false };
+  const mode = {
+    fail: false,
+    missingUsage: false,
+    streamEnd: 'complete' as 'complete' | 'truncated' | 'error',
+    gate: undefined as Promise<void> | undefined,
+  };
+  const streamed = (events: string[]) => {
+    const encoder = new TextEncoder();
+    const gate = mode.gate;
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for (let i = 0; i < events.length; i++) {
+              if (i === 1 && gate) await gate;
+              const bytes = encoder.encode(events[i]!);
+              // Exercise split SSE lines and JSON/argument deltas, rather than one event per read.
+              controller.enqueue(bytes.slice(0, 13));
+              controller.enqueue(bytes.slice(13));
+            }
+            controller.close();
+          } catch {
+            /* The client may cancel while the fixture is paused. */
+          }
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
+  };
   const upstream = new Hono().post('/v1/chat/completions', async (c) => {
     const body = await c.req.json<Record<string, unknown>>();
     calls.push(body);
@@ -70,6 +99,55 @@ async function fixture(
       return c.json({ error: { message: 'Synthetic failure' } }, 503);
     const messages = body.messages as { role: string }[];
     const final = messages.some((message) => message.role === 'tool');
+    if (body.stream) {
+      const chunk = (delta: unknown, finish_reason: string | null = null) =>
+        sse({
+          id: 'completion',
+          object: 'chat.completion.chunk',
+          created: 0,
+          model: body.model,
+          choices: [{ index: 0, delta, finish_reason }],
+        });
+      const events = [
+        chunk({
+          role: 'assistant',
+          ...(final
+            ? { content: 'pa' }
+            : {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call-demo',
+                    type: 'function',
+                    function: { name: 'get_order', arguments: '{"orderId":' },
+                  },
+                ],
+              }),
+        }),
+      ];
+      if (mode.streamEnd === 'error')
+        events.push(sse({ error: { message: 'Synthetic stream failure' } }));
+      else {
+        events.push(
+          chunk(
+            final
+              ? { content: 'id' }
+              : { tool_calls: [{ index: 0, function: { arguments: '"DEMO-A"}' } }] },
+            final ? 'stop' : 'tool_calls',
+          ),
+        );
+        if (!mode.missingUsage)
+          events.push(
+            sse({
+              id: 'completion',
+              choices: [],
+              usage: { prompt_tokens: 100, completion_tokens: 10 },
+            }),
+          );
+        if (mode.streamEnd === 'complete') events.push('data: [DONE]\n\n');
+      }
+      return streamed(events);
+    }
     return c.json({
       id: 'completion',
       object: 'chat.completion',
@@ -92,6 +170,68 @@ async function fixture(
     const final = messages.some((message) =>
       message.content.some((block) => block.type === 'tool_result'),
     );
+    if (body.stream) {
+      const events = [
+        sse(
+          {
+            type: 'message_start',
+            message: {
+              id: 'message',
+              model: body.model,
+              ...(!mode.missingUsage ? { usage: { input_tokens: 100, output_tokens: 0 } } : {}),
+            },
+          },
+          'message_start',
+        ),
+      ];
+      events.push(
+        sse(
+          {
+            type: 'content_block_start',
+            index: 0,
+            content_block: final
+              ? { type: 'text', text: '' }
+              : { type: 'tool_use', id: 'call-demo', name: 'get_order', input: {} },
+          },
+          'content_block_start',
+        ),
+      );
+      events.push(
+        sse(
+          {
+            type: 'content_block_delta',
+            index: 0,
+            delta: final
+              ? { type: 'text_delta', text: 'paid' }
+              : { type: 'input_json_delta', partial_json: '{"orderId":"DEMO-A"}' },
+          },
+          'content_block_delta',
+        ),
+      );
+      events.push(sse({ type: 'content_block_stop', index: 0 }, 'content_block_stop'));
+      if (mode.streamEnd === 'error')
+        events.push(
+          sse(
+            { type: 'error', error: { type: 'api_error', message: 'Synthetic stream failure' } },
+            'error',
+          ),
+        );
+      else {
+        events.push(
+          sse(
+            {
+              type: 'message_delta',
+              delta: { stop_reason: final ? 'end_turn' : 'tool_use' },
+              ...(!mode.missingUsage ? { usage: { output_tokens: 10 } } : {}),
+            },
+            'message_delta',
+          ),
+        );
+        if (mode.streamEnd === 'complete')
+          events.push(sse({ type: 'message_stop' }, 'message_stop'));
+      }
+      return streamed(events);
+    }
     return c.json({
       id: 'message',
       type: 'message',
@@ -292,6 +432,128 @@ test('a passed complete tool-loop comparison activates a separate tool profile a
   assert.equal((await listProfiles(f.ctx))[0]!.activeSessions, 1);
 });
 
+async function finishedLog(f: Awaited<ReturnType<typeof fixture>>, response: Response) {
+  const id = response.headers.get('x-spillway-request-id')!;
+  for (let i = 0; i < 200; i++) {
+    const row = await f.ctx.db.query.requestLogs.findFirst({ where: eq(requestLogs.id, id) });
+    if (row) return row;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail('Stream accounting did not finish');
+}
+
+test('streamed tool arguments and final text arrive incrementally and keep the durable model', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  let resume = () => {};
+  f.mode.gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  const response = await f.request(session, {
+    stream: true,
+    stream_options: { include_usage: false },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-spillway-model'), 'candidate');
+  const reader = response.body!.getReader();
+  const first = await reader.read();
+  assert.equal(first.done, false);
+  assert.equal(
+    await f.ctx.db.query.requestLogs.findFirst({
+      where: eq(requestLogs.id, response.headers.get('x-spillway-request-id')!),
+    }),
+    undefined,
+  );
+  resume();
+  let output = new TextDecoder().decode(first.value);
+  while (true) {
+    const next = await reader.read();
+    if (next.done) break;
+    output += new TextDecoder().decode(next.value);
+  }
+  assert.ok(output.includes('call-demo') && output.includes('[DONE]'));
+  assert.deepEqual(f.calls[0]!.stream_options, { include_usage: true });
+  const row = await finishedLog(f, response);
+  assert.equal(row.costKnown, true);
+  assert.equal(row.inputTokens, 100);
+  assert.ok(row.routingSavingsUsd! > 0);
+  const final = await f.request(session, { messages: history, stream: true });
+  assert.ok((await final.text()).includes('[DONE]'));
+  assert.equal(final.headers.get('x-spillway-model'), 'candidate');
+  assert.equal((await finishedLog(f, final)).costKnown, true);
+  assert.deepEqual(
+    f.calls.map((call) => call.model),
+    ['candidate-wire', 'candidate-wire'],
+  );
+});
+
+test('interrupted or failed streams preserve uncertain charges and never fail over the session', async (t) => {
+  for (const streamEnd of ['truncated', 'error'] as const) {
+    const f = await fixture(t);
+    await f.activate();
+    f.mode.streamEnd = streamEnd;
+    const response = await f.request(session, { stream: true });
+    let output = '';
+    try {
+      output = await response.text();
+    } catch {
+      /* Transport may close after an error event. */
+    }
+    assert.equal(output.includes('[DONE]'), false);
+    const row = await finishedLog(f, response);
+    assert.equal(row.costKnown, false);
+    assert.ok(row.error);
+    assert.equal(f.calls.length, 1);
+    f.mode.streamEnd = 'complete';
+    assert.equal((await f.request()).headers.get('x-spillway-model'), 'candidate');
+  }
+});
+
+test('canceling a paused tool stream aborts it and records uncertain charges without changing the binding', async (t) => {
+  const f = await fixture(t);
+  await f.activate();
+  let resume = () => {};
+  f.mode.gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  t.after(() => resume());
+  const response = await f.request(session, { stream: true });
+  const reader = response.body!.getReader();
+  await reader.read();
+  await reader.cancel();
+  const row = await finishedLog(f, response);
+  assert.equal(row.costKnown, false);
+  assert.match(row.error!, /disconnect/i);
+  assert.equal(f.calls.length, 1);
+  assert.equal((await f.ctx.db.select().from(routingSessions))[0]!.targetModelId, f.candidate.id);
+  resume();
+});
+
+test('translated Anthropic and Ollama tool streams preserve IDs, usage and failure accounting', async (t) => {
+  for (const kind of ['anthropic', 'ollama'] as const) {
+    const f = await fixture(t, false, undefined, kind);
+    await f.activate();
+    const response = await f.request(session, { stream: true });
+    const text = await response.text();
+    assert.ok(text.includes('call-demo') && text.includes('[DONE]'));
+    assert.equal((await finishedLog(f, response)).costKnown, true);
+    f.mode.missingUsage = true;
+    const missing = await f.request(session, { stream: true, messages: history });
+    await missing.text();
+    assert.equal((await finishedLog(f, missing)).costKnown, false);
+    f.mode.missingUsage = false;
+    f.mode.streamEnd = 'truncated';
+    const truncated = await f.request(session, { stream: true, messages: history });
+    try {
+      await truncated.text();
+    } catch {
+      /* Expected stream interruption. */
+    }
+    assert.equal((await finishedLog(f, truncated)).costKnown, false);
+    assert.ok(f.calls.every((call) => call.model === 'candidate-wire'));
+  }
+});
+
 test('tool profile requires explicit loop mode, full evidence, and provider fallback disabled', async (t) => {
   const f = await fixture(t);
   for (const patch of [{ mode: 'text' }, { fallbackOnError: true }]) {
@@ -385,11 +647,12 @@ test('an unknown session cannot adopt prior assistant/tool history, and malforme
   assert.equal(f.calls.length, 0);
 });
 
-test('unsupported stream, image, native protocol, strict tools, and output caps cannot enter a pinned session', async (t) => {
+test('unsupported image, native protocol, strict tools, and output caps cannot enter a pinned session', async (t) => {
   const f = await fixture(t);
   await f.activate();
   for (const patch of [
-    { stream: true },
+    { stream: 'true' },
+    { stream: true, stream_options: { unexpected: true } },
     { parallel_tool_calls: true },
     { max_tokens: 3000 },
     { tools: [{ ...tool, function: { ...tool.function, strict: true } }] },

@@ -37,7 +37,7 @@ export async function resolveSession(
   const contract = format === 'openai' ? sessionContract(body) : null;
   if (!contract)
     throw new RoutingSessionError(
-      'Session routing supports non-streaming Chat function calls with parallel_tool_calls:false',
+      'Session routing supports Chat function calls with parallel_tool_calls:false',
       400,
     );
   const id = sha256(`${caller.key.id}\0${token}`);

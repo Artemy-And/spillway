@@ -29,7 +29,7 @@ identifier, gateway key, requested baseline model and tool definitions on every 
 contain 16–128 ASCII letters, digits, underscores or hyphens; a UUID works. Never reuse an ID for
 another conversation. IDs are scoped to the gateway key and stored only as a hash.
 
-Supported requests use `/v1/chat/completions`, non-streaming text messages, 1–4 function definitions,
+Supported requests use `/v1/chat/completions`, text messages, 1–4 function definitions,
 `parallel_tool_calls: false`, and automatic tool choice. Set `max_tokens` or `max_completion_tokens`
 to 1–2048, using one field. Keep the functions available on the final-answer request too.
 Parameters must be object schemas. Definitions must match the evaluated names, descriptions and
@@ -99,6 +99,23 @@ The result above is demo data; replace it with the application's own authorized 
 The assistant/tool message relationship follows the official
 [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling).
 
+### Stream a turn
+
+Set `stream: true` on any turn, keeping the same session header, tools and full history.
+`stream_options: { include_usage: true }` is accepted; Spillway requests usage from the provider
+even if the client omitted it or set it to false. The response uses ordinary Chat SSE chunks:
+tool call IDs and names arrive with initial deltas, and JSON arguments can span multiple deltas.
+Accumulate them by tool index and execute a function only after the complete call is received
+and validated by your application. Append that assembled assistant message and its tool result
+before starting the next turn. Text and streaming turns can alternate within one session.
+
+Spillway requires a provider completion marker as well as the finish reason. A truncated stream,
+provider error event or client cancellation retains uncertain charges, even when partial usage
+was reported. Missing usage also keeps cloud charges uncertain. Errors after streaming begins
+use the client's error event/transport; an HTTP 200 by itself does not mean the turn completed.
+Canceling the response body aborts the upstream request. These conditions never switch the
+session's model. See [official streaming guidance](https://developers.openai.com/api/docs/guides/streaming-responses).
+
 ## Continuity, limits and failure behavior
 
 SQLite atomically pins the first model choice. Concurrent first requests cannot choose different
@@ -127,6 +144,6 @@ The admin profile page shows unexpired session counts, recorded spend and the ex
 cost estimates. Request traces explain the pinned model and rejected continuation.
 
 This stage supports the evaluated Chat function-call contract through existing OpenAI, Anthropic
-and Ollama provider translations. Streaming tool sessions, native Responses/Anthropic clients,
+and Ollama provider translations, including streamed tool arguments and text. Native Responses/Anthropic clients,
 parallel functions, provider-hosted tools, strict-mode fields, images, saved provider conversation
 state and automatic migration between models remain outside this contract.

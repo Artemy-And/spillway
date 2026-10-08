@@ -12,7 +12,7 @@ but a report containing any tool scenario cannot create a text routing profile. 
 can instead create a separate [tool session profile](tool-session-routing.md) with explicit
 session IDs and model affinity. Call-only checks cannot activate routing or certify a coding agent.
 
-The behavior below describes text profiles. Tool sessions require non-streaming Chat function
+The behavior below describes text profiles. Tool sessions require Chat function
 calls and matching definitions. They keep their model through rules and provider errors, and
 block continuation when their applied profile is disabled or removed.
 

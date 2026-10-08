@@ -37,6 +37,7 @@ import {
   step,
   type Target,
 } from './policy.ts';
+import { SessionStream, sessionChunks, sessionEvents } from './session-stream.ts';
 import { openAIChunks, parseSSE, SSEParser, sse, UpstreamError } from './sse.ts';
 import {
   anthropicRequestToOpenAI,
@@ -332,10 +333,10 @@ function fromOpenAIStream(
 }
 
 /** An error in the middle of a stream is sent as the client format's own error event. */
-async function* withStreamErrors(
+async function* withStreamErrors<T extends string | Uint8Array>(
   format: Format,
-  source: AsyncIterable<string>,
-): AsyncGenerator<string> {
+  source: AsyncIterable<T>,
+): AsyncGenerator<T | string> {
   try {
     yield* source;
   } catch (error) {
@@ -365,14 +366,19 @@ async function* tapped(
   body: ReadableStream<Uint8Array>,
   wire: Wire,
   meter: Meter,
+  strict = false,
 ): AsyncGenerator<Uint8Array> {
   const parser = new SSEParser();
+  const guard = strict ? new SessionStream(wire) : null;
   const decoder = new TextDecoder();
   const held: Uint8Array[] = [];
   let started = false;
   for await (const chunk of body) {
     const events = parser.feed(decoder.decode(chunk, { stream: true }));
-    for (const event of events) meter.sseEvent(wire, event);
+    for (const event of events) {
+      guard?.event(event);
+      meter.sseEvent(wire, event);
+    }
     if (started) {
       yield chunk;
       continue;
@@ -384,6 +390,11 @@ async function* tapped(
       held.length = 0;
     }
   }
+  for (const event of [...parser.feed(decoder.decode()), ...parser.end()]) {
+    guard?.event(event);
+    meter.sseEvent(wire, event);
+  }
+  guard?.end();
   yield* held;
 }
 
@@ -419,7 +430,11 @@ function assertAnswer(provider: Target['provider'], json: { error?: unknown; cho
 }
 
 /** Turns an async source into a response body; `onEnd` runs exactly once, also on disconnect. */
-function toBody(source: AsyncIterable<string | Uint8Array>, onEnd: (error?: unknown) => void) {
+function toBody(
+  source: AsyncIterable<string | Uint8Array>,
+  onEnd: (error?: unknown) => void,
+  onCancel?: () => void,
+) {
   const iterator = source[Symbol.asyncIterator]();
   const encoder = new TextEncoder();
   let ended = false;
@@ -444,6 +459,7 @@ function toBody(source: AsyncIterable<string | Uint8Array>, onEnd: (error?: unkn
       }
     },
     async cancel() {
+      onCancel?.();
       end(new Error('Client disconnected'));
       await iterator.return?.();
     },
@@ -464,6 +480,7 @@ async function forward(
   target: Target,
   stream: boolean,
   meter: Meter,
+  session = false,
 ): Promise<Forwarded> {
   const { model, provider } = target;
   const wire: Wire =
@@ -519,12 +536,17 @@ async function forward(
         resolveDone();
         return { response: Response.json(json), done };
       }
-      const source = await primed(tapped(res.body, wire, meter));
+      const source = await primed(tapped(res.body, wire, meter, session));
       // A Responses stream reports failure in an event, after the 200 has gone out.
       const ended = (error?: unknown) =>
         resolveDone(error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined));
       return {
-        response: new Response(toBody(source, ended), { headers: streamHeaders }),
+        response: new Response(
+          toBody(session ? withStreamErrors(format, source) : source, ended, () =>
+            upstream.abort(),
+          ),
+          { headers: streamHeaders },
+        ),
         done,
       };
     }
@@ -543,7 +565,10 @@ async function forward(
     if (wire === 'openai') {
       const res = await callUpstream(ctx, provider, '/chat/completions', { body: request, signal });
       if (!res.ok) throw await upstreamFailure(provider, res);
-      if (stream && res.body) chunks = await primed(openAIChunks(res.body));
+      if (stream && res.body)
+        chunks = await primed(
+          session ? sessionChunks(parseSSE(res.body), meter) : openAIChunks(res.body),
+        );
       else {
         const json = (await res.json()) as OAIChatResponse & { error?: unknown };
         assertAnswer(provider, json);
@@ -557,7 +582,12 @@ async function forward(
         signal,
       });
       if (!res.ok) throw await upstreamFailure(provider, res);
-      if (stream && res.body) chunks = await primed(anthropicStreamToOpenAI(parseSSE(res.body)));
+      if (stream && res.body)
+        chunks = await primed(
+          anthropicStreamToOpenAI(
+            session ? sessionEvents(parseSSE(res.body), wire, meter) : parseSSE(res.body),
+          ),
+        );
       else {
         const answer = (await res.json()) as AResponse;
         // Translation supplies compatibility defaults; only native usage proves a charge.
@@ -576,9 +606,15 @@ async function forward(
     }
     const out = withStreamErrors(
       format,
-      fromOpenAIStream(format, metered(chunks!, meter), model.name, body),
+      fromOpenAIStream(format, session ? chunks! : metered(chunks!, meter), model.name, body),
     );
-    return { response: new Response(toBody(out, resolveDone), { headers: streamHeaders }), done };
+    return {
+      response: new Response(
+        toBody(out, resolveDone, () => upstream.abort()),
+        { headers: streamHeaders },
+      ),
+      done,
+    };
   } finally {
     clearTimeout(deadline);
   }
@@ -954,7 +990,7 @@ export async function handleGateway(
         reservation = null;
         throw c.req.raw.signal.reason ?? new Error('Client disconnected');
       }
-      forwarded = await forward(ctx, c, format, body, target, stream, meter);
+      forwarded = await forward(ctx, c, format, body, target, stream, meter, !!affinity);
     } catch (error) {
       await settleAttempt(error);
       if (affinity) throw error;

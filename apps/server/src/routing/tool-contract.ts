@@ -28,7 +28,7 @@ export function toolContractHash(definitions: ToolDefinition[]): string {
   );
 }
 
-/** The same non-streaming Chat function-call contract used by loop evaluations. */
+/** The same Chat function-call contract used by loop evaluations, with optional streaming. */
 export function sessionContract(
   body: Record<string, unknown>,
 ): { hash: string; initial: boolean } | null {
@@ -41,6 +41,7 @@ export function sessionContract(
     'max_tokens',
     'max_completion_tokens',
     'stream',
+    'stream_options',
     'temperature',
     'top_p',
     'stop',
@@ -53,7 +54,15 @@ export function sessionContract(
     (cap as number) > 2048 ||
     (body.max_tokens !== undefined && body.max_completion_tokens !== undefined) ||
     Object.keys(body).some((key) => !fields.includes(key)) ||
-    (body.stream !== undefined && body.stream !== false) ||
+    (body.stream !== undefined && typeof body.stream !== 'boolean') ||
+    (body.stream_options !== undefined &&
+      (body.stream !== true ||
+        !body.stream_options ||
+        typeof body.stream_options !== 'object' ||
+        Array.isArray(body.stream_options) ||
+        Object.keys(body.stream_options).some((key) => key !== 'include_usage') ||
+        ('include_usage' in body.stream_options &&
+          typeof body.stream_options.include_usage !== 'boolean'))) ||
     (body.n !== undefined && body.n !== 1) ||
     body.parallel_tool_calls !== false ||
     (body.tool_choice !== undefined && body.tool_choice !== 'auto') ||
