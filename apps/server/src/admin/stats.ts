@@ -17,7 +17,9 @@ const BLOCKED = ['blocked_pii', 'blocked_budget', 'blocked_model', 'rate_limited
 const sum = (expr: SQL) => sql<number>`coalesce(sum(${expr}), 0)`;
 /** Quarter hours: days are cut in JavaScript, in the gateway's zone, half-hour offsets included. */
 const QUARTER = 900_000;
-const quarter = sql<number>`${requestLogs.createdAt} / ${QUARTER}`;
+// A literal, not a parameter: node:sqlite binds numbers as REAL, and dividing by a REAL gave
+// every log row its own group instead of one per quarter hour.
+const quarter = sql<number>`${requestLogs.createdAt} / ${sql.raw(String(QUARTER))}`;
 
 /** Spend per key for today and this month. */
 export async function keySpend(db: Db, keyIds: string[] | null, cal: Calendar, now = new Date()) {
