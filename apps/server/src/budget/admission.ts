@@ -15,6 +15,7 @@ export async function admit(
     requestedModelId: string;
     requestId: string;
     sessionId?: string;
+    contextTokens?: number;
     body: Record<string, unknown>;
     format: string;
     settings: Settings;
@@ -34,7 +35,7 @@ export async function admit(
   );
   if (target.provider.isLocal)
     return { target, body, reservation: null, trace: [], denied: false, status: 200 } as const;
-  const estimate = estimateRequest(target, input.format, body);
+  const estimate = estimateRequest(target, input.format, body, input.contextTokens);
   const reservation = await reserve(ctx.db, { ...input, estimate, cal: calendarOf(settings) });
   if (reservation)
     return {

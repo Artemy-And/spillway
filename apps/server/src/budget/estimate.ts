@@ -83,6 +83,7 @@ export function estimateRequest(
   target: Target,
   format: string,
   body: Record<string, unknown>,
+  contextTokens?: number,
 ): number | null {
   if (target.provider.isLocal) return 0;
   const embedding = format.startsWith('embeddings');
@@ -91,7 +92,8 @@ export function estimateRequest(
     (!embedding && target.model.outputPrice === null) ||
     opaque(body) ||
     unmodeledFees(body, target, format) ||
-    body.previous_response_id !== undefined ||
+    (body.previous_response_id !== undefined &&
+      (contextTokens === undefined || !Number.isSafeInteger(contextTokens) || contextTokens < 0)) ||
     body.conversation !== undefined ||
     body.context !== undefined
   )
@@ -112,7 +114,7 @@ export function estimateRequest(
     (n as number) < 1
   )
     return null;
-  const input = new TextEncoder().encode(JSON.stringify(body)).length + 512;
+  const input = new TextEncoder().encode(JSON.stringify(body)).length + 512 + (contextTokens ?? 0);
   const inputPrice = Math.max((target.model.inputPrice ?? 0) * 2, target.model.cacheReadPrice ?? 0);
   const amount =
     ((input * inputPrice + (cap as number) * (target.model.outputPrice ?? 0)) * (n as number)) /

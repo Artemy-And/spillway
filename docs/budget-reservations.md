@@ -33,6 +33,12 @@ local model or are blocked. Client-executed text tools and their schemas can be 
 translation still determines which tools are sent. This milestone does not introduce multimodal
 pricing or provider-tool price tables.
 
+[Pinned native Responses sessions](native-session-context.md) are an exception for tracked
+`previous_response_id`: their conservative accumulated history bound is added to each new
+request estimate. Unknown/untracked provider context still has no bounded estimate.
+Native Messages thinking sessions also reserve prior output caps in addition to visible request
+bytes, because signatures can carry hidden thinking that is billed again as input.
+
 An actual reported charge can exceed the reserve if the estimate or configured prices are wrong,
 or a provider does not respect its cap. Spillway records the charge and prevents further calls
 that no longer fit. The feature closes concurrent admission races; it cannot guarantee an invoice

@@ -23,6 +23,7 @@ import {
 import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii, type PiiCounts } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
+import { type NativeTurn, prepareNativeState } from '../routing/native-state.ts';
 import { allowed, matchesFingerprint, routingTarget } from '../routing/resolve.ts';
 import { RoutingSessionError, resolveSession } from '../routing/sessions.ts';
 import type { Settings } from '../settings.ts';
@@ -214,6 +215,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const text = blocks
         .map((block) => {
           if (block.type === 'text') return block.text;
+          if (block.type === 'thinking') return block.thinking;
           if (block.type === 'tool_use') return toolText(block.input);
           if (block.type === 'tool_result') {
             const content =
@@ -367,6 +369,7 @@ async function* tapped(
   wire: Wire,
   meter: Meter,
   strict = false,
+  native?: NativeTurn | null,
 ): AsyncGenerator<Uint8Array> {
   const parser = new SSEParser();
   const guard = strict ? new SessionStream(wire) : null;
@@ -378,6 +381,7 @@ async function* tapped(
     for (const event of events) {
       guard?.event(event);
       meter.sseEvent(wire, event);
+      native?.observe(event);
     }
     if (started) {
       yield chunk;
@@ -393,6 +397,7 @@ async function* tapped(
   for (const event of [...parser.feed(decoder.decode()), ...parser.end()]) {
     guard?.event(event);
     meter.sseEvent(wire, event);
+    native?.observe(event);
   }
   guard?.end();
   yield* held;
@@ -432,35 +437,35 @@ function assertAnswer(provider: Target['provider'], json: { error?: unknown; cho
 /** Turns an async source into a response body; `onEnd` runs exactly once, also on disconnect. */
 function toBody(
   source: AsyncIterable<string | Uint8Array>,
-  onEnd: (error?: unknown) => void,
+  onEnd: (error?: unknown) => void | Promise<void>,
   onCancel?: () => void,
 ) {
   const iterator = source[Symbol.asyncIterator]();
   const encoder = new TextEncoder();
   let ended = false;
-  const end = (error?: unknown) => {
+  const end = async (error?: unknown) => {
     if (ended) return;
     ended = true;
-    onEnd(error);
+    await onEnd(error);
   };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         const { value, done } = await iterator.next();
         if (done) {
-          end();
+          await end();
           controller.close();
         } else {
           controller.enqueue(typeof value === 'string' ? encoder.encode(value) : value);
         }
       } catch (error) {
-        end(error);
+        await end(error);
         controller.error(error);
       }
     },
     async cancel() {
       onCancel?.();
-      end(new Error('Client disconnected'));
+      await end(new Error('Client disconnected'));
       await iterator.return?.();
     },
   });
@@ -481,6 +486,8 @@ async function forward(
   stream: boolean,
   meter: Meter,
   session = false,
+  native?: NativeTurn | null,
+  pii: PiiCounts = {},
 ): Promise<Forwarded> {
   const { model, provider } = target;
   const wire: Wire =
@@ -533,13 +540,24 @@ async function forward(
           meter.openAIResponse(answer);
         } else if (wire === 'responses') meter.responsesResponse(json as RResponse);
         else meter.anthropicResponse(json as AResponse);
+        await native?.complete(meter, pii, json);
         resolveDone();
         return { response: Response.json(json), done };
       }
-      const source = await primed(tapped(res.body, wire, meter, session));
+      const source = await primed(tapped(res.body, wire, meter, session, native));
       // A Responses stream reports failure in an event, after the 200 has gone out.
-      const ended = (error?: unknown) =>
-        resolveDone(error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined));
+      const ended = async (error?: unknown) => {
+        const failure = error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined);
+        try {
+          if (failure === undefined) await native?.complete(meter, pii);
+          else await native?.fail(true);
+          resolveDone(failure);
+        } catch (stateError) {
+          await native?.fail(true);
+          resolveDone(stateError);
+          throw stateError;
+        }
+      };
       return {
         response: new Response(
           toBody(session ? withStreamErrors(format, source) : source, ended, () =>
@@ -685,10 +703,12 @@ export async function handleGateway(
   const settings = await ctx.settings.get();
   const sessionToken = !internalCaller ? c.req.header('x-spillway-session') : undefined;
   let affinity: Awaited<ReturnType<typeof resolveSession>> | undefined;
+  let native: NativeTurn | null = null;
   if (sessionToken !== undefined) {
     try {
       affinity = await resolveSession(ctx, caller, body, format, sessionToken);
-      if (format === 'responses') body = { ...body, store: false };
+      native = await prepareNativeState(ctx, affinity.row.id, format, body, affinity.target);
+      if (format === 'responses' && !native) body = { ...body, store: false };
     } catch (error) {
       if (!(error instanceof RoutingSessionError)) throw error;
       const id = shortId('req');
@@ -721,6 +741,7 @@ export async function handleGateway(
   }
   const text = promptText(format, body);
   const scan = maskPii(text.all);
+  if (native) Object.assign(scan.found, native.pii);
   const decision: Decision = await decide(ctx, {
     caller,
     requestedName: affinity?.baseline.model.name ?? requestedName,
@@ -846,6 +867,7 @@ export async function handleGateway(
     settings,
     allowLocal: affinity ? false : undefined,
     sessionId: affinity?.row.id,
+    contextTokens: native?.contextTokens,
   });
   if (admission.denied) {
     await writeLog(
@@ -881,6 +903,7 @@ export async function handleGateway(
   let profileFallbackUsed = false;
   const attemptedModelId = target.model.id;
   const meter = new Meter();
+  let nativeAttempted = false;
   const settleAttempt = async (error?: unknown) => {
     if (!reservation) return;
     const known =
@@ -899,6 +922,7 @@ export async function handleGateway(
     reservation = null;
   };
   const finish = async (status: number, error?: unknown) => {
+    if (error !== undefined) await native?.fail(nativeAttempted);
     await settleAttempt(error);
     const totals = await attemptTotals(ctx.db, id);
     const cost = totals.costUsd;
@@ -949,7 +973,7 @@ export async function handleGateway(
         ruleId: outage && !failed ? 'outage' : decision.ruleId,
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
-        usageKnown: meter.usageKnown,
+        usageKnown: native && !nativeAttempted ? true : meter.usageKnown,
         costUsd: cost,
         costKnown: totals.known,
         // A failover is not a saving: the cloud model was not going to answer anyway.
@@ -993,6 +1017,7 @@ export async function handleGateway(
   };
 
   try {
+    await native?.claim(id);
     let forwarded: Forwarded;
     try {
       if (c.req.raw.signal.aborted) {
@@ -1000,7 +1025,19 @@ export async function handleGateway(
         reservation = null;
         throw c.req.raw.signal.reason ?? new Error('Client disconnected');
       }
-      forwarded = await forward(ctx, c, format, body, target, stream, meter, !!affinity);
+      nativeAttempted = true;
+      forwarded = await forward(
+        ctx,
+        c,
+        format,
+        body,
+        target,
+        stream,
+        meter,
+        !!affinity,
+        native,
+        scan.found,
+      );
     } catch (error) {
       await settleAttempt(error);
       if (affinity) throw error;
@@ -1102,7 +1139,12 @@ export async function handleGateway(
       response.headers.set('x-spillway-routing-profile', decision.routingProfile.id);
     return response;
   } catch (error) {
-    const status = error instanceof UpstreamError ? error.status : 502;
+    if (native && !nativeAttempted && reservation) {
+      await release(ctx.db, reservation);
+      reservation = null;
+    }
+    const status =
+      error instanceof UpstreamError || error instanceof RoutingSessionError ? error.status : 502;
     const message = error instanceof Error ? error.message : 'Upstream request failed';
     await finish(status, error);
     const response = errorResponse(format, status, message);

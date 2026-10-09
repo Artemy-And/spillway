@@ -65,6 +65,10 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
   and restarts, while retaining permissions, privacy and hard budgets.
   [Tool session routing](docs/tool-session-routing.md).
 
+- **Continue native agent context on the same provider.** Use Responses `previous_response_id`
+  or preserve signed Anthropic thinking through streamed tool loops and gateway restarts.
+  Recheck budgets including stored Responses history. [Native session context](docs/native-session-context.md).
+
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
   `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
   `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool

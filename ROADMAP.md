@@ -202,9 +202,32 @@ checks. It does not establish quality outside the tested tasks or claim complete
 
 Details and retention limits: [session reports](docs/session-reports.md).
 
+## Stage 12 — Preserve native agent context and reasoning
+
+**Completed: 2026-10-09. Started: 2026-10-09.**
+
+- [x] Continue native Responses through the latest `previous_response_id`, scoped to the gateway key, session, model and provider.
+- [x] Bind native API mode atomically with the first model choice; reject imported/old heads and incompatible provider translations.
+- [x] Preserve complete Anthropic thinking, signatures and redacted blocks; verify append-only client history without storing the blocks.
+- [x] Support bounded enabled/adaptive thinking and Responses reasoning controls on compatible native models.
+- [x] Assemble streamed signatures and tool input for continuity checks while forwarding native SSE bytes unchanged.
+- [x] Persist completed context fingerprints across restarts; serialize native turns and release reservations for losing concurrent requests.
+- [x] Recheck privacy, permissions, expiry, configuration and encrypted credential fingerprints; keep policy/budget refusals resumable.
+- [x] Reserve accumulated Responses history and prior Messages output caps, including hidden thinking, before each cloud call.
+- [x] Keep charges uncertain and require a fresh conversation after attempted native failures, cancellation or process interruption.
+- [x] Store hashes, bounds and sensitive-data categories only; retain existing session capacity/expiry and cascade metadata deletion.
+- [x] Add setup guidance in all six languages and document native context limits and provider-side storage.
+- [x] Add 14 integration tests covering response-ID chains, signed/redacted/omitted thinking, streaming, races,
+  SQLite reopening, expiry, key/credential isolation, privacy, budgets, failed output and uncertain charges.
+- [x] Validate the implementation: all 281 server tests, both type checks, lint and web build passed.
+
+Implementation and client examples: [native session context](docs/native-session-context.md).
+These tests use local synthetic providers, without real model charges. Native response-ID chains
+and signed Messages history are supported; Conversations API objects, encrypted Responses input,
+parallel functions and automatic migration between models remain outside the supported contract.
+
 ## Next stages — Planned
 
-- [ ] Support provider-stored native context and reasoning continuity on a pinned provider.
 - [ ] Validate the complete workflow with 3–5 small teams and refine priorities from actual usage.
 
 These later items are priorities to investigate, without committed completion dates.

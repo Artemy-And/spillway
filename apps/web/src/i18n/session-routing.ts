@@ -9,6 +9,8 @@ const en = {
     'Use the tested model for new sessions with matching tool definitions. Every session keeps its model.',
   connectionHint:
     'Send x-spillway-session with a new random ID from the first request, then reuse it on each turn. Supports Chat, Responses and Messages function calls with streaming for up to 24 hours.',
+  nativeContextHint:
+    'Native providers also support Responses continuation with store: true and previous_response_id, and unchanged Messages thinking blocks and signatures. Start a new conversation after an interrupted native turn.',
   fallbackHint:
     'Provider errors stop the request. Continuing on another model requires a new conversation.',
   newEvidence:
@@ -33,6 +35,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
       'Примените проверенную модель к новым сессиям с совпадающими определениями инструментов. Каждая сессия сохраняет свою модель.',
     connectionHint:
       'Передайте x-spillway-session с новым случайным ID с первого запроса и повторяйте его на каждом ходу. Поддерживаются вызовы функций Chat, Responses и Messages со стримингом, до 24 часов.',
+    nativeContextHint:
+      'Нативные провайдеры поддерживают продолжение Responses через store: true и previous_response_id, а также неизменённые thinking-блоки и подписи Messages. После обрыва нативного хода начните новый разговор.',
     fallbackHint:
       'При ошибке провайдера запрос останавливается. Продолжение на другой модели требует нового разговора.',
     newEvidence:
@@ -54,6 +58,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
       'Das getestete Modell für neue Sitzungen mit passenden Werkzeugdefinitionen verwenden. Jede Sitzung behält ihr Modell.',
     connectionHint:
       'Ab der ersten Anfrage x-spillway-session mit einer neuen zufälligen ID senden und bei jedem Schritt wiederverwenden. Unterstützt Funktionsaufrufe über Chat, Responses und Messages mit Streaming für bis zu 24 Stunden.',
+    nativeContextHint:
+      'Native Anbieter unterstützen Responses mit store: true und previous_response_id sowie unveränderte Thinking-Blöcke und Signaturen in Messages. Nach einem unterbrochenen nativen Schritt eine neue Unterhaltung beginnen.',
     fallbackHint:
       'Anbieterfehler stoppen die Anfrage. Ein anderes Modell erfordert eine neue Unterhaltung.',
     newEvidence:
@@ -75,6 +81,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
       'Utilisez le modèle testé pour les nouvelles sessions aux définitions d’outils identiques. Chaque session conserve son modèle.',
     connectionHint:
       'Envoyez x-spillway-session avec un nouvel ID aléatoire dès la première requête, puis réutilisez-le à chaque tour. Appels de fonctions Chat, Responses et Messages avec streaming, jusqu’à 24 heures.',
+    nativeContextHint:
+      'Les fournisseurs natifs prennent en charge Responses avec store: true et previous_response_id, ainsi que les blocs thinking et signatures Messages inchangés. Après un tour natif interrompu, commencez une nouvelle conversation.',
     fallbackHint:
       'Une erreur du fournisseur arrête la requête. Un autre modèle nécessite une nouvelle conversation.',
     newEvidence:
@@ -96,6 +104,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
       'Usa el modelo probado para nuevas sesiones con definiciones de herramientas coincidentes. Cada sesión conserva su modelo.',
     connectionHint:
       'Envía x-spillway-session con un ID aleatorio nuevo desde la primera solicitud y reutilízalo en cada turno. Admite funciones Chat, Responses y Messages con streaming durante un máximo de 24 horas.',
+    nativeContextHint:
+      'Los proveedores nativos admiten Responses con store: true y previous_response_id, y bloques thinking y firmas de Messages sin cambios. Tras un turno nativo interrumpido, inicia una conversación nueva.',
     fallbackHint:
       'Los errores del proveedor detienen la solicitud. Otro modelo requiere una conversación nueva.',
     newEvidence:
@@ -115,6 +125,8 @@ export const sessionRoutingMessages: Record<'en' | 'ru' | 'de' | 'fr' | 'es' | '
     applyHint: '将测试过的模型用于工具定义匹配的新会话。每个会话保持同一模型。',
     connectionHint:
       '从首次请求起发送带随机新 ID 的 x-spillway-session，并在每轮重复使用。支持流式 Chat、Responses 和 Messages 函数调用，有效期最长24小时。',
+    nativeContextHint:
+      '原生供应商还支持通过 store: true 和 previous_response_id 继续 Responses，以及原样保留 Messages 的 thinking 块和签名。原生轮次中断后，请开始新对话。',
     fallbackHint: '供应商出错会停止请求。使用其他模型需要新建对话。',
     newEvidence: '启用工具路由前，请对比完整工具循环：两个模型必须通过检查且费用已知。',
     profileHint: '完整工具循环可以创建会话路由配置。单次调用检查不能启用路由。',

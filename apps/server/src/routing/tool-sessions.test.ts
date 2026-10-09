@@ -803,7 +803,14 @@ test('native sessions reject unbound history, stored state and context that cann
             { tool_choice: { type: 'auto' } },
           ];
     for (const patch of patches)
-      assert.equal((await nativeRequest(f, format, { ...base, ...patch })).status, 400);
+      assert.equal(
+        (await nativeRequest(f, format, { ...base, ...patch })).status,
+        'messages' in patch &&
+          Array.isArray(patch.messages) &&
+          patch.messages[0]?.role === 'assistant'
+          ? 409
+          : 400,
+      );
   }
   assert.equal(f.calls.length, 0);
 });
@@ -823,7 +830,7 @@ test('native streamed sessions retain uncertain charges on errors and recheck pr
     }
     assert.equal((await finishedLog(f, response)).costKnown, false);
     f.mode.streamEnd = 'complete';
-    const body = nativeBody(format, true);
+    const body: Record<string, unknown> = nativeBody(format, true);
     const secret = 'sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop';
     if (format === 'responses')
       body.input = [

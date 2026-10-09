@@ -328,12 +328,31 @@ export const routingSessions = sqliteTable(
     target: text('target', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
     createdAt: createdAt(),
     expiresAt: timestamp('expires_at').notNull(),
+    nativeFormat: text('native_format', { enum: ['responses', 'anthropic'] }),
   },
   (table) => [
     index('routing_sessions_key').on(table.keyId),
     index('routing_sessions_expiry').on(table.expiresAt),
   ],
 );
+
+/** Native continuity metadata only: no history, response IDs, thinking or signatures in plaintext. */
+export const nativeSessionStates = sqliteTable('native_session_states', {
+  sessionId: text('session_id')
+    .primaryKey()
+    .references(() => routingSessions.id, { onDelete: 'cascade' }),
+  format: text('format', { enum: ['responses', 'anthropic'] }).notNull(),
+  configHash: text('config_hash').notNull(),
+  credentialHash: text('credential_hash').notNull(),
+  headHash: text('head_hash'),
+  historyLength: integer('history_length').notNull().default(0),
+  pendingCallHash: text('pending_call_hash'),
+  contextTokens: integer('context_tokens').notNull().default(0),
+  pii: text('pii', { mode: 'json' }).$type<Record<string, number>>().notNull().default({}),
+  revision: integer('revision').notNull().default(0),
+  inFlight: text('in_flight'),
+  interrupted: integer('interrupted', { mode: 'boolean' }).notNull().default(false),
+});
 
 /** Flat pools only: a target is a concrete model with its own provider configuration. */
 export const modelAliases = sqliteTable('model_aliases', {

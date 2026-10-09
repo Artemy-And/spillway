@@ -57,7 +57,8 @@ The first request must start a fresh conversation with system/developer/user mes
 session cannot adopt existing assistant or tool history. Each later request includes the full
 conversation: the actual assistant call followed by its `role: "tool"` result and matching
 `tool_call_id`. The client runs its own functions and sends subsequent requests sequentially;
-Spillway stores no history, runs no tools and does not orchestrate or serialize the client agent.
+Spillway stores no history, runs no tools and does not orchestrate the client agent. Native
+stored/reasoning context serializes turns to protect its single continuation head.
 The history supports one function call per assistant turn and rejects duplicate call IDs or
 unanswered/mismatched calls.
 
@@ -140,7 +141,7 @@ responses or streaming. Continue to send full history and the evaluated function
 The pinned model/provider and budget rules are identical to Chat.
 
 For Responses, use flat `type: "function"` tools with `strict: false`, `parallel_tool_calls: false`,
-automatic tool choice and `max_output_tokens: 1–2048`. Spillway sets `store: false`. Preserve the
+automatic tool choice and `max_output_tokens: 1–2048`. Full-history mode uses `store: false`. Preserve the
 actual `function_call.call_id`, `name` and `arguments` in `input`, followed by its
 `function_call_output` with matching `call_id` and a string `output`. Text message content may
 be a string or input/output text blocks; returned message/function IDs and statuses are accepted.
@@ -152,9 +153,11 @@ message. Text-only system/message blocks are supported, including string/array t
 Keep tool results before any ordinary user text in that message.
 
 Unknown sessions cannot adopt native assistant/tool history either. Parallel calls, strict
-schemas, images, hosted tools, thinking/signature blocks, encrypted reasoning, item references,
-`previous_response_id` and stored conversations are rejected before a provider call. This
-bounded full-history contract does not claim support for every SDK/agent configuration.
+schemas, images, hosted tools, encrypted reasoning input, item references and Conversations API
+objects are rejected before a provider call. Native providers additionally support
+[stored Responses continuation and signed Messages thinking](native-session-context.md),
+including streaming, when enabled from the first turn. Those requests remain on the same native
+API and provider. This contract does not claim support for every SDK/agent configuration.
 Native provider formats pass supported history through; translated providers preserve call IDs
 and disable parallel tools. Clients must recognize the native completion/error events.
 
@@ -171,7 +174,9 @@ Every turn rechecks key/team permissions, model configuration, the profile, priv
 admission. Hard limits block the request. Budget-threshold and off-hours rules keep the pinned
 model; response caching and every provider/local fallback are disabled for these sessions.
 Provider failures stop that request and retain normal accounting for uncertain charges.
-The client can retry on the same unchanged model, subject to its remaining budget.
+Full-history clients can retry on the same unchanged model, subject to their remaining budget.
+An attempted native stored/reasoning turn that fails or is canceled requires a fresh conversation
+and session ID; Spillway cannot prove which provider context survived the interruption.
 
 Changing the requested model or tool definitions, disabling/removing the applied profile, or
 changing a model/provider configuration blocks continuation rather than choosing another model.
@@ -190,5 +195,6 @@ errors and slow calls across retained turns, including baseline/control sessions
 This stage supports the evaluated Chat function-call contract through existing OpenAI, Anthropic
 and Ollama provider translations, including native full-history Responses/Messages clients,
 streamed tool arguments and text. Parallel functions, provider-hosted tools, strict-mode fields,
-images, saved provider conversation
-state and automatic migration between models remain outside this contract.
+images, Conversations API objects, encrypted reasoning input and automatic migration between
+models remain outside this contract. Native Responses response-ID chains and Messages
+thinking/signatures follow the separate native context rules above.

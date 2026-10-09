@@ -1,0 +1,1 @@
+ALTER TABLE `routing_sessions` ADD `native_format` text;

@@ -114,6 +114,7 @@ function Profile({ profile }: { profile: RoutingProfileRow }) {
         />
       )}
       {tools && <p className="text-sm text-muted">{m.sessionRouting.connectionHint}</p>}
+      {tools && <p className="text-sm text-muted">{m.sessionRouting.nativeContextHint}</p>}
       {tools && (
         <label className="space-y-2 text-sm" htmlFor={`rollout-${profile.id}`}>
           <span>{m.sessionRouting.rollout}</span>

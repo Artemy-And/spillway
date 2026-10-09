@@ -92,6 +92,20 @@
       "when": 1791490885289,
       "tag": "0012_session_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1791527416607,
+      "tag": "0013_native_session_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791527963455,
+      "tag": "0014_native_session_mode",
+      "breakpoints": true
     }
   ]
 }

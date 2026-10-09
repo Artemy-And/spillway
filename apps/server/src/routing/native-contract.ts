@@ -33,9 +33,55 @@ export function sessionContractFor(format: Format, body: ObjectValue) {
   const common = ['model', 'stream', 'temperature', 'top_p', 'tools', 'tool_choice'];
   const extra =
     format === 'responses'
-      ? ['input', 'instructions', 'max_output_tokens', 'parallel_tool_calls', 'store']
-      : ['messages', 'system', 'max_tokens', 'stop_sequences'];
+      ? [
+          'input',
+          'instructions',
+          'max_output_tokens',
+          'parallel_tool_calls',
+          'store',
+          'previous_response_id',
+          'reasoning',
+        ]
+      : ['messages', 'system', 'max_tokens', 'stop_sequences', 'thinking'];
   if (!fields(body, [...common, ...extra]) || !Array.isArray(body.tools)) return null;
+  const native = nativeContextRequested(format, body);
+  const cap = format === 'responses' ? body.max_output_tokens : body.max_tokens;
+  if (
+    !Number.isSafeInteger(cap) ||
+    (cap as number) < 1 ||
+    (cap as number) > (native ? 32768 : 2048)
+  )
+    return null;
+  if (body.thinking !== undefined) {
+    if (!object(body.thinking) || !fields(body.thinking, ['type', 'budget_tokens', 'display']))
+      return null;
+    const thinking = body.thinking;
+    if (
+      thinking.display !== undefined &&
+      !['summarized', 'omitted'].includes(String(thinking.display))
+    )
+      return null;
+    if (thinking.type === 'enabled') {
+      if (
+        !Number.isSafeInteger(thinking.budget_tokens) ||
+        (thinking.budget_tokens as number) < 1024 ||
+        (thinking.budget_tokens as number) >= (cap as number)
+      )
+        return null;
+    } else if (thinking.type !== 'adaptive' || thinking.budget_tokens !== undefined) return null;
+  }
+  if (
+    body.reasoning !== undefined &&
+    (!object(body.reasoning) ||
+      !fields(body.reasoning, ['effort', 'summary']) ||
+      (body.reasoning.effort !== undefined &&
+        !['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].includes(
+          String(body.reasoning.effort),
+        )) ||
+      (body.reasoning.summary !== undefined &&
+        !['auto', 'concise', 'detailed'].includes(String(body.reasoning.summary))))
+  )
+    return null;
   const tools: ObjectValue[] = [];
   for (const fn of body.tools) {
     if (
@@ -68,7 +114,13 @@ export function sessionContractFor(format: Format, body: ObjectValue) {
   if (format === 'responses') {
     if (
       body.parallel_tool_calls !== false ||
-      (body.store !== undefined && body.store !== false) ||
+      (body.store !== undefined && typeof body.store !== 'boolean') ||
+      (body.previous_response_id !== undefined &&
+        (typeof body.previous_response_id !== 'string' ||
+          !body.previous_response_id.length ||
+          body.previous_response_id.length > 200 ||
+          body.store === false)) ||
+      (body.reasoning !== undefined && !native) ||
       (body.tool_choice !== undefined && body.tool_choice !== 'auto')
     )
       return null;
@@ -100,6 +152,19 @@ export function sessionContractFor(format: Format, body: ObjectValue) {
       } else if (item.type === 'function_call_output') {
         if (!fields(item, ['type', 'id', 'call_id', 'output']) || typeof item.output !== 'string')
           return null;
+        // The persisted head validates the real outstanding call before forwarding.
+        if (body.previous_response_id !== undefined)
+          messages.push({
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: item.call_id,
+                type: 'function',
+                function: { name: (body.tools[0] as ObjectValue)?.name, arguments: '{}' },
+              },
+            ],
+          });
         messages.push({ role: 'tool', tool_call_id: item.call_id, content: item.output });
       } else return null;
     }
@@ -133,6 +198,21 @@ export function sessionContractFor(format: Format, body: ObjectValue) {
           if (!fields(block, ['type', 'text']) || typeof block.text !== 'string') return null;
           parts.push(block.text);
           hadText = true;
+        } else if (block.type === 'thinking' && message.role === 'assistant') {
+          if (
+            !fields(block, ['type', 'thinking', 'signature']) ||
+            typeof block.thinking !== 'string' ||
+            typeof block.signature !== 'string' ||
+            !block.signature.length
+          )
+            return null;
+        } else if (block.type === 'redacted_thinking' && message.role === 'assistant') {
+          if (
+            !fields(block, ['type', 'data']) ||
+            typeof block.data !== 'string' ||
+            !block.data.length
+          )
+            return null;
         } else if (block.type === 'tool_use' && message.role === 'assistant') {
           if (!fields(block, ['type', 'id', 'name', 'input']) || !object(block.input)) return null;
           calls.push({
@@ -160,13 +240,34 @@ export function sessionContractFor(format: Format, body: ObjectValue) {
         });
     }
   }
-  return sessionContract({
+  const contract = sessionContract({
     model: body.model,
     messages,
     tools,
     tool_choice: 'auto',
     parallel_tool_calls: false,
-    max_tokens: format === 'responses' ? body.max_output_tokens : body.max_tokens,
+    max_tokens: Math.min(cap as number, 2048),
     stream: body.stream,
   });
+  return contract && body.previous_response_id !== undefined
+    ? { ...contract, initial: false }
+    : contract;
+}
+
+export function nativeContextRequested(format: Format, body: ObjectValue): boolean {
+  if (format === 'responses') return body.store === true || body.previous_response_id !== undefined;
+  return (
+    format === 'anthropic' &&
+    (body.thinking !== undefined ||
+      (Array.isArray(body.messages) &&
+        body.messages.some(
+          (message) =>
+            object(message) &&
+            Array.isArray(message.content) &&
+            message.content.some(
+              (block) =>
+                object(block) && ['thinking', 'redacted_thinking'].includes(String(block.type)),
+            ),
+        )))
+  );
 }
