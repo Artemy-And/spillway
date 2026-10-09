@@ -542,6 +542,7 @@ export const en = {
     piiMasked: (t: TraceParams) =>
       `Found ${describePii(t.pii, pii)}; masked in the log${t.local ? ', model is local' : ''}`,
     sentTo: (t: TraceParams) => `Sent to ${t.model}${t.local ? ' · local' : ''} (${t.provider})`,
+    noPrice: (t: TraceParams) => `${t.model} has no price: budgets do not count this request`,
     upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
     providerFailed: (t: TraceParams) =>
       t.detail ? upstream(t) : `${t.provider} failed: ${t.message}`,

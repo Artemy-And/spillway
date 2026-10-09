@@ -531,6 +531,7 @@ export const zh: Messages = {
     piiMasked: (t: TraceParams) =>
       `发现 ${describePii(t.pii, pii)}，已在日志中遮盖${t.local ? '，模型为本地模型' : ''}`,
     sentTo: (t: TraceParams) => `已发往 ${t.model}${t.local ? ' · 本地' : ''}（${t.provider}）`,
+    noPrice: (t: TraceParams) => `${t.model} 未设置价格：预算不计入此请求`,
     upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
     providerFailed: (t: TraceParams) =>
       t.detail ? upstream(t) : `${t.provider} 出错：${t.message}`,

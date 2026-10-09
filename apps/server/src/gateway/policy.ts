@@ -381,5 +381,16 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         local: target.provider.isLocal,
       }),
     );
+  // Without a price a cloud request is logged at $0, so no budget or limit ever counts it.
+  const { inputPrice, outputPrice } = target.model;
+  if (!target.provider.isLocal && (inputPrice === null || (!embeddings && outputPrice === null)))
+    trace.push(
+      step(
+        'warn',
+        `${plainName(target)} has no price: budgets do not count this request`,
+        'noPrice',
+        { model: plainName(target) },
+      ),
+    );
   return { result, status: 200, requested, target, ruleId, trace, message: '' };
 }

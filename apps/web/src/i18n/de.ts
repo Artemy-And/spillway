@@ -570,6 +570,7 @@ export const de: Messages = {
       `${describePii(t.pii, pii)} gefunden; im Protokoll maskiert${t.local ? ', Modell ist lokal' : ''}`,
     sentTo: (t: TraceParams) =>
       `An ${t.model}${t.local ? ' · lokal' : ''} (${t.provider}) gesendet`,
+    noPrice: (t: TraceParams) => `${t.model} hat keinen Preis: Budgets zählen diese Anfrage nicht`,
     upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
     providerFailed: (t: TraceParams) =>
       t.detail ? upstream(t) : `${t.provider} ist ausgefallen: ${t.message}`,

@@ -568,6 +568,8 @@ export const fr: Messages = {
     piiMasked: (t: TraceParams) =>
       `Trouvé : ${describePii(t.pii, pii)} ; masqué dans le journal${t.local ? ', modèle local' : ''}`,
     sentTo: (t: TraceParams) => `Envoyée à ${t.model}${t.local ? ' · local' : ''} (${t.provider})`,
+    noPrice: (t: TraceParams) =>
+      `${t.model} n’a pas de prix : les budgets ne comptent pas cette requête`,
     upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
     providerFailed: (t: TraceParams) =>
       t.detail ? upstream(t) : `${t.provider} a échoué : ${t.message}`,

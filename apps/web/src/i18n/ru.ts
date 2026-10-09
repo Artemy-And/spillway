@@ -588,6 +588,8 @@ export const ru: Messages = {
       `Найдено: ${describePii(t.pii, pii)}; в журнале скрыто${t.local ? ', модель локальная' : ''}`,
     sentTo: (t: TraceParams) =>
       `Отправлен в ${t.model}${t.local ? ' · локальная' : ''} (${t.provider})`,
+    noPrice: (t: TraceParams) =>
+      `У модели ${t.model} не задана цена: бюджеты не учитывают этот запрос`,
     upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
     providerFailed: (t: TraceParams) =>
       t.detail ? upstream(t) : `${t.provider} не ответил: ${t.message}`,

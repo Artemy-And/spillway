@@ -378,6 +378,27 @@ test('the log shows what the person asked, not the reminders and tool results ar
   assert.equal((await lastLog()).promptPreview, 'What does this project do?');
 });
 
+test('a cloud model without a price says that budgets do not count it', async () => {
+  const openai = await ctx.db.query.providers.findFirst({ where: eq(providers.name, 'OpenAI') });
+  const [unpriced] = await ctx.db
+    .insert(models)
+    .values({ name: 'gpt-unpriced', providerId: openai!.id, upstreamModel: 'gpt-unpriced' })
+    .returning();
+  try {
+    const ask = (model: string) =>
+      call('/v1/chat/completions', { model, messages: [{ role: 'user', content: 'hi' }] });
+    assert.equal((await ask('gpt-unpriced')).status, 200);
+    const warning = (await lastLog()).trace.find((step) => step.code === 'noPrice');
+    assert.equal(warning?.tone, 'warn');
+    assert.deepEqual(warning?.params, { model: 'gpt-unpriced' });
+
+    assert.equal((await ask('gpt-mini')).status, 200);
+    assert.ok(!(await lastLog()).trace.some((step) => step.code === 'noPrice'));
+  } finally {
+    await ctx.db.delete(models).where(eq(models.id, unpriced!.id));
+  }
+});
+
 test('a provider’s refusal is logged with its status and words, not its JSON', async () => {
   const ask = { model: 'gpt-mini', messages: [{ role: 'user', content: 'use up the quota' }] };
   const said = {
