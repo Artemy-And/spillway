@@ -9,6 +9,18 @@ let money3 = new Intl.NumberFormat(locale, {
   maximumFractionDigits: 3,
 });
 let relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+let seconds = secondsFormat(locale);
+
+/** "0.9s", "0,9 с", "0.9秒": one decimal and the language's own short unit. */
+function secondsFormat(locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'second',
+    unitDisplay: 'narrow',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+}
 
 export function setFormatLocale(next: string) {
   locale = next;
@@ -21,9 +33,12 @@ export function setFormatLocale(next: string) {
     maximumFractionDigits: 3,
   });
   relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  seconds = secondsFormat(locale);
 }
 
 export const fmtNumber = (value: number) => number.format(Math.round(value));
+
+export const fmtSeconds = (ms: number) => seconds.format(ms / 1000);
 
 /** Sub-dollar amounts get a third decimal so single requests do not read as $0.00. */
 export const fmtUsd = (value: number) =>

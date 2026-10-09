@@ -4,6 +4,23 @@ import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('en');
 
+/** A provider's refusal in plain words by its status, then what the provider said. */
+const upstream = (t: TraceParams) => {
+  const who = t.provider;
+  const status = t.status ?? 0;
+  const why =
+    status === 429
+      ? `${who} refused the request: a rate limit or quota ran out`
+      : status === 401 || status === 403
+        ? `${who} did not accept the API key saved for it; check it under Models & providers`
+        : status === 404
+          ? `${who} has no such model, or does not offer it to this API key`
+          : status >= 500
+            ? `${who} is overloaded or temporarily unavailable`
+            : `${who} rejected the request (${status})`;
+  return `${why}. ${who} said: “${t.detail}”`;
+};
+
 type Alert = Overview['alerts'][number];
 type AlertOf<C extends Alert['code']> = Extract<Alert, { code: C }>;
 
@@ -59,6 +76,9 @@ export const en = {
     blocked_model: 'Blocked · model',
     rate_limited: 'Rate limited',
     error: 'Error',
+    error_limit: 'Provider limit',
+    error_model: 'No such model',
+    error_down: 'Provider down',
   },
   pii,
   /** Short names for masked spans in prompts: "[email hidden]" */
@@ -457,6 +477,9 @@ export const en = {
       blocked_model: 'Blocked: model not allowed',
       rate_limited: 'Held: rate limit',
       error: 'Failed upstream',
+      error_limit: 'Refused: provider limit',
+      error_model: 'Refused: model not available at the provider',
+      error_down: 'Provider unavailable',
     } as Record<string, string>,
     details: 'Request details',
     askedFor: 'Asked for',
@@ -519,8 +542,9 @@ export const en = {
     piiMasked: (t: TraceParams) =>
       `Found ${describePii(t.pii, pii)}; masked in the log${t.local ? ', model is local' : ''}`,
     sentTo: (t: TraceParams) => `Sent to ${t.model}${t.local ? ' · local' : ''} (${t.provider})`,
-    upstreamError: (t: TraceParams) => `${t.message}`,
-    providerFailed: (t: TraceParams) => `${t.provider} failed: ${t.message}`,
+    upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
+    providerFailed: (t: TraceParams) =>
+      t.detail ? upstream(t) : `${t.provider} failed: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} is unavailable → sent to ${t.model} · local`,
     promptCut: (t: TraceParams) =>
       `Ollama kept ${fmtNumber(t.kept ?? 0)} of about ${fmtNumber(t.sent ?? 0)} prompt tokens and dropped the start: its context is too small. Start Ollama with OLLAMA_CONTEXT_LENGTH=32768.`,

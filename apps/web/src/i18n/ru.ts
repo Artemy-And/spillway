@@ -4,6 +4,23 @@ import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('ru');
 
+/** A provider's refusal in plain words by its status, then what the provider said. */
+const upstream = (t: TraceParams) => {
+  const who = t.provider;
+  const status = t.status ?? 0;
+  const why =
+    status === 429
+      ? `${who} отклонил запрос: закончился лимит запросов или квота`
+      : status === 401 || status === 403
+        ? `${who} не принял сохранённый API-ключ; проверьте его в разделе «Модели и провайдеры»`
+        : status === 404
+          ? `У ${who} нет такой модели, или она недоступна этому API-ключу`
+          : status >= 500
+            ? `${who} перегружен или временно недоступен`
+            : `${who} отклонил запрос (код ${status})`;
+  return `${why}. Ответ ${who}: «${t.detail}»`;
+};
+
 const pii = {
   secret: 'API-ключи',
   email: 'email',
@@ -58,6 +75,9 @@ export const ru: Messages = {
     blocked_model: 'Блок · модель',
     rate_limited: 'Лимит частоты',
     error: 'Ошибка',
+    error_limit: 'Лимит провайдера',
+    error_model: 'Нет модели',
+    error_down: 'Провайдер недоступен',
   },
   pii,
   masked: {
@@ -501,6 +521,9 @@ export const ru: Messages = {
       blocked_model: 'Заблокирован: модель недоступна',
       rate_limited: 'Задержан: лимит частоты',
       error: 'Ошибка провайдера',
+      error_limit: 'Отказ: лимит у провайдера',
+      error_model: 'Отказ: у провайдера нет модели',
+      error_down: 'Провайдер недоступен',
     },
     details: 'Подробности запроса',
     askedFor: 'Запрошено',
@@ -565,8 +588,9 @@ export const ru: Messages = {
       `Найдено: ${describePii(t.pii, pii)}; в журнале скрыто${t.local ? ', модель локальная' : ''}`,
     sentTo: (t: TraceParams) =>
       `Отправлен в ${t.model}${t.local ? ' · локальная' : ''} (${t.provider})`,
-    upstreamError: (t: TraceParams) => `${t.message}`,
-    providerFailed: (t: TraceParams) => `${t.provider} не ответил: ${t.message}`,
+    upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
+    providerFailed: (t: TraceParams) =>
+      t.detail ? upstream(t) : `${t.provider} не ответил: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} недоступен → отправлен в ${t.model} · локальная`,
     promptCut: (t: TraceParams) =>
       `Ollama оставила ${fmtNumber(t.kept ?? 0)} из примерно ${fmtNumber(t.sent ?? 0)} токенов запроса и отбросила начало: у неё слишком маленький контекст. Запустите Ollama с OLLAMA_CONTEXT_LENGTH=32768.`,

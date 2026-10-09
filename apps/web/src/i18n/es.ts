@@ -4,6 +4,23 @@ import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('es');
 
+/** A provider's refusal in plain words by its status, then what the provider said. */
+const upstream = (t: TraceParams) => {
+  const who = t.provider;
+  const status = t.status ?? 0;
+  const why =
+    status === 429
+      ? `${who} rechazó la solicitud: se agotó un límite de peticiones o una cuota`
+      : status === 401 || status === 403
+        ? `${who} no aceptó la clave API guardada; revísela en «Modelos y proveedores»`
+        : status === 404
+          ? `${who} no tiene ese modelo o no lo ofrece a esta clave API`
+          : status >= 500
+            ? `${who} está saturado o no disponible por el momento`
+            : `${who} rechazó la solicitud (${status})`;
+  return `${why}. Respuesta de ${who}: «${t.detail}»`;
+};
+
 const pii = {
   secret: 'claves de API',
   email: 'correos',
@@ -58,6 +75,9 @@ export const es: Messages = {
     blocked_model: 'Bloqueada · modelo',
     rate_limited: 'Límite de frecuencia',
     error: 'Error',
+    error_limit: 'Límite del proveedor',
+    error_model: 'Modelo no disponible',
+    error_down: 'Proveedor caído',
   },
   pii,
   masked: {
@@ -478,6 +498,9 @@ export const es: Messages = {
       blocked_model: 'Bloqueada: modelo no permitido',
       rate_limited: 'Retenida: límite de frecuencia',
       error: 'Falló en el proveedor',
+      error_limit: 'Rechazada: límite del proveedor',
+      error_model: 'Rechazada: el proveedor no tiene el modelo',
+      error_down: 'Proveedor no disponible',
     },
     details: 'Detalles de la solicitud',
     askedFor: 'Pedido',
@@ -540,8 +563,9 @@ export const es: Messages = {
     piiMasked: (t: TraceParams) =>
       `Encontrado: ${describePii(t.pii, pii)}; enmascarado en el registro${t.local ? ', el modelo es local' : ''}`,
     sentTo: (t: TraceParams) => `Enviada a ${t.model}${t.local ? ' · local' : ''} (${t.provider})`,
-    upstreamError: (t: TraceParams) => `${t.message}`,
-    providerFailed: (t: TraceParams) => `${t.provider} falló: ${t.message}`,
+    upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
+    providerFailed: (t: TraceParams) =>
+      t.detail ? upstream(t) : `${t.provider} falló: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} no disponible → enviada a ${t.model} · local`,
     promptCut: (t: TraceParams) =>
       `Ollama conservó ${fmtNumber(t.kept ?? 0)} de unos ${fmtNumber(t.sent ?? 0)} tokens del prompt y descartó el principio: su contexto es demasiado pequeño. Inicia Ollama con OLLAMA_CONTEXT_LENGTH=32768.`,

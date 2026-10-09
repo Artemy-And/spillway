@@ -44,6 +44,9 @@ export interface TraceParams {
   local?: boolean;
   provider?: string;
   message?: string;
+  /** upstreamError, providerFailed: the status the provider answered and its own message */
+  status?: number;
+  detail?: string;
   count?: number;
   saved?: number;
   /** promptCut: tokens sent, about, and tokens Ollama kept */

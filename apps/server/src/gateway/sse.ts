@@ -7,10 +7,13 @@ export interface SSEEvent {
 
 export class UpstreamError extends Error {
   status: number;
+  /** What the provider itself answered, when it answered: the log explains it by its status. */
+  upstream?: { provider: string; status: number; detail: string };
 
-  constructor(message: string, status = 502) {
+  constructor(message: string, status = 502, upstream?: UpstreamError['upstream']) {
     super(message);
     this.status = status;
+    this.upstream = upstream;
   }
 }
 

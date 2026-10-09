@@ -83,7 +83,9 @@ export async function upstreamFailure(provider: Provider, res: Response): Promis
   const text = await res.text();
   let message = text.slice(0, 500);
   try {
-    const body = JSON.parse(text) as {
+    // Gemini's OpenAI-compatible endpoint wraps the error in an array.
+    const parsed: unknown = JSON.parse(text);
+    const body = (Array.isArray(parsed) ? parsed[0] : parsed) as {
       error?: string | { message?: string; metadata?: { raw?: unknown } };
       message?: string;
     };
@@ -95,7 +97,11 @@ export async function upstreamFailure(provider: Provider, res: Response): Promis
   } catch {}
   // A rejected provider key is the gateway's problem, not the client's.
   const status = res.status === 401 || res.status === 403 ? 502 : res.status;
-  return new UpstreamError(`${provider.name} returned ${res.status}: ${message}`, status);
+  return new UpstreamError(`${provider.name} returned ${res.status}: ${message}`, status, {
+    provider: provider.name,
+    status: res.status,
+    detail: message,
+  });
 }
 
 export interface UpstreamModel {

@@ -5,6 +5,23 @@ import { describePii, plural, type TraceParams } from './helpers.ts';
 // Chinese has one plural form; the helper still formats the number for us.
 const p = plural('zh');
 
+/** A provider's refusal in plain words by its status, then what the provider said. */
+const upstream = (t: TraceParams) => {
+  const who = t.provider;
+  const status = t.status ?? 0;
+  const why =
+    status === 429
+      ? `${who} 拒绝了请求：请求频率或配额已用尽`
+      : status === 401 || status === 403
+        ? `${who} 不接受已保存的 API 密钥，请在「模型与提供商」中检查`
+        : status === 404
+          ? `${who} 没有该模型，或不向此 API 密钥提供`
+          : status >= 500
+            ? `${who} 负载过高或暂时不可用`
+            : `${who} 拒绝了请求（${status}）`;
+  return `${why}。${who} 的回复：「${t.detail}」`;
+};
+
 const pii = {
   secret: 'API 密钥',
   email: '邮箱',
@@ -57,6 +74,9 @@ export const zh: Messages = {
     blocked_model: '拦截 · 模型',
     rate_limited: '频率受限',
     error: '错误',
+    error_limit: '提供商限额',
+    error_model: '模型不可用',
+    error_down: '提供商不可用',
   },
   pii,
   masked: {
@@ -454,6 +474,9 @@ export const zh: Messages = {
       blocked_model: '已拦截：模型不允许',
       rate_limited: '已暂缓：频率限制',
       error: '提供商出错',
+      error_limit: '被拒：提供商限额',
+      error_model: '被拒：提供商没有该模型',
+      error_down: '提供商不可用',
     },
     details: '请求详情',
     askedFor: '请求的模型',
@@ -508,8 +531,9 @@ export const zh: Messages = {
     piiMasked: (t: TraceParams) =>
       `发现 ${describePii(t.pii, pii)}，已在日志中遮盖${t.local ? '，模型为本地模型' : ''}`,
     sentTo: (t: TraceParams) => `已发往 ${t.model}${t.local ? ' · 本地' : ''}（${t.provider}）`,
-    upstreamError: (t: TraceParams) => `${t.message}`,
-    providerFailed: (t: TraceParams) => `${t.provider} 出错：${t.message}`,
+    upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
+    providerFailed: (t: TraceParams) =>
+      t.detail ? upstream(t) : `${t.provider} 出错：${t.message}`,
     failover: (t: TraceParams) => `${t.provider} 不可用 → 已发往 ${t.model} · 本地`,
     promptCut: (t: TraceParams) =>
       `Ollama 只保留了约 ${fmtNumber(t.sent ?? 0)} 个提示词元中的 ${fmtNumber(t.kept ?? 0)} 个，开头被丢弃：上下文太小。请用 OLLAMA_CONTEXT_LENGTH=32768 启动 Ollama。`,

@@ -57,6 +57,21 @@ const upstream = new Hono()
   .post('/v1/chat/completions', async (c) => {
     const body = await c.req.json();
     seen.push({ path: c.req.path, body });
+    // Gemini's OpenAI-compatible endpoint answers errors as an array.
+    if (JSON.stringify(body.messages).includes('use up the quota')) {
+      return c.json(
+        [
+          {
+            error: {
+              code: 429,
+              message: 'You exceeded your current quota. Please retry in 24.6s.',
+              status: 'RESOURCE_EXHAUSTED',
+            },
+          },
+        ],
+        429,
+      );
+    }
     const usage = { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 };
     if (!body.stream) {
       return c.json({
@@ -329,6 +344,24 @@ test('keys that must not fall back are blocked instead', async () => {
     .update(apiKeys)
     .set({ fallbackToLocal: true, dailyLimitUsd: null })
     .where(eq(apiKeys.id, keyId));
+});
+
+test('a provider’s refusal is logged with its status and words, not its JSON', async () => {
+  const ask = { model: 'gpt-mini', messages: [{ role: 'user', content: 'use up the quota' }] };
+  const said = {
+    provider: 'OpenAI',
+    status: 429,
+    detail: 'You exceeded your current quota. Please retry in 24.6s.',
+  };
+
+  await ctx.db.update(apiKeys).set({ fallbackToLocal: false }).where(eq(apiKeys.id, keyId));
+  const res = await call('/v1/chat/completions', ask);
+  assert.equal(res.status, 429);
+  const log = await lastLog();
+  assert.equal(log.result, 'error');
+  assert.equal(log.error, `OpenAI returned 429: ${said.detail}`);
+  assert.deepEqual(log.trace.at(-1)?.params, { message: log.error, ...said });
+  await ctx.db.update(apiKeys).set({ fallbackToLocal: true }).where(eq(apiKeys.id, keyId));
 });
 
 test('Anthropic client to Anthropic provider: passes through untouched', async () => {

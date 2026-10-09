@@ -163,7 +163,13 @@ test('a provider that is down: the local model answers instead', async () => {
   assert.equal(log.ruleId, 'outage');
   assert.equal(log.servedLocal, true);
   assert.equal(log.savedUsd, 0, 'a failover is not counted as savings');
-  assert.ok(log.trace.some((step) => step.code === 'providerFailed'));
+  const failed = log.trace.find((step) => step.code === 'providerFailed');
+  assert.deepEqual(failed?.params, {
+    provider: 'Cloud down',
+    message: 'Cloud down returned 503: Bad gateway',
+    status: 503,
+    detail: 'Bad gateway',
+  });
   assert.ok(log.trace.some((step) => step.code === 'failover'));
 });
 

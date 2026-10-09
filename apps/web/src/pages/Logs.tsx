@@ -17,7 +17,7 @@ import type { Messages } from '../i18n/en.ts';
 import type { TraceParams } from '../i18n/helpers.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, type LogDetail, type LogRow, modelsQuery, unwrap } from '../lib/api.ts';
-import { fmtNumber, fmtTime, fmtUsd } from '../lib/format.ts';
+import { fmtNumber, fmtSeconds, fmtTime, fmtUsd } from '../lib/format.ts';
 
 type Period = '24h' | '7d' | '30d';
 
@@ -42,6 +42,15 @@ function route(row: LogRow, m: Messages): string {
   if (row.result === 'rate_limited') return `${asked} → ${m.logs.held}`;
   if (row.result.startsWith('blocked')) return `${asked} → ${m.logs.blocked}`;
   return row.servedModel ?? asked;
+}
+
+/** What a provider's refusal was, by the status it answered: a limit reads differently from an outage. */
+function outcome(log: { result: Result; status: number }) {
+  if (log.result !== 'error') return log.result;
+  if (log.status === 429) return 'error_limit';
+  if (log.status === 404) return 'error_model';
+  if (log.status >= 500) return 'error_down';
+  return 'error';
 }
 
 /** A trace step in the viewer's language; rows from before translation keep their English. */
@@ -176,7 +185,7 @@ export function LogsPage() {
                 <span className="text-right font-mono text-xs">{fmtUsd(row.costUsd)}</span>
                 <span>
                   <Status tone={RESULT_TONES[row.result] ?? 'off'}>
-                    {m.results[row.result] ?? row.result}
+                    {m.results[outcome(row)] ?? row.result}
                   </Status>
                 </span>
               </button>
@@ -206,7 +215,7 @@ function Details({ log }: { log: LogDetail }) {
     ? `${log.servedModel}${log.providerName ? `, ${log.providerName}` : ''}`
     : '—';
   const outage = log.result === 'rerouted' && log.trace.some((s) => s.code === 'failover');
-  const title = m.logs.titles[outage ? 'outage' : log.result] ?? log.result;
+  const title = m.logs.titles[outage ? 'outage' : outcome(log)] ?? log.result;
   const client = CLIENT_NAMES[log.format];
   return (
     <Aside label={m.logs.details}>
@@ -238,7 +247,7 @@ function Details({ log }: { log: LogDetail }) {
           )}
         </dd>
         <dt className="text-muted">{m.logs.latency}</dt>
-        <dd className="font-mono text-xs">{(log.latencyMs / 1000).toFixed(1)} s</dd>
+        <dd className="font-mono text-xs">{fmtSeconds(log.latencyMs)}</dd>
         <dt className="text-muted">{m.logs.client}</dt>
         <dd>
           {m.logs.clientApi(client)}

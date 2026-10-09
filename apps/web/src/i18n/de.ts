@@ -4,6 +4,23 @@ import { describePii, plural, type TraceParams } from './helpers.ts';
 
 const p = plural('de');
 
+/** A provider's refusal in plain words by its status, then what the provider said. */
+const upstream = (t: TraceParams) => {
+  const who = t.provider;
+  const status = t.status ?? 0;
+  const why =
+    status === 429
+      ? `${who} hat die Anfrage abgelehnt: ein Rate-Limit oder Kontingent ist ausgeschöpft`
+      : status === 401 || status === 403
+        ? `${who} hat den gespeicherten API-Schlüssel nicht akzeptiert; prüfen Sie ihn unter „Modelle & Anbieter“`
+        : status === 404
+          ? `${who} kennt dieses Modell nicht oder bietet es diesem API-Schlüssel nicht an`
+          : status >= 500
+            ? `${who} ist überlastet oder vorübergehend nicht erreichbar`
+            : `${who} hat die Anfrage abgelehnt (${status})`;
+  return `${why}. Antwort von ${who}: „${t.detail}“`;
+};
+
 const pii = {
   secret: 'API-Schlüssel',
   email: 'E-Mail-Adressen',
@@ -58,6 +75,9 @@ export const de: Messages = {
     blocked_model: 'Blockiert · Modell',
     rate_limited: 'Ratenlimit',
     error: 'Fehler',
+    error_limit: 'Anbieterlimit',
+    error_model: 'Modell fehlt',
+    error_down: 'Anbieter nicht erreichbar',
   },
   pii,
   masked: {
@@ -482,6 +502,9 @@ export const de: Messages = {
       blocked_model: 'Blockiert: Modell nicht erlaubt',
       rate_limited: 'Zurückgehalten: Ratenlimit',
       error: 'Fehler beim Anbieter',
+      error_limit: 'Abgelehnt: Limit beim Anbieter',
+      error_model: 'Abgelehnt: Modell beim Anbieter nicht verfügbar',
+      error_down: 'Anbieter nicht erreichbar',
     },
     details: 'Details der Anfrage',
     askedFor: 'Angefragt',
@@ -547,8 +570,9 @@ export const de: Messages = {
       `${describePii(t.pii, pii)} gefunden; im Protokoll maskiert${t.local ? ', Modell ist lokal' : ''}`,
     sentTo: (t: TraceParams) =>
       `An ${t.model}${t.local ? ' · lokal' : ''} (${t.provider}) gesendet`,
-    upstreamError: (t: TraceParams) => `${t.message}`,
-    providerFailed: (t: TraceParams) => `${t.provider} ist ausgefallen: ${t.message}`,
+    upstreamError: (t: TraceParams) => (t.detail ? upstream(t) : `${t.message}`),
+    providerFailed: (t: TraceParams) =>
+      t.detail ? upstream(t) : `${t.provider} ist ausgefallen: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} nicht erreichbar → an ${t.model} · lokal gesendet`,
     promptCut: (t: TraceParams) =>
       `Ollama hat ${fmtNumber(t.kept ?? 0)} von etwa ${fmtNumber(t.sent ?? 0)} Prompt-Tokens behalten und den Anfang verworfen: Der Kontext ist zu klein. Starten Sie Ollama mit OLLAMA_CONTEXT_LENGTH=32768.`,

@@ -561,6 +561,11 @@ async function forward(
   }
 }
 
+/** The provider's own status and words, so the log can say "rate limit" rather than show JSON. */
+export function answered(error: unknown) {
+  return error instanceof UpstreamError && error.upstream ? error.upstream : {};
+}
+
 export async function writeLog(
   ctx: AppContext,
   row: typeof requestLogs.$inferInsert,
@@ -717,7 +722,10 @@ export async function handleGateway(
           : null,
         error: message,
         trace: failed
-          ? [...trace, step('block', message!, 'upstreamError', { message: message! })]
+          ? [
+              ...trace,
+              step('block', message!, 'upstreamError', { message: message!, ...answered(error) }),
+            ]
           : cut
             ? [
                 ...trace,
@@ -745,7 +753,11 @@ export async function handleGateway(
       const failedProvider = target.provider.name;
       trace = [
         ...trace,
-        step('warn', reason, 'providerFailed', { provider: failedProvider, message: reason }),
+        step('warn', reason, 'providerFailed', {
+          provider: failedProvider,
+          message: reason,
+          ...answered(error),
+        }),
         step(
           'info',
           `${failedProvider} is unavailable → sent to ${modelLabel(local)}`,

@@ -5,7 +5,7 @@ import { shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
-import { authenticate, errorResponse, PREVIEW, writeLog } from './handler.ts';
+import { answered, authenticate, errorResponse, PREVIEW, writeLog } from './handler.ts';
 import { Meter } from './meter.ts';
 import { decide, modelLabel, step } from './policy.ts';
 import { UpstreamError } from './sse.ts';
@@ -232,7 +232,10 @@ export async function handleEmbeddings(
         result: 'error',
         latencyMs: Date.now() - started,
         error: message,
-        trace: [...(base.trace ?? []), step('block', message, 'upstreamError', { message })],
+        trace: [
+          ...(base.trace ?? []),
+          step('block', message, 'upstreamError', { message, ...answered(error) }),
+        ],
       },
       caller.key.id,
     );
