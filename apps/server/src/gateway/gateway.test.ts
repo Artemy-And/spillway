@@ -359,6 +359,50 @@ test('card numbers never reach a cloud model, and the log is masked', async () =
   assert.equal(log.promptPreview, 'Charge [card hidden], receipt to [email hidden]');
 });
 
+test('personal data in the calls a model made is checked as well', async () => {
+  const before = seen.length;
+  // The SSN follows a line break, which JSON writes as "\n" right before the digits.
+  const written = JSON.stringify({ path: 'staff.txt', content: 'Bob\n123-45-6789' });
+  const chat = await call('/v1/chat/completions', {
+    model: 'gpt-mini',
+    messages: [
+      { role: 'user', content: 'Save it' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'c1', type: 'function', function: { name: 'write', arguments: written } },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'c1', content: 'ok' },
+    ],
+  });
+  assert.equal(chat.status, 403);
+  const claude = await call('/v1/messages', {
+    model: 'claude-sonnet',
+    max_tokens: 100,
+    messages: [
+      { role: 'user', content: 'Save it' },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 't1', name: 'write', input: JSON.parse(written) }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] },
+    ],
+  });
+  assert.equal(claude.status, 403);
+  const codex = await call('/v1/responses', {
+    model: 'gpt-codex',
+    input: [
+      { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Save it' }] },
+      { type: 'function_call', call_id: 'c1', name: 'write', arguments: written },
+      { type: 'function_call_output', call_id: 'c1', output: 'ok' },
+    ],
+  });
+  assert.equal(codex.status, 400);
+  assert.equal(seen.length, before);
+});
+
 test('Ollama clients get NDJSON streams by default', async () => {
   const res = await call('/api/chat', {
     model: 'qwen-coder',

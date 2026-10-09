@@ -140,6 +140,33 @@ function responsesText(content: string | RContentPart[] | undefined): string {
     .join('\n');
 }
 
+function stringsIn(value: unknown, out: string[]) {
+  if (typeof value === 'string') out.push(value);
+  else if (typeof value === 'number') out.push(String(value));
+  else if (Array.isArray(value)) for (const item of value) stringsIn(item, out);
+  else if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) stringsIn(item, out);
+  }
+}
+
+/**
+ * The values in a tool call the model made earlier (a file it wrote, a command it ran). JSON text is
+ * parsed first: in it a line break is `\n`, and a number right after one has no word boundary.
+ */
+function callText(value: unknown): string {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  const out: string[] = [];
+  stringsIn(parsed, out);
+  return out.join('\n');
+}
+
 /**
  * Ollama drops the start of a prompt longer than its context (4096 tokens unless set otherwise)
  * without an error, and reports only the tokens it kept. Coding agents lose their instructions
@@ -174,6 +201,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const text = blocks
         .map((block) => {
           if (block.type === 'text') return block.text;
+          if (block.type === 'tool_use') return callText(block.input);
           if (block.type === 'tool_result') {
             return typeof block.content === 'string' ? block.content : textOf(block.content);
           }
@@ -199,6 +227,9 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
         item.type === 'function_call_output' || item.type === 'custom_tool_call_output';
       const text = responsesText(message ? item.content : output ? item.output : undefined);
       parts.push(text);
+      if (item.type === 'function_call') parts.push(callText(item.arguments));
+      else if (item.type === 'custom_tool_call') parts.push(item.input ?? '');
+      else if (item.type === 'local_shell_call') parts.push(callText(item.action));
       if (message && item.role === 'user' && text.trim()) last = text;
     }
   } else {
@@ -209,6 +240,9 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
     for (const message of messages) {
       const text = textOf(message.content as string);
       parts.push(text);
+      if ('tool_calls' in message && Array.isArray(message.tool_calls)) {
+        for (const call of message.tool_calls) parts.push(callText(call.function?.arguments));
+      }
       if (message.role === 'user' && text.trim()) last = text;
     }
   }
