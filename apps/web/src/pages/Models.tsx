@@ -400,7 +400,8 @@ function ModelPicker({
           .filter(Boolean),
       ];
       for (const upstream of names) {
-        const name = upstream.replace(/[^\w.:/@-]/g, '-');
+        // Gemini lists "models/gemini-3.8-flash"; people call it "gemini-3.8-flash".
+        const name = upstream.replace(/^models\//, '').replace(/[^\w.:/@-]/g, '-');
         // Prices the provider lists go along; for the rest the server checks its price list.
         const price = available.data?.prices[upstream];
         await unwrap(
