@@ -105,7 +105,12 @@ const detectors: Detector[] = [
     pattern:
       /\b(?:sk-(?:ant-|proj-|or-)?[A-Za-z0-9_-]{20,}|sw-[A-Za-z0-9_-]{20,}|[sr]k_(?:live|test)_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{30,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})|-----BEGIN [A-Z ]*PRIVATE KEY-----/g,
   },
-  { kind: 'email', pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
+  // Starts only where a run of address characters starts. Without the lookbehind a long run with
+  // no @ in it (minified code, base64) is retried from every position and takes seconds.
+  {
+    kind: 'email',
+    pattern: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+  },
   { kind: 'iban', pattern: /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b/g, valid: iban },
   // Payment cards start with 2–6 (Mir, Visa, Mastercard, Amex, Discover, JCB, UnionPay).
   { kind: 'card', pattern: /\b[2-6](?:[ -]?\d){12,18}\b/g, valid: luhn },

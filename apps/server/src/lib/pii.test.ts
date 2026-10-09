@@ -54,6 +54,14 @@ test('masks IBANs and IPv4 addresses', () => {
   assert.deepEqual(found, { iban: 1, ip: 1 });
 });
 
+test('scans long runs without spaces in linear time', () => {
+  // Minified code or base64 in a tool result; this took seconds and froze the gateway.
+  const started = performance.now();
+  const { found } = maskPii(`${'x'.repeat(200_000)} ${'x.'.repeat(100_000)} anna@example.com`);
+  assert.deepEqual(found, { email: 1 });
+  assert.ok(performance.now() - started < 500);
+});
+
 test('leaves ordinary text alone', () => {
   const input = 'Write three subject lines for the October newsletter, 2026 edition.';
   assert.deepEqual(maskPii(input), { text: input, found: {} });
