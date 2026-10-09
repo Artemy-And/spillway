@@ -19,7 +19,7 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 If you looked at LiteLLM or Portkey but have nobody to run them, Spillway is the smaller option: one
 container with an admin UI and SQLite inside.
 
-![The Marketing team is over its budget, so rule 1 sends its requests to a local model, and the request log shows why](docs/demo.gif)
+![A 26-second tour of Spillway for a made-up 10-person company. The Marketing team is over its $60 budget, and rule 1 sends its requests to a local model. The request log explains why one request went to Qwen Coder on the office GPU, and why another, with a card number in it, was blocked for cloud models. Then a new key for a laptop with a $10 daily limit, and the commands that point Claude Code at the gateway](docs/tour.gif)
 
 ```
  Claude Code ─┐
