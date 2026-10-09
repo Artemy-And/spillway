@@ -184,7 +184,7 @@ the same Codex can run on Claude or on the local model.
 
 **Overview.** Spend against the budget, the share served by local models, and what needs attention.
 
-![Overview: $83.73 of an $860 budget spent this month, 13% of requests served by local models, Marketing over its budget](docs/overview.png)
+![Overview: $152.65 of an $860 budget spent this month, 17% of requests served by local models, Marketing over its budget](docs/overview.png)
 
 **Keys.** One key per person, device or agent, each with its own daily limit.
 
