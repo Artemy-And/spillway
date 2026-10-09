@@ -160,11 +160,13 @@ test('a string input, limits and a JSON schema carry over', () => {
     input: 'Hi',
     max_output_tokens: 500,
     temperature: 0.2,
+    parallel_tool_calls: false,
     text: { format: { type: 'json_schema', name: 'answer', schema: { type: 'object' } } },
   });
   assert.deepEqual(req.messages, [{ role: 'user', content: 'Hi' }]);
   assert.equal(req.max_tokens, 500);
   assert.equal(req.temperature, 0.2);
+  assert.equal(req.parallel_tool_calls, false);
   assert.deepEqual(req.response_format, {
     type: 'json_schema',
     json_schema: { name: 'answer', schema: { type: 'object' } },

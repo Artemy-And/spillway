@@ -63,6 +63,32 @@ test('Anthropic tool round-trip becomes OpenAI tool calls and tool messages', ()
   assert.equal(req.tools?.[0]?.function.name, 'read');
 });
 
+test('a request for one tool call at a time carries over in both directions', () => {
+  const tools = [{ type: 'function' as const, function: { name: 'read', parameters: {} } }];
+  const messages = [{ role: 'user' as const, content: 'Open a.txt' }];
+  const toAnthropic = (extra: object) =>
+    openAIRequestToAnthropic({ model: 'claude', messages, tools, ...extra }).tool_choice;
+  assert.deepEqual(toAnthropic({ parallel_tool_calls: false }), {
+    type: 'auto',
+    disable_parallel_tool_use: true,
+  });
+  assert.deepEqual(toAnthropic({ parallel_tool_calls: false, tool_choice: 'required' }), {
+    type: 'any',
+    disable_parallel_tool_use: true,
+  });
+  assert.equal(toAnthropic({ parallel_tool_calls: true }), undefined);
+
+  const back = anthropicRequestToOpenAI({
+    model: 'claude',
+    max_tokens: 100,
+    messages,
+    tools: [{ name: 'read', input_schema: { type: 'object' } }],
+    tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+  });
+  assert.equal(back.tool_choice, 'auto');
+  assert.equal(back.parallel_tool_calls, false);
+});
+
 test('OpenAI messages become alternating Anthropic turns', () => {
   const req = openAIRequestToAnthropic({
     model: 'gpt',

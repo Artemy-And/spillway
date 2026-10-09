@@ -143,6 +143,7 @@ export function anthropicRequestToOpenAI(req: ARequest): OAIChatRequest {
     else if (choice.type === 'tool') {
       out.tool_choice = { type: 'function', function: { name: choice.name } };
     }
+    if (choice.disable_parallel_tool_use) out.parallel_tool_calls = false;
   }
 
   if (req.stream) {
@@ -383,6 +384,13 @@ export function openAIRequestToAnthropic(req: OAIChatRequest): ARequest {
     else if (choice === 'required') out.tool_choice = { type: 'any' };
     else if (choice === 'none') out.tool_choice = { type: 'none' };
     else if (choice) out.tool_choice = { type: 'tool', name: choice.function.name };
+    // Anthropic keeps this switch inside tool_choice, so a client without one gets "auto".
+    if (req.parallel_tool_calls === false && choice !== 'none') {
+      out.tool_choice = {
+        ...(out.tool_choice ?? { type: 'auto' }),
+        disable_parallel_tool_use: true,
+      };
+    }
   }
   if (req.stream) out.stream = true;
   return out;
