@@ -41,34 +41,6 @@ For a setup you keep, use [Docker Compose](#quick-start).
 
 ## What it does
 
-Completed milestones and upcoming development: [roadmap](ROADMAP.md).
-
-- **Compare models on your own tasks.** Run the same text, JSON or function-call tasks on 2–4
-  models, check their answers, compare recorded costs and latency, and manually review free-text results. Includes a
-  comparison budget, cancellation, and downloadable reports. [How it works](docs/model-comparison.md).
-
-- **Test tool decisions before choosing an agent model.** Check the expected function and JSON
-  arguments, or replay a short loop with fixed tool results and check its final answer. Track every
-  turn's costs and regressions without executing real tools. [Tool evaluations](docs/tool-evaluations.md).
-
-- **Repeat checks and detect model regressions.** Save synthetic task sets, choose a reference run,
-  and see which previously passing tasks now fail. Compare matching costs and latency; keep errors
-  and unreviewed answers separate from quality changes. [Reusable evaluations](docs/repeated-evaluations.md).
-
-- **Apply a tested cheaper model to real traffic.** Turn a completed text comparison into a routing
-  profile for a chosen key, retain permissions and privacy checks, and optionally fall back to the
-  baseline on provider failure. Follow recorded API spend and clearly labelled estimated savings.
-  [Routing profiles](docs/routing-profiles.md).
-
-- **Keep tool conversations on a tested model.** Create a profile from a complete tool-loop
-  comparison and give new conversations a session ID. Spillway pins their model across turns
-  and restarts, while retaining permissions, privacy and hard budgets.
-  [Tool session routing](docs/tool-session-routing.md).
-
-- **Continue native agent context on the same provider.** Use Responses `previous_response_id`
-  or preserve signed Anthropic thinking through streamed tool loops and gateway restarts.
-  Recheck budgets including stored Responses history. [Native session context](docs/native-session-context.md).
-
 - **Three API formats in, any provider out.** Clients speak OpenAI (`/v1/chat/completions`,
   `/v1/responses`, `/v1/embeddings`), Anthropic (`/v1/messages`) or Ollama (`/api/chat`,
   `/api/generate`, `/api/embed`). Spillway translates between them, including streaming and tool
@@ -78,10 +50,6 @@ Completed milestones and upcoming development: [roadmap](ROADMAP.md).
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
   per team and per key. Prices of well-known models fill in when you add them, and a cloud model
   without a price is flagged instead of quietly counting as free.
-- **Budget reservations for concurrent calls.** Cloud estimates reserve the key and team budget
-  before each provider attempt. Reported charges settle the estimate; unknown charges retain the
-  remainder for admin verification. See active reserves and available budget in the UI.
-  [How budget accounting works](docs/budget-reservations.md).
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
 - **Team budgets and four routing rules**: switch to the local model at N% of the team budget, keep
@@ -267,8 +235,8 @@ not match the version in `package.json`. Every push to `main` also publishes an 
 
 Semantic caching, MCP gateway, a hosted cloud version, clustering, and providers beyond the three
 wire formats (most models are reachable through one of them). If you need these today, LiteLLM or
-Bifrost cover more of them. Budget reservations coordinate parallel cloud requests; estimates can
-still differ from reported charges and provider invoices.
+Bifrost cover more of them. Budgets count spend from the log, so parallel requests can overshoot a
+limit by the cost of the requests already in flight.
 
 ## Using Spillway at your company
 

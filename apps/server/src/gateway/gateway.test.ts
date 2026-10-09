@@ -272,7 +272,6 @@ test('rejects unknown keys in the client format', async () => {
 test('OpenAI client to OpenAI provider: passes through and records the cost', async () => {
   const res = await call('/v1/chat/completions', {
     model: 'gpt-mini',
-    max_tokens: 512,
     messages: [{ role: 'user', content: 'hi' }],
   });
   assert.equal(res.status, 200);
@@ -314,11 +313,7 @@ test('over the daily limit: rerouted to the local model, savings recorded', asyn
   assert.equal(log.servedModel, 'Qwen Coder · local');
   assert.equal(log.costUsd, 0);
   assert.ok(log.savedUsd > 0);
-  assert.ok(
-    log.trace.some(
-      (step) => step.text.includes('daily limit') || step.code === 'budgetReservationDenied',
-    ),
-  );
+  assert.ok(log.trace.some((step) => step.text.includes('daily limit')));
 });
 
 test('keys that must not fall back are blocked instead', async () => {
@@ -451,17 +446,15 @@ test('Responses client to Anthropic: a whole answer, with room to write', async 
   assert.equal(seen.at(-1)?.body.max_tokens, 32_000);
 });
 
-test('Responses client to OpenAI itself: bounded output for the team budget and metered', async () => {
+test('Responses client to OpenAI itself: passed through untouched and metered', async () => {
   const request = codexRequest('gpt-codex', { stream: true });
-  // Provider-hosted search has separate fees; the bounded team budget tests client-executed tools.
-  request.tools = request.tools.filter((tool) => tool.type !== 'web_search');
   const res = await call('/v1/responses', request);
   assert.equal(res.status, 200);
   const events = await responseEvents(res);
   assert.equal(events.at(-1).type, 'response.completed');
   const sent = seen.at(-1)!;
   assert.equal(sent.path, '/v1/responses');
-  assert.deepEqual(sent.body, { ...request, model: 'gpt-5.1-codex', max_output_tokens: 32_000 });
+  assert.deepEqual(sent.body, { ...request, model: 'gpt-5.1-codex' });
   const log = await lastLog();
   assert.equal(log.format, 'responses');
   assert.equal(log.responsePreview, 'native answer');

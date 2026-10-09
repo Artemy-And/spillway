@@ -1,12 +1,6 @@
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
-import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
-import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
-import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
-import { budgetMessages, budgetTrace } from './reservations.ts';
-import { sessionRoutingMessages } from './session-routing.ts';
-import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('ru');
 
@@ -27,12 +21,6 @@ const pii = {
 const times = (n: number) => p(n, { one: '# раз', few: '# раза', many: '# раз', other: '# раза' });
 
 export const ru: Messages = {
-  comparisons: comparisonMessages.ru,
-  evaluations: evaluationMessages.ru,
-  toolEvaluations: toolEvaluationMessages.ru,
-  sessionRouting: sessionRoutingMessages.ru,
-  reservations: budgetMessages.ru,
-  profiles: profileMessages.ru,
   common: {
     save: 'Сохранить',
     saved: 'Сохранено',
@@ -90,7 +78,6 @@ export const ru: Messages = {
   },
 
   errors: {
-    ...profileErrors.ru,
     'Wrong setup code. Spillway prints the setup link in its logs.':
       'Неверный код настройки. Ссылку с ним Spillway печатает в лог при запуске.',
     'Your email comes from single sign-on and cannot be changed here':
@@ -122,8 +109,6 @@ export const ru: Messages = {
   },
 
   nav: {
-    routingProfiles: profileMessages.ru.title,
-    comparisons: 'Сравнение моделей',
     main: 'Главное меню',
     overview: 'Обзор',
     keys: 'Ключи',
@@ -536,19 +521,6 @@ export const ru: Messages = {
   },
 
   trace: {
-    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.ru.traceReconciled, t),
-    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.ru.traceReserved, t),
-    budgetReservationDenied: () => budgetMessages.ru.traceDenied,
-    budgetEstimateUnknown: () => budgetMessages.ru.traceUnknown,
-    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.ru.traceUnknownCharge, t),
-    profileApplied: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceApplied', t),
-    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceSkipped', t),
-    profileFallback: (t: TraceParams) => profileTrace(profileMessages.ru, 'traceFallback', t),
-    sessionPinned: (t: TraceParams) =>
-      sessionRoutingMessages.ru.tracePinned.replace('{model}', String(t.model ?? '')),
-    sessionBlocked: (t: TraceParams) =>
-      sessionRoutingMessages.ru.traceBlocked + (t.message ? `: ${t.message}` : ''),
-    sessionKept: () => sessionRoutingMessages.ru.traceKept,
     modelMissing: (t: TraceParams) => `Модели «${t.model}» на этом шлюзе нет`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} недоступна команде ${t.name}`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} недоступна ключу ${t.name}`,

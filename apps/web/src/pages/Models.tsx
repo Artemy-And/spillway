@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PencilIcon, PlusIcon, TrashIcon } from '../components/icons.tsx';
-import { ModelAliases } from '../components/ModelAliases.tsx';
 import {
   Button,
   Card,
@@ -220,7 +219,6 @@ export function ModelsPage() {
           ))}
         </div>
       </Card>
-      <ModelAliases />
     </>
   );
 }

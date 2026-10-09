@@ -4,7 +4,6 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.ts';
 import { Oidc } from './auth/oidc.ts';
 import { bootstrap, cleanup } from './bootstrap.ts';
-import { recoverReservations } from './budget/ledger.ts';
 import { type AppContext, RateLimiter, VERSION } from './context.ts';
 import { openDb } from './db/client.ts';
 import { seedDemo } from './demo.ts';
@@ -38,7 +37,6 @@ if (env.DEMO) {
   demoTimer = setInterval(() => seedDemo(ctx).catch(console.error), 3_600_000);
 }
 await bootstrap(ctx);
-await recoverReservations(db);
 await cleanup(ctx);
 const cleanupTimer = setInterval(() => cleanup(ctx).catch(console.error), 3_600_000);
 const notifyTimer = setInterval(() => watch(ctx).catch(console.error), 60_000);

@@ -1,5 +1,4 @@
-import { and, eq } from 'drizzle-orm';
-import { usage } from '../budget/ledger.ts';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import type { AppContext } from '../context.ts';
 import type { Db } from '../db/client.ts';
 import {
@@ -9,7 +8,7 @@ import {
   type Provider,
   providers,
   type Result,
-  type RoutingProfile,
+  requestLogs,
   type Team,
   type TraceStep,
   type TraceTone,
@@ -17,9 +16,7 @@ import {
 } from '../db/schema.ts';
 import { describePii, type PiiCounts, type PiiKind } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
-import { allowed, chooseProfile } from '../routing/resolve.ts';
 import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
-import type { Format } from './handler.ts';
 
 export interface Caller {
   key: ApiKey;
@@ -40,8 +37,6 @@ export interface Decision {
   ruleId: RuleId | null;
   trace: TraceStep[];
   message: string;
-  routingProfile: RoutingProfile | null;
-  routingApplied: boolean;
 }
 
 /** Kinds that stop a request to a cloud model. Emails, phones and IPs are only masked in logs. */
@@ -84,6 +79,20 @@ export async function findModel(db: Db, where: ReturnType<typeof eq>): Promise<T
   return row ?? null;
 }
 
+async function spent(
+  db: Db,
+  column: typeof requestLogs.keyId | typeof requestLogs.teamId,
+  id: string,
+  since: Date,
+) {
+  const row = await db
+    .select({ total: sql<number>`coalesce(sum(${requestLogs.costUsd}), 0)` })
+    .from(requestLogs)
+    .where(and(eq(column, id), gte(requestLogs.createdAt, since)))
+    .get();
+  return row?.total ?? 0;
+}
+
 interface Input {
   caller: Caller;
   requestedName: string;
@@ -92,12 +101,6 @@ interface Input {
   /** Embeddings never switch to another model, see below. */
   purpose?: 'chat' | 'embeddings';
   now?: Date;
-  body?: Record<string, unknown>;
-  format?: Format;
-  /** Comparisons and a fallback must not apply a profile recursively. */
-  skipProfiles?: boolean;
-  skipRateLimit?: boolean;
-  affinity?: { target: Target; profile: RoutingProfile | null };
 }
 
 export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
@@ -108,8 +111,6 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   const cal = calendarOf(settings);
   const rules = settings.rules;
   const trace: TraceStep[] = [];
-  let routingProfile: RoutingProfile | null = null;
-  let routingApplied = false;
 
   const stop = (
     result: Result,
@@ -119,17 +120,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     ruleId: RuleId | null = null,
   ): Decision => {
     trace.push(blocked);
-    return {
-      result,
-      status,
-      requested,
-      target: null,
-      ruleId,
-      trace,
-      message: blocked.text,
-      routingProfile,
-      routingApplied,
-    };
+    return { result, status, requested, target: null, ruleId, trace, message: blocked.text };
   };
 
   // 1. Model exists and this key may use it
@@ -168,7 +159,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   );
 
   // 2. Rate limit for agents
-  if (rules.agentRateLimit.enabled && key.kind === 'agent' && !input.skipRateLimit) {
+  if (rules.agentRateLimit.enabled && key.kind === 'agent') {
     if (!ctx.rateLimiter.hit(key.id, rules.agentRateLimit.rpm)) {
       const rule = ruleNumber('agentRateLimit');
       const { rpm } = rules.agentRateLimit;
@@ -187,58 +178,12 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     }
   }
 
-  let target = input.affinity?.target ?? requested;
-  let result: Result = target.model.id === requested.model.id ? 'ok' : 'rerouted';
+  let target = requested;
+  let result: Result = 'ok';
   let ruleId: RuleId | null = null;
 
-  if (input.affinity) {
-    if (!allowed(caller, target.model.id))
-      return stop(
-        'blocked_model',
-        403,
-        step('block', 'The session model is no longer allowed', 'sessionBlocked'),
-        requested,
-      );
-    routingProfile = input.affinity.profile;
-    routingApplied = !!routingProfile && target.model.id === routingProfile.candidateModelId;
-    trace.push(
-      step('info', `Session stays on ${plainName(target)}`, 'sessionPinned', {
-        model: plainName(target),
-      }),
-    );
-  }
-
-  if (!embeddings && !input.affinity && !input.skipProfiles && input.body && input.format) {
-    const choice = await chooseProfile(ctx, caller, requested, input.body, input.format);
-    if (choice) {
-      routingProfile = choice.profile;
-      if (choice.target) {
-        target = choice.target;
-        result = 'rerouted';
-        routingApplied = true;
-        trace.push(
-          step(
-            'info',
-            `Profile ${choice.profile.name} selected ${plainName(target)}`,
-            'profileApplied',
-            { profile: choice.profile.name, model: plainName(target) },
-          ),
-        );
-      } else {
-        trace.push(
-          step(
-            'warn',
-            `Profile ${choice.profile.name} skipped: ${choice.reason}`,
-            'profileSkipped',
-            { profile: choice.profile.name, reason: choice.reason },
-          ),
-        );
-      }
-    }
-  }
-
   // 3. Budgets and schedule. Local models cost nothing, so they skip this.
-  if (target.provider.isLocal) {
+  if (requested.provider.isLocal) {
     trace.push(step('info', 'Local model: no API cost, budgets do not apply', 'localNoBudget'));
   } else {
     /** `hard` is a limit that is used up; the others are rules that save money early. */
@@ -249,26 +194,26 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       hard: boolean;
     } | null = null;
 
-    const keyDayUsage =
-      key.dailyLimitUsd != null ? await usage(ctx.db, 'key', key.id, cal.startOfDay(now)) : null;
-    const keyMonthUsage =
+    const keyDay =
+      key.dailyLimitUsd != null
+        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
+        : 0;
+    const keyMonth =
       key.monthlyLimitUsd != null
-        ? await usage(ctx.db, 'key', key.id, cal.startOfMonth(now))
-        : null;
-    const keyDay = keyDayUsage?.committedUsd ?? 0;
-    const keyMonth = keyMonthUsage?.committedUsd ?? 0;
+        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now))
+        : 0;
     const teamMonth =
       team?.monthlyBudgetUsd != null
-        ? (await usage(ctx.db, 'team', team.id, cal.startOfMonth(now))).committedUsd
+        ? await spent(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
         : 0;
 
     if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
       reroute = {
         reason: step(
           'warn',
-          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDayUsage!.spentUsd)} recorded, ${usd(keyDay - keyDayUsage!.spentUsd)} reserved)`,
+          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDay)} spent)`,
           'keyDailyLimit',
-          { key: key.name, limit: key.dailyLimitUsd, spent: keyDayUsage!.spentUsd },
+          { key: key.name, limit: key.dailyLimitUsd, spent: keyDay },
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
@@ -278,9 +223,9 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       reroute = {
         reason: step(
           'warn',
-          `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonthUsage!.spentUsd)} recorded, ${usd(keyMonth - keyMonthUsage!.spentUsd)} reserved)`,
+          `Key ${key.name} reached its ${usd(key.monthlyLimitUsd)} monthly limit (${usd(keyMonth)} spent)`,
           'keyMonthlyLimit',
-          { key: key.name, limit: key.monthlyLimitUsd, spent: keyMonthUsage!.spentUsd },
+          { key: key.name, limit: key.monthlyLimitUsd, spent: keyMonth },
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
@@ -320,29 +265,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
 
     // Vectors from another model do not match the ones already stored, so embeddings never
     // switch: a rule that would save money early lets them through, a used-up limit blocks them.
-    if (reroute && input.affinity) {
-      trace.push(reroute.reason);
-      if (reroute.hard)
-        return stop(
-          'blocked_budget',
-          429,
-          step(
-            'block',
-            'Session blocked: its model cannot change when a budget is exhausted',
-            'sessionBlocked',
-          ),
-          requested,
-          reroute.ruleId,
-        );
-      trace.push(
-        step(
-          'info',
-          'Session keeps its model through budget-threshold and schedule rules',
-          'sessionKept',
-        ),
-      );
-      reroute = null;
-    } else if (reroute && embeddings) {
+    if (reroute && embeddings) {
       trace.push(reroute.reason);
       if (reroute.hard) {
         return stop(
@@ -374,7 +297,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       const local = settings.localModelId
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
         : null;
-      if (!reroute.allowed || !local?.provider.isLocal || !allowed(caller, local.model.id)) {
+      if (!reroute.allowed || !local) {
         const blocked = !reroute.allowed
           ? step(
               'block',
@@ -398,9 +321,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       );
     } else {
       const parts = [
-        key.dailyLimitUsd != null
-          ? `key ${usd(keyDayUsage!.spentUsd)} of ${usd(key.dailyLimitUsd)} today`
-          : null,
+        key.dailyLimitUsd != null ? `key ${usd(keyDay)} of ${usd(key.dailyLimitUsd)} today` : null,
         team?.monthlyBudgetUsd
           ? `${team.name} at ${Math.round((teamMonth / team.monthlyBudgetUsd) * 100)}% of ${usd(team.monthlyBudgetUsd)}`
           : null,
@@ -408,7 +329,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       trace.push(
         parts.length
           ? step('ok', `Within budget: ${parts.join(' · ')}`, 'withinBudget', {
-              keySpent: key.dailyLimitUsd != null ? keyDayUsage!.spentUsd : null,
+              keySpent: key.dailyLimitUsd != null ? keyDay : null,
               keyLimit: key.dailyLimitUsd,
               team: team?.monthlyBudgetUsd ? team.name : null,
               teamPercent: team?.monthlyBudgetUsd
@@ -460,15 +381,5 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         local: target.provider.isLocal,
       }),
     );
-  return {
-    result,
-    status: 200,
-    requested,
-    target,
-    ruleId,
-    trace,
-    message: '',
-    routingProfile,
-    routingApplied,
-  };
+  return { result, status: 200, requested, target, ruleId, trace, message: '' };
 }

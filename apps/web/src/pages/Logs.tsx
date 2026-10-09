@@ -205,7 +205,7 @@ function Details({ log }: { log: LogDetail }) {
   const served = log.servedModel
     ? `${log.servedModel}${log.providerName ? `, ${log.providerName}` : ''}`
     : '—';
-  const outage = log.result !== 'error' && log.trace.some((s) => s.code === 'failover');
+  const outage = log.result === 'rerouted' && log.trace.some((s) => s.code === 'failover');
   const title = m.logs.titles[outage ? 'outage' : log.result] ?? log.result;
   const client = CLIENT_NAMES[log.format];
   return (
@@ -233,9 +233,6 @@ function Details({ log }: { log: LogDetail }) {
         <dt className="text-muted">{m.logs.cost}</dt>
         <dd>
           <span className="font-mono text-xs">{fmtUsd(log.costUsd)}</span>
-          {(log.costKnown === false || log.routingCostKnown === false) && (
-            <span className="text-warn-fg"> + ?</span>
-          )}
           {log.savedUsd > 0 && (
             <span className="text-accent-strong"> {m.logs.savedAmount(fmtUsd(log.savedUsd))}</span>
           )}
@@ -248,27 +245,6 @@ function Details({ log }: { log: LogDetail }) {
           {log.stream && ` · ${m.logs.streaming}`}
         </dd>
       </dl>
-      {log.costKnown === false && (
-        <p className="text-xs text-warn-fg">{m.reservations.unknownLog}</p>
-      )}
-
-      {log.routingProfileName && (
-        <div className="space-y-2 text-[13px]">
-          <p>
-            <span className="text-muted">{m.profiles.title}: </span>
-            {log.routingProfileName}
-          </p>
-          {log.routingSavingsUsd !== null && (
-            <p>
-              <span className="text-muted">{m.profiles.estimated}: </span>
-              {fmtUsd(log.routingSavingsUsd)}
-            </p>
-          )}
-          {log.routingCostKnown === false && (
-            <p className="text-warn-fg">{m.profiles.unknownHint}</p>
-          )}
-        </div>
-      )}
 
       <div className="flex flex-col gap-2.5">
         <h3 className="text-[13px] font-semibold">{m.logs.why}</h3>

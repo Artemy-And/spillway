@@ -24,9 +24,6 @@ export function list(locale: string) {
 
 /** Parameters of a request-log trace step, as the server records them. */
 export interface TraceParams {
-  amount?: number;
-  profile?: string;
-  reason?: string;
   model?: string;
   name?: string;
   team?: string | null;

@@ -23,8 +23,6 @@ const NAV = [
   { to: '/budgets', label: 'budgets', icon: SlidersIcon, admin: false },
   { to: '/logs', label: 'logs', icon: ListIcon, admin: false },
   { to: '/models', label: 'models', icon: ChipIcon, admin: true },
-  { to: '/comparisons', label: 'comparisons', icon: SlidersIcon, admin: true },
-  { to: '/routing-profiles', label: 'routingProfiles', icon: SlidersIcon, admin: true },
   { to: '/settings', label: 'settings', icon: CogIcon, admin: true },
 ] as const;
 

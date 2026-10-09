@@ -5,15 +5,10 @@ import { z } from 'zod';
 import { createInvite } from '../auth/invites.ts';
 import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
-import { BudgetError, usage as budgetUsage, listHolds, reconcile } from '../budget/ledger.ts';
-import { comparisonRoutes } from '../comparison/routes.ts';
-import { taskSetRoutes } from '../comparison/task-set-routes.ts';
-import { forgetTaskSets } from '../comparison/task-sets.ts';
 import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
   apiKeys,
   KEY_KINDS,
-  modelAliases,
   models,
   PROVIDER_KINDS,
   providers,
@@ -31,8 +26,6 @@ import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { SERVER_ZONE } from '../lib/time.ts';
 import { mailFrom, send } from '../notify.ts';
-import { aliasRoutes } from '../routing/aliases.ts';
-import { routingProfileRoutes } from '../routing/routes.ts';
 import {
   calendarOf,
   notificationsPatch,
@@ -40,7 +33,7 @@ import {
   rulesSchema,
   settingsPatch,
 } from '../settings.ts';
-import { failingProviders, keySpend, overview, type Period } from './stats.ts';
+import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
 /** USD per million tokens */
@@ -271,35 +264,18 @@ export function adminRoutes(ctx: AppContext) {
           .all();
         const spend = await keySpend(db, keyIds, calendarOf(await ctx.settings.get()));
         return c.json(
-          await Promise.all(
-            rows.map(async ({ key, owner, ownerEmail, team }) => {
-              const { hash: _hash, ...safe } = key;
-              const usage = spend.get(key.id);
-              const cal = calendarOf(await ctx.settings.get());
-              const today = await budgetUsage(db, 'key', key.id, cal.startOfDay());
-              const month = await budgetUsage(db, 'key', key.id, cal.startOfMonth());
-              return {
-                ...safe,
-                owner: owner ?? ownerEmail ?? null,
-                team,
-                spentToday: today.spentUsd,
-                spentMonth: month.spentUsd,
-                activeToday: today.activeUsd,
-                activeMonth: month.activeUsd,
-                uncertainToday: today.uncertainUsd,
-                uncertainMonth: month.uncertainUsd,
-                remainingToday:
-                  key.dailyLimitUsd === null
-                    ? null
-                    : Math.max(0, key.dailyLimitUsd - today.committedUsd),
-                remainingMonth:
-                  key.monthlyLimitUsd === null
-                    ? null
-                    : Math.max(0, key.monthlyLimitUsd - month.committedUsd),
-                requestsMonth: usage?.requests ?? 0,
-              };
-            }),
-          ),
+          rows.map(({ key, owner, ownerEmail, team }) => {
+            const { hash: _hash, ...safe } = key;
+            const usage = spend.get(key.id);
+            return {
+              ...safe,
+              owner: owner ?? ownerEmail ?? null,
+              team,
+              spentToday: usage?.today ?? 0,
+              spentMonth: usage?.month ?? 0,
+              requestsMonth: usage?.requests ?? 0,
+            };
+          }),
         );
       })
 
@@ -347,6 +323,7 @@ export function adminRoutes(ctx: AppContext) {
         const now = new Date();
         const cal = calendarOf(await ctx.settings.get());
         const rows = await db.select().from(teams).orderBy(teams.name).all();
+        const spend = await teamSpend(db, cal, now);
         const keyCounts = await db
           .select({ teamId: apiKeys.teamId, count: sql<number>`count(*)` })
           .from(apiKeys)
@@ -357,24 +334,15 @@ export function adminRoutes(ctx: AppContext) {
         const monthLength = cal.startOfNextMonth(now).getTime() - monthStart;
         const elapsed = Math.max(now.getTime() - monthStart, 3_600_000);
         return c.json(
-          await Promise.all(
-            rows.map(async (team) => {
-              const usage = await budgetUsage(db, 'team', team.id, cal.startOfMonth(now));
-              const spent = usage.spentUsd;
-              return {
-                ...team,
-                spentMonth: spent,
-                activeMonth: usage.activeUsd,
-                uncertainMonth: usage.uncertainUsd,
-                remainingMonth:
-                  team.monthlyBudgetUsd === null
-                    ? null
-                    : Math.max(0, team.monthlyBudgetUsd - usage.committedUsd),
-                forecast: (spent / elapsed) * monthLength,
-                keys: keyCounts.find((row) => row.teamId === team.id)?.count ?? 0,
-              };
-            }),
-          ),
+          rows.map((team) => {
+            const spent = spend.get(team.id) ?? 0;
+            return {
+              ...team,
+              spentMonth: spent,
+              forecast: (spent / elapsed) * monthLength,
+              keys: keyCounts.find((row) => row.teamId === team.id)?.count ?? 0,
+            };
+          }),
         );
       })
 
@@ -627,8 +595,6 @@ export function adminRoutes(ctx: AppContext) {
 
       .post('/models', adminOnly, zValidator('json', modelInput), async (c) => {
         const input = c.req.valid('json');
-        if (await db.query.modelAliases.findFirst({ where: eq(modelAliases.name, input.name) }))
-          return c.json({ error: 'Model name conflicts with an alias' }, 400);
         const provider = await db.query.providers.findFirst({
           where: eq(providers.id, input.providerId),
         });
@@ -665,8 +631,6 @@ export function adminRoutes(ctx: AppContext) {
           const { id } = c.req.valid('param');
           const input = c.req.valid('json');
           if (input.name) {
-            if (await db.query.modelAliases.findFirst({ where: eq(modelAliases.name, input.name) }))
-              return c.json({ error: 'Model name conflicts with an alias' }, 400);
             const taken = await db.query.models.findFirst({
               where: and(eq(models.name, input.name), ne(models.id, id)),
             });
@@ -803,7 +767,6 @@ export function adminRoutes(ctx: AppContext) {
 
       .put('/settings', adminOnly, zValidator('json', settingsPatch), async (c) => {
         const settings = await ctx.settings.update(c.req.valid('json'));
-        await forgetTaskSets(ctx);
         return c.json({ ok: true, localModelId: settings.localModelId });
       })
 
@@ -864,28 +827,5 @@ export function adminRoutes(ctx: AppContext) {
         await db.delete(responseCache);
         return c.json({ ok: true });
       })
-      .route('/comparisons', comparisonRoutes(ctx))
-      .route('/task-sets', taskSetRoutes(ctx))
-      .route('/routing-profiles', routingProfileRoutes(ctx))
-      .route('/model-aliases', aliasRoutes(ctx))
-      .get('/budget-holds', async (c) =>
-        c.json(await listHolds(db, await ownKeyIds(ctx, c.get('user')))),
-      )
-      .patch(
-        '/budget-holds/:id',
-        adminOnly,
-        idParam,
-        zValidator('json', z.object({ chargedUsd: z.number().min(0).max(1_000_000) })),
-        async (c) => {
-          try {
-            return c.json(
-              await reconcile(ctx, c.req.valid('param').id, c.req.valid('json').chargedUsd),
-            );
-          } catch (error) {
-            if (error instanceof BudgetError) return c.json({ error: error.message }, 409);
-            throw error;
-          }
-        },
-      )
   );
 }

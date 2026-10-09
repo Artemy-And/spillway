@@ -42,7 +42,6 @@ export interface OAIChatRequest {
   seed?: number;
   tools?: OAITool[];
   tool_choice?: OAIToolChoice;
-  parallel_tool_calls?: boolean;
   response_format?: unknown;
 }
 
@@ -119,9 +118,7 @@ export interface ATool {
   type?: string;
 }
 
-export type AToolChoice =
-  | { type: 'auto' | 'any' | 'none'; disable_parallel_tool_use?: boolean }
-  | { type: 'tool'; name: string; disable_parallel_tool_use?: boolean };
+export type AToolChoice = { type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string };
 
 export interface ARequest {
   model: string;
@@ -220,7 +217,6 @@ export interface RRequest {
   instructions?: string | null;
   tools?: RTool[];
   tool_choice?: RToolChoice;
-  parallel_tool_calls?: boolean;
   stream?: boolean;
   max_output_tokens?: number | null;
   temperature?: number | null;

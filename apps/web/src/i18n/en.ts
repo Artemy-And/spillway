@@ -1,12 +1,6 @@
 import type { Overview } from '../lib/api.ts';
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
-import { comparisonMessages } from './comparisons.ts';
-import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
-import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
-import { budgetMessages, budgetTrace } from './reservations.ts';
-import { sessionRoutingMessages } from './session-routing.ts';
-import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 const p = plural('en');
 
@@ -28,12 +22,6 @@ const pii = {
 };
 
 export const en = {
-  comparisons: comparisonMessages.en,
-  evaluations: evaluationMessages.en,
-  toolEvaluations: toolEvaluationMessages.en,
-  sessionRouting: sessionRoutingMessages.en,
-  reservations: budgetMessages.en,
-  profiles: profileMessages.en,
   common: {
     save: 'Save',
     saved: 'Saved',
@@ -92,11 +80,9 @@ export const en = {
   },
 
   /** Server messages in other languages; English shows them as they come. */
-  errors: profileErrors.en as Record<string, string>,
+  errors: {} as Record<string, string>,
 
   nav: {
-    routingProfiles: profileMessages.en.title,
-    comparisons: 'Compare models',
     main: 'Main',
     overview: 'Overview',
     keys: 'Keys',
@@ -492,19 +478,6 @@ export const en = {
 
   /** The "why" of a request, step by step. */
   trace: {
-    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.en.traceReconciled, t),
-    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.en.traceReserved, t),
-    budgetReservationDenied: () => budgetMessages.en.traceDenied,
-    budgetEstimateUnknown: () => budgetMessages.en.traceUnknown,
-    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.en.traceUnknownCharge, t),
-    profileApplied: (t: TraceParams) => profileTrace(profileMessages.en, 'traceApplied', t),
-    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.en, 'traceSkipped', t),
-    profileFallback: (t: TraceParams) => profileTrace(profileMessages.en, 'traceFallback', t),
-    sessionPinned: (t: TraceParams) =>
-      sessionRoutingMessages.en.tracePinned.replace('{model}', String(t.model ?? '')),
-    sessionBlocked: (t: TraceParams) =>
-      sessionRoutingMessages.en.traceBlocked + (t.message ? `: ${t.message}` : ''),
-    sessionKept: () => sessionRoutingMessages.en.traceKept,
     modelMissing: (t: TraceParams) => `Model "${t.model}" is not available on this gateway`,
     modelNotAllowedTeam: (t: TraceParams) => `${t.model} is not allowed for team ${t.name}`,
     modelNotAllowedKey: (t: TraceParams) => `${t.model} is not allowed for key ${t.name}`,

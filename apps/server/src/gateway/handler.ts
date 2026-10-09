@@ -1,15 +1,5 @@
-import { and, eq, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Context } from 'hono';
-import { admit } from '../budget/admission.ts';
-import { cappedBody, unmodeledFees } from '../budget/estimate.ts';
-import {
-  attemptTotals,
-  chargedSql,
-  knownSql,
-  type Reservation,
-  release,
-  settle,
-} from '../budget/ledger.ts';
 import type { AppContext } from '../context.ts';
 import {
   apiKeys,
@@ -21,11 +11,8 @@ import {
   users,
 } from '../db/schema.ts';
 import { sha256, shortId } from '../lib/crypto.ts';
-import { maskPii, type PiiCounts } from '../lib/pii.ts';
+import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
-import { type NativeTurn, prepareNativeState } from '../routing/native-state.ts';
-import { allowed, matchesFingerprint, routingTarget } from '../routing/resolve.ts';
-import { RoutingSessionError, resolveSession } from '../routing/sessions.ts';
 import type { Settings } from '../settings.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
@@ -38,7 +25,6 @@ import {
   step,
   type Target,
 } from './policy.ts';
-import { SessionStream, sessionChunks, sessionEvents } from './session-stream.ts';
 import { openAIChunks, parseSSE, SSEParser, sse, UpstreamError } from './sse.ts';
 import {
   anthropicRequestToOpenAI,
@@ -135,21 +121,12 @@ export async function authenticate(ctx: AppContext, headers: Headers): Promise<C
   const bearer = headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
   const token = bearer ?? headers.get('x-api-key');
   if (!token) return null;
-  return callerWhere(ctx, eq(apiKeys.hash, sha256(token.trim())));
-}
-
-/** Internal admin jobs can charge an existing key without retrieving its plaintext secret. */
-export function callerForKey(ctx: AppContext, keyId: string): Promise<Caller | null> {
-  return callerWhere(ctx, eq(apiKeys.id, keyId));
-}
-
-async function callerWhere(ctx: AppContext, where: SQL): Promise<Caller | null> {
   const row = await ctx.db
     .select({ key: apiKeys, team: teams, user: users })
     .from(apiKeys)
     .leftJoin(teams, eq(apiKeys.teamId, teams.id))
     .leftJoin(users, eq(apiKeys.userId, users.id))
-    .where(and(where, isNull(apiKeys.revokedAt)))
+    .where(and(eq(apiKeys.hash, sha256(token.trim())), isNull(apiKeys.revokedAt)))
     .get();
   if (!row || row.user?.disabledAt) return null;
   return row;
@@ -182,27 +159,9 @@ export function promptCut(
   return kept > 0 && sent >= kept * 1.5 && sent - kept >= 2000 ? { sent, kept } : null;
 }
 
-function decodedToolText(value: string): string {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return typeof parsed === 'string' ? parsed : (JSON.stringify(parsed) ?? '');
-  } catch {
-    return value;
-  }
-}
-
-/** Tool arguments may themselves contain JSON escapes; scan both the wire text and decoded data. */
-function toolText(value: unknown): string {
-  const raw = typeof value === 'string' ? value : (JSON.stringify(value) ?? '');
-  if (typeof value !== 'string') return raw;
-  const decoded = decodedToolText(value);
-  return decoded === raw ? raw : `${raw}\n${decoded}`;
-}
-
 /** All text that would leave the building, plus the latest user turn for the log. */
 function promptText(format: Format, body: Record<string, unknown>): { all: string; last: string } {
   const parts: string[] = [];
-  if (body.tools !== undefined) parts.push(toolText(body.tools));
   let last = '';
   if (format === 'anthropic') {
     const req = body as unknown as ARequest;
@@ -215,14 +174,8 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const text = blocks
         .map((block) => {
           if (block.type === 'text') return block.text;
-          if (block.type === 'thinking') return block.thinking;
-          if (block.type === 'tool_use') return toolText(block.input);
           if (block.type === 'tool_result') {
-            const content =
-              typeof block.content === 'string' ? block.content : textOf(block.content);
-            const expanded = toolText(content);
-            if (expanded !== content) parts.push(expanded);
-            return decodedToolText(content);
+            return typeof block.content === 'string' ? block.content : textOf(block.content);
           }
           return '';
         })
@@ -245,10 +198,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       const output =
         item.type === 'function_call_output' || item.type === 'custom_tool_call_output';
       const text = responsesText(message ? item.content : output ? item.output : undefined);
-      parts.push(output ? toolText(text) : text);
-      if (item.type === 'function_call') parts.push(toolText(item.arguments));
-      else if (item.type === 'custom_tool_call') parts.push(toolText(item.input));
-      else if (item.type === 'local_shell_call') parts.push(toolText(item.action));
+      parts.push(text);
       if (message && item.role === 'user' && text.trim()) last = text;
     }
   } else {
@@ -258,12 +208,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
     )[];
     for (const message of messages) {
       const text = textOf(message.content as string);
-      parts.push(message.role === 'tool' ? toolText(text) : text);
-      if ('tool_calls' in message && Array.isArray(message.tool_calls)) {
-        for (const call of message.tool_calls) {
-          parts.push(toolText(call?.function?.arguments));
-        }
-      }
+      parts.push(text);
       if (message.role === 'user' && text.trim()) last = text;
     }
   }
@@ -335,10 +280,10 @@ function fromOpenAIStream(
 }
 
 /** An error in the middle of a stream is sent as the client format's own error event. */
-async function* withStreamErrors<T extends string | Uint8Array>(
+async function* withStreamErrors(
   format: Format,
-  source: AsyncIterable<T>,
-): AsyncGenerator<T | string> {
+  source: AsyncIterable<string>,
+): AsyncGenerator<string> {
   try {
     yield* source;
   } catch (error) {
@@ -368,21 +313,14 @@ async function* tapped(
   body: ReadableStream<Uint8Array>,
   wire: Wire,
   meter: Meter,
-  strict = false,
-  native?: NativeTurn | null,
 ): AsyncGenerator<Uint8Array> {
   const parser = new SSEParser();
-  const guard = strict ? new SessionStream(wire) : null;
   const decoder = new TextDecoder();
   const held: Uint8Array[] = [];
   let started = false;
   for await (const chunk of body) {
     const events = parser.feed(decoder.decode(chunk, { stream: true }));
-    for (const event of events) {
-      guard?.event(event);
-      meter.sseEvent(wire, event);
-      native?.observe(event);
-    }
+    for (const event of events) meter.sseEvent(wire, event);
     if (started) {
       yield chunk;
       continue;
@@ -394,12 +332,6 @@ async function* tapped(
       held.length = 0;
     }
   }
-  for (const event of [...parser.feed(decoder.decode()), ...parser.end()]) {
-    guard?.event(event);
-    meter.sseEvent(wire, event);
-    native?.observe(event);
-  }
-  guard?.end();
   yield* held;
 }
 
@@ -435,37 +367,32 @@ function assertAnswer(provider: Target['provider'], json: { error?: unknown; cho
 }
 
 /** Turns an async source into a response body; `onEnd` runs exactly once, also on disconnect. */
-function toBody(
-  source: AsyncIterable<string | Uint8Array>,
-  onEnd: (error?: unknown) => void | Promise<void>,
-  onCancel?: () => void,
-) {
+function toBody(source: AsyncIterable<string | Uint8Array>, onEnd: (error?: unknown) => void) {
   const iterator = source[Symbol.asyncIterator]();
   const encoder = new TextEncoder();
   let ended = false;
-  const end = async (error?: unknown) => {
+  const end = (error?: unknown) => {
     if (ended) return;
     ended = true;
-    await onEnd(error);
+    onEnd(error);
   };
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         const { value, done } = await iterator.next();
         if (done) {
-          await end();
+          end();
           controller.close();
         } else {
           controller.enqueue(typeof value === 'string' ? encoder.encode(value) : value);
         }
       } catch (error) {
-        await end(error);
+        end(error);
         controller.error(error);
       }
     },
     async cancel() {
-      onCancel?.();
-      await end(new Error('Client disconnected'));
+      end(new Error('Client disconnected'));
       await iterator.return?.();
     },
   });
@@ -485,9 +412,6 @@ async function forward(
   target: Target,
   stream: boolean,
   meter: Meter,
-  session = false,
-  native?: NativeTurn | null,
-  pii: PiiCounts = {},
 ): Promise<Forwarded> {
   const { model, provider } = target;
   const wire: Wire =
@@ -540,31 +464,15 @@ async function forward(
           meter.openAIResponse(answer);
         } else if (wire === 'responses') meter.responsesResponse(json as RResponse);
         else meter.anthropicResponse(json as AResponse);
-        await native?.complete(meter, pii, json);
         resolveDone();
         return { response: Response.json(json), done };
       }
-      const source = await primed(tapped(res.body, wire, meter, session, native));
+      const source = await primed(tapped(res.body, wire, meter));
       // A Responses stream reports failure in an event, after the 200 has gone out.
-      const ended = async (error?: unknown) => {
-        const failure = error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined);
-        try {
-          if (failure === undefined) await native?.complete(meter, pii);
-          else await native?.fail(true);
-          resolveDone(failure);
-        } catch (stateError) {
-          await native?.fail(true);
-          resolveDone(stateError);
-          throw stateError;
-        }
-      };
+      const ended = (error?: unknown) =>
+        resolveDone(error ?? (meter.failure ? new UpstreamError(meter.failure) : undefined));
       return {
-        response: new Response(
-          toBody(session ? withStreamErrors(format, source) : source, ended, () =>
-            upstream.abort(),
-          ),
-          { headers: streamHeaders },
-        ),
+        response: new Response(toBody(source, ended), { headers: streamHeaders }),
         done,
       };
     }
@@ -583,10 +491,7 @@ async function forward(
     if (wire === 'openai') {
       const res = await callUpstream(ctx, provider, '/chat/completions', { body: request, signal });
       if (!res.ok) throw await upstreamFailure(provider, res);
-      if (stream && res.body)
-        chunks = await primed(
-          session ? sessionChunks(parseSSE(res.body), meter) : openAIChunks(res.body),
-        );
+      if (stream && res.body) chunks = await primed(openAIChunks(res.body));
       else {
         const json = (await res.json()) as OAIChatResponse & { error?: unknown };
         assertAnswer(provider, json);
@@ -600,22 +505,12 @@ async function forward(
         signal,
       });
       if (!res.ok) throw await upstreamFailure(provider, res);
-      if (stream && res.body)
-        chunks = await primed(
-          anthropicStreamToOpenAI(
-            session ? sessionEvents(parseSSE(res.body), wire, meter) : parseSSE(res.body),
-          ),
-        );
-      else {
-        const answer = (await res.json()) as AResponse;
-        // Translation supplies compatibility defaults; only native usage proves a charge.
-        meter.anthropicResponse(answer);
-        result = anthropicResponseToOpenAI(answer);
-      }
+      if (stream && res.body) chunks = await primed(anthropicStreamToOpenAI(parseSSE(res.body)));
+      else result = anthropicResponseToOpenAI((await res.json()) as AResponse);
     }
 
     if (result) {
-      if (wire === 'openai') meter.openAIResponse(result);
+      meter.openAIResponse(result);
       resolveDone();
       return {
         response: Response.json(fromOpenAIResponse(format, result, model.name, body)),
@@ -624,15 +519,9 @@ async function forward(
     }
     const out = withStreamErrors(
       format,
-      fromOpenAIStream(format, session ? chunks! : metered(chunks!, meter), model.name, body),
+      fromOpenAIStream(format, metered(chunks!, meter), model.name, body),
     );
-    return {
-      response: new Response(
-        toBody(out, resolveDone, () => upstream.abort()),
-        { headers: streamHeaders },
-      ),
-      done,
-    };
+    return { response: new Response(toBody(out, resolveDone), { headers: streamHeaders }), done };
   } finally {
     clearTimeout(deadline);
   }
@@ -644,22 +533,7 @@ export async function writeLog(
   keyId: string,
 ): Promise<void> {
   try {
-    const tracked =
-      row.id && typeof row.costKnown === 'boolean'
-        ? sql`exists(select 1 from budget_reservations b where b.request_id = ${row.id})`
-        : null;
-    await ctx.db.insert(requestLogs).values(
-      tracked
-        ? {
-            ...row,
-            costUsd: sql`case when ${tracked} then ${chargedSql(row.id!)} else ${row.costUsd ?? 0} end`,
-            costKnown: sql`case when ${tracked} then ${knownSql(row.id!)} else ${row.costKnown ? 1 : 0} end`,
-            routingCostKnown: row.routingProfileId
-              ? sql`case when ${tracked} then ${knownSql(row.id!)} else ${row.routingCostKnown === null ? null : row.routingCostKnown ? 1 : 0} end`
-              : null,
-          }
-        : row,
-    );
+    await ctx.db.insert(requestLogs).values(row);
     await ctx.db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, keyId));
   } catch (error) {
     console.error('Failed to write request log', error);
@@ -670,10 +544,9 @@ export async function handleGateway(
   ctx: AppContext,
   c: Context,
   format: Format,
-  internalCaller?: Caller,
 ): Promise<Response> {
   const started = Date.now();
-  const caller = internalCaller ?? (await authenticate(ctx, c.req.raw.headers));
+  const caller = await authenticate(ctx, c.req.raw.headers);
   if (!caller) {
     return errorResponse(
       format,
@@ -691,7 +564,6 @@ export async function handleGateway(
   if (typeof body.model !== 'string' || !body.model) {
     return errorResponse(format, 400, 'Field "model" is required');
   }
-  const requestedName = body.model;
   if (format === 'responses') {
     if (typeof body.input !== 'string' && !Array.isArray(body.input)) {
       return errorResponse(format, 400, 'Field "input" must be a string or an array');
@@ -701,87 +573,30 @@ export async function handleGateway(
   }
 
   const settings = await ctx.settings.get();
-  const sessionToken = !internalCaller ? c.req.header('x-spillway-session') : undefined;
-  let affinity: Awaited<ReturnType<typeof resolveSession>> | undefined;
-  let native: NativeTurn | null = null;
-  if (sessionToken !== undefined) {
-    try {
-      affinity = await resolveSession(ctx, caller, body, format, sessionToken);
-      native = await prepareNativeState(ctx, affinity.row.id, format, body, affinity.target);
-      if (format === 'responses' && !native) body = { ...body, store: false };
-    } catch (error) {
-      if (!(error instanceof RoutingSessionError)) throw error;
-      const id = shortId('req');
-      await writeLog(
-        ctx,
-        {
-          id,
-          keyId: caller.key.id,
-          teamId: caller.key.teamId,
-          requestedModel: requestedName,
-          format: isOllama(format) ? 'ollama' : format,
-          status: error.status,
-          result: 'blocked_model',
-          latencyMs: Date.now() - started,
-          costKnown: true,
-          usageKnown: true,
-          sessionId: /^[A-Za-z0-9_-]{16,128}$/.test(sessionToken)
-            ? sha256(`${caller.key.id}\0${sessionToken}`)
-            : null,
-          trace: [step('block', error.message, 'sessionBlocked', { message: error.message })],
-        },
-        caller.key.id,
-      );
-      const response = errorResponse(format, error.status, error.message, 'blocked_model');
-      response.headers.set('x-spillway-request-id', id);
-      response.headers.set('x-spillway-session-status', 'blocked');
-      response.headers.set('x-spillway-result', 'blocked_model');
-      return response;
-    }
-  }
   const text = promptText(format, body);
   const scan = maskPii(text.all);
-  if (native) Object.assign(scan.found, native.pii);
   const decision: Decision = await decide(ctx, {
     caller,
-    requestedName: affinity?.baseline.model.name ?? requestedName,
+    requestedName: body.model,
     pii: scan.found,
     settings,
-    body,
-    format,
-    skipProfiles: !!internalCaller,
-    affinity,
   });
   const stream = isOllama(format) ? body.stream !== false : body.stream === true;
 
   const id = shortId('req');
   const base: typeof requestLogs.$inferInsert = {
     id,
-    createdAt: new Date(started),
-    sessionId: affinity?.row.id ?? null,
-    usageKnown: true,
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
-    requestedModel: requestedName,
+    requestedModel: body.model,
     requestedModelId: decision.requested?.model.id ?? null,
-    routingProfileId: decision.routingProfile?.id ?? null,
-    routingProfileName: decision.routingProfile?.name ?? null,
-    routingOutcome: decision.routingProfile
-      ? !decision.target
-        ? 'policy'
-        : decision.routingApplied
-          ? 'selected'
-          : 'skipped'
-      : null,
-    routingCostKnown: decision.routingProfile && !decision.target ? true : null,
     servedModelId: decision.target?.model.id ?? null,
     servedModel: decision.target ? modelLabel(decision.target) : null,
     servedLocal: decision.target?.provider.isLocal ?? false,
     providerName: decision.target?.provider.name ?? null,
     status: decision.status,
     result: decision.result,
-    costKnown: true,
     ruleId: decision.ruleId,
     trace: decision.trace,
     stream,
@@ -791,38 +606,18 @@ export async function handleGateway(
 
   if (!decision.target) {
     await writeLog(ctx, { ...base, latencyMs: Date.now() - started }, caller.key.id);
-    const response = errorResponse(format, decision.status, decision.message, decision.result);
-    response.headers.set('x-spillway-request-id', id);
-    response.headers.set('x-spillway-result', decision.result);
-    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
-    return response;
+    return errorResponse(format, decision.status, decision.message, decision.result);
   }
 
   // With the cache on, a repeated request gets the stored answer. Only whole answers from the
   // model that was asked for are kept, and never for prompts with personal data in them.
-  let cacheId =
-    !affinity &&
+  const cacheId =
     settings.cache.enabled &&
     !stream &&
-    (decision.result === 'ok' ||
-      (decision.routingApplied &&
-        decision.target.model.id === decision.routingProfile?.candidateModelId)) &&
+    decision.result === 'ok' &&
     !base.pii &&
     wantsCache(c.req.raw.headers)
-      ? cacheKey(
-          caller.key.id,
-          decision.target.model,
-          format,
-          cappedBody(
-            format,
-            body,
-            !decision.target.provider.isLocal &&
-              (caller.key.dailyLimitUsd !== null ||
-                caller.key.monthlyLimitUsd !== null ||
-                caller.team?.monthlyBudgetUsd != null),
-            format === 'openai' && speaksResponses(decision.target.provider),
-          ),
-        )
+      ? cacheKey(caller.key.id, decision.target.model, format, body)
       : null;
   const hit = cacheId ? await cached(ctx, cacheId) : null;
   if (hit) {
@@ -832,7 +627,6 @@ export async function handleGateway(
         ...base,
         ruleId: 'cache',
         savedUsd: hit.costUsd,
-        routingCostKnown: decision.routingProfile ? true : null,
         latencyMs: Date.now() - started,
         trace: [
           ...decision.trace.filter((s) => s.code !== 'sentTo'),
@@ -850,119 +644,26 @@ export async function handleGateway(
         'x-spillway-result': decision.result,
         'x-spillway-model': decision.target.model.name,
         'x-spillway-cache': 'hit',
-        ...(decision.routingProfile
-          ? { 'x-spillway-routing-profile': decision.routingProfile.id }
-          : {}),
       },
     });
   }
 
-  const admission = await admit(ctx, {
-    caller,
-    target: decision.target,
-    requestedModelId: decision.requested!.model.id,
-    requestId: id,
-    body,
-    format,
-    settings,
-    allowLocal: affinity ? false : undefined,
-    sessionId: affinity?.row.id,
-    contextTokens: native?.contextTokens,
-  });
-  if (admission.denied) {
-    await writeLog(
-      ctx,
-      {
-        ...base,
-        servedModelId: null,
-        servedModel: null,
-        providerName: null,
-        servedLocal: false,
-        status: admission.status,
-        result: 'blocked_budget',
-        routingOutcome: decision.routingProfile ? 'policy' : null,
-        routingCostKnown: decision.routingProfile ? true : null,
-        trace: [...decision.trace, ...admission.trace],
-        latencyMs: Date.now() - started,
-      },
-      caller.key.id,
-    );
-    const response = errorResponse(format, admission.status, admission.message, 'blocked_budget');
-    response.headers.set('x-spillway-request-id', id);
-    response.headers.set('x-spillway-result', 'blocked_budget');
-    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
-    return response;
-  }
-  let target = admission.target;
-  let reservation: Reservation | null = admission.reservation;
-  body = admission.body;
-  if (target.model.id !== decision.target.model.id) cacheId = null;
-  let result = target.model.id === decision.target.model.id ? decision.result : 'rerouted';
-  let trace: TraceStep[] = [...decision.trace, ...admission.trace];
+  let target = decision.target;
+  let result = decision.result;
+  let trace: TraceStep[] = decision.trace;
   let outage = false;
-  let profileFallbackUsed = false;
-  const attemptedModelId = target.model.id;
   const meter = new Meter();
-  let nativeAttempted = false;
-  const settleAttempt = async (error?: unknown) => {
-    if (!reservation) return;
-    const known =
-      error === undefined &&
-      !unmodeledFees(body, target, format) &&
-      meter.usageKnown &&
-      target.model.inputPrice !== null &&
-      target.model.outputPrice !== null;
-    await settle(
-      ctx.db,
-      reservation,
-      meter.cost(target.model),
-      known,
-      error === undefined ? 'missingUsage' : 'providerError',
-    );
-    reservation = null;
-  };
   const finish = async (status: number, error?: unknown) => {
-    if (error !== undefined) await native?.fail(nativeAttempted);
-    await settleAttempt(error);
-    const totals = await attemptTotals(ctx.db, id);
-    const cost = totals.costUsd;
-    if (!totals.known)
-      trace.push(
-        step(
-          'warn',
-          'Provider charges are unknown; remaining estimate stays reserved',
-          'budgetUncertain',
-          { amount: totals.heldUsd },
-        ),
-      );
+    const cost = meter.cost(target.model);
     const requestedCost = decision.requested ? meter.cost(decision.requested.model) : cost;
     const failed = error !== undefined;
     const message = failed ? (error instanceof Error ? error.message : String(error)) : null;
     const cut =
       !failed && target.provider.kind === 'ollama' ? promptCut(body, meter.totalInput) : null;
-    const routingCostKnown = totals.known;
-    const eligible =
-      decision.routingApplied &&
-      !failed &&
-      !outage &&
-      !cut &&
-      meter.usageKnown &&
-      routingCostKnown &&
-      target.model.id === decision.routingProfile?.candidateModelId &&
-      decision.requested &&
-      (decision.requested.provider.isLocal ||
-        (decision.requested.model.inputPrice !== null &&
-          decision.requested.model.outputPrice !== null));
-    const baselineCostUsd = eligible
-      ? decision.requested!.provider.isLocal
-        ? 0
-        : requestedCost
-      : null;
     await writeLog(
       ctx,
       {
         ...base,
-        attemptedModelId,
         servedModelId: target.model.id,
         servedModel: modelLabel(target),
         servedLocal: target.provider.isLocal,
@@ -973,26 +674,9 @@ export async function handleGateway(
         ruleId: outage && !failed ? 'outage' : decision.ruleId,
         inputTokens: meter.totalInput,
         outputTokens: meter.outputTokens,
-        usageKnown: native && !nativeAttempted ? true : meter.usageKnown,
         costUsd: cost,
-        costKnown: totals.known,
         // A failover is not a saving: the cloud model was not going to answer anyway.
-        savedUsd:
-          result === 'rerouted' && !outage && !decision.routingProfile
-            ? Math.max(0, requestedCost - cost)
-            : 0,
-        routingOutcome: decision.routingProfile
-          ? profileFallbackUsed || outage
-            ? 'fallback'
-            : !decision.routingApplied
-              ? 'skipped'
-              : target.model.id === decision.routingProfile.candidateModelId
-                ? 'selected'
-                : 'policy'
-          : null,
-        routingCostKnown: decision.routingProfile ? routingCostKnown : null,
-        baselineCostUsd,
-        routingSavingsUsd: baselineCostUsd === null ? null : baselineCostUsd - cost,
+        savedUsd: result === 'rerouted' && !outage ? Math.max(0, requestedCost - cost) : 0,
         latencyMs: Date.now() - started,
         responsePreview: settings.storePrompts
           ? maskPii(meter.text).text.slice(0, PREVIEW) || null
@@ -1017,68 +701,16 @@ export async function handleGateway(
   };
 
   try {
-    await native?.claim(id);
     let forwarded: Forwarded;
     try {
-      if (c.req.raw.signal.aborted) {
-        if (reservation) await release(ctx.db, reservation);
-        reservation = null;
-        throw c.req.raw.signal.reason ?? new Error('Client disconnected');
-      }
-      nativeAttempted = true;
-      forwarded = await forward(
-        ctx,
-        c,
-        format,
-        body,
-        target,
-        stream,
-        meter,
-        !!affinity,
-        native,
-        scan.found,
-      );
+      forwarded = await forward(ctx, c, format, body, target, stream, meter);
     } catch (error) {
-      await settleAttempt(error);
-      if (affinity) throw error;
-      if (c.req.raw.signal.aborted) throw error;
-      const freshCaller = await callerForKey(ctx, caller.key.id);
-      if (!freshCaller) throw error;
-      const fallbackSettings = await ctx.settings.get();
-      const baseline = await baselineFallback(
-        ctx,
-        freshCaller,
-        decision,
-        target,
-        fallbackSettings,
-        error,
-        body,
-        format,
-        scan.found,
-      );
-      let local =
-        baseline ?? (await failoverTarget(ctx, freshCaller, target, fallbackSettings, error));
+      const local = await failoverTarget(ctx, caller, target, settings, error);
       if (!local) throw error;
-      const fallbackAdmission = await admit(ctx, {
-        caller: freshCaller,
-        target: local,
-        requestedModelId: decision.requested!.model.id,
-        requestId: id,
-        body,
-        format,
-        settings: fallbackSettings,
-        allowLocal: fallbackSettings.rerouteOnFailure,
-      });
-      if (fallbackAdmission.denied) throw error;
-      local = fallbackAdmission.target;
-      reservation = fallbackAdmission.reservation;
-      body = fallbackAdmission.body;
       const reason = (error as Error).message;
       const failedProvider = target.provider.name;
-      profileFallbackUsed = !!baseline && local.model.id === baseline.model.id;
       trace = [
         ...trace,
-        ...fallbackAdmission.trace,
         step('warn', reason, 'providerFailed', { provider: failedProvider, message: reason }),
         step(
           'info',
@@ -1090,26 +722,15 @@ export async function handleGateway(
           },
         ),
       ];
-      if (profileFallbackUsed && baseline && decision.routingProfile) {
-        trace.push(
-          step(
-            'warn',
-            `Profile ${decision.routingProfile.name} fell back to ${baseline.model.name}`,
-            'profileFallback',
-            { profile: decision.routingProfile.name, model: baseline.model.name },
-          ),
-        );
-      }
       target = local;
-      result = profileFallbackUsed ? 'ok' : 'rerouted';
+      result = 'rerouted';
       outage = true;
-      meter.reset();
       forwarded = await forward(ctx, c, format, body, local, stream, meter);
     }
     const { response, done } = forwarded;
     // An answer the local model gave in a provider's place is not what was asked for.
     const fresh = cacheId && !outage ? await response.clone().text() : null;
-    const logged = done.then(async (error) => {
+    void done.then(async (error) => {
       await finish(200, error);
       if (cacheId && fresh && error === undefined) {
         const entry = { id: cacheId, keyId: caller.key.id, modelId: target.model.id, body: fresh };
@@ -1120,42 +741,16 @@ export async function handleGateway(
         );
       }
     });
-    // Comparisons read the finished log before sending the next request or checking its budget.
-    if (!stream) await logged;
-    else void logged;
     if (cacheId) response.headers.set('x-spillway-cache', 'miss');
     response.headers.set('x-spillway-request-id', id);
     response.headers.set('x-spillway-result', result);
     response.headers.set('x-spillway-model', target.model.name);
-    if (affinity) {
-      response.headers.set('x-spillway-session-status', 'pinned');
-      response.headers.set('x-spillway-session-ref', affinity.row.id);
-      response.headers.set('x-spillway-session-expires-at', affinity.row.expiresAt.toISOString());
-    }
-    if (internalCaller && !stream) {
-      response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
-    }
-    if (decision.routingProfile)
-      response.headers.set('x-spillway-routing-profile', decision.routingProfile.id);
     return response;
   } catch (error) {
-    if (native && !nativeAttempted && reservation) {
-      await release(ctx.db, reservation);
-      reservation = null;
-    }
-    const status =
-      error instanceof UpstreamError || error instanceof RoutingSessionError ? error.status : 502;
+    const status = error instanceof UpstreamError ? error.status : 502;
     const message = error instanceof Error ? error.message : 'Upstream request failed';
     await finish(status, error);
-    const response = errorResponse(format, status, message);
-    response.headers.set('x-spillway-request-id', id);
-    response.headers.set('x-spillway-result', 'error');
-    response.headers.set('x-spillway-model', target.model.name);
-    if (affinity) response.headers.set('x-spillway-session-status', 'pinned');
-    if (internalCaller && !stream) {
-      response.headers.set('x-spillway-usage-known', String(meter.usageKnown));
-    }
-    return response;
+    return errorResponse(format, status, message);
   }
 }
 
@@ -1176,45 +771,5 @@ async function failoverTarget(
   if (target.provider.isLocal || !caller.key.fallbackToLocal) return null;
   if (!settings.rerouteOnFailure || !settings.localModelId) return null;
   const local = await findModel(ctx.db, eq(models.id, settings.localModelId));
-  return local?.provider.isLocal &&
-    local.model.id !== target.model.id &&
-    allowed(caller, local.model.id)
-    ? local
-    : null;
-}
-
-/** The original model is a separate, explicit fallback and must pass its own policy checks. */
-async function baselineFallback(
-  ctx: AppContext,
-  caller: Caller,
-  decision: Decision,
-  target: Target,
-  settings: Settings,
-  error: unknown,
-  body: Record<string, unknown>,
-  format: Format,
-  pii: PiiCounts,
-): Promise<Target | null> {
-  const profile = decision.routingProfile;
-  if (
-    !decision.routingApplied ||
-    !profile?.fallbackOnError ||
-    target.model.id !== profile.candidateModelId ||
-    !(error instanceof UpstreamError) ||
-    (error.status < 500 && error.status !== 429)
-  )
-    return null;
-  const baseline = await routingTarget(ctx, profile.baselineModelId);
-  if (!baseline || !matchesFingerprint(baseline, profile.evidence.baseline)) return null;
-  const checked = await decide(ctx, {
-    caller,
-    requestedName: baseline.model.name,
-    pii,
-    settings,
-    body,
-    format,
-    skipProfiles: true,
-    skipRateLimit: true,
-  });
-  return checked.target?.model.id === baseline.model.id ? checked.target : null;
+  return local && local.model.id !== target.model.id ? local : null;
 }

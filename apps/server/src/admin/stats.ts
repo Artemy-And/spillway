@@ -1,5 +1,4 @@
 import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
-import { holdSql, spentSql } from '../budget/ledger.ts';
 import type { Db } from '../db/client.ts';
 import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import type { Calendar } from '../lib/time.ts';
@@ -24,22 +23,32 @@ const quarter = sql<number>`${requestLogs.createdAt} / ${QUARTER}`;
 export async function keySpend(db: Db, keyIds: string[] | null, cal: Calendar, now = new Date()) {
   const rows = await db
     .select({
-      keyId: apiKeys.id,
-      today: spentSql('key', sql`${apiKeys.id}`, cal.startOfDay(now)),
-      month: spentSql('key', sql`${apiKeys.id}`, cal.startOfMonth(now)),
-      heldToday: holdSql('key', sql`${apiKeys.id}`, cal.startOfDay(now)),
-      requests: sql<number>`(select count(*) from request_logs l where l.key_id = ${sql`${apiKeys.id}`}
-      and l.created_at >= ${cal.startOfMonth(now).getTime()})`,
+      keyId: requestLogs.keyId,
+      today: sum(
+        sql`case when ${requestLogs.createdAt} >= ${cal.startOfDay(now).getTime()} then ${requestLogs.costUsd} end`,
+      ),
+      month: sum(sql`${requestLogs.costUsd}`),
+      requests: sql<number>`count(*)`,
     })
-    .from(apiKeys)
-    .where(keyIds ? inArray(apiKeys.id, keyIds) : undefined);
+    .from(requestLogs)
+    .where(
+      and(
+        gte(requestLogs.createdAt, cal.startOfMonth(now)),
+        keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
+      ),
+    )
+    .groupBy(requestLogs.keyId)
+    .all();
   return new Map(rows.map((row) => [row.keyId, row]));
 }
 
 export async function teamSpend(db: Db, cal: Calendar, now = new Date()) {
   const rows = await db
-    .select({ teamId: teams.id, month: spentSql('team', sql`${teams.id}`, cal.startOfMonth(now)) })
-    .from(teams);
+    .select({ teamId: requestLogs.teamId, month: sum(sql`${requestLogs.costUsd}`) })
+    .from(requestLogs)
+    .where(gte(requestLogs.createdAt, cal.startOfMonth(now)))
+    .groupBy(requestLogs.teamId)
+    .all();
   return new Map(rows.map((row) => [row.teamId, row.month]));
 }
 
@@ -60,10 +69,7 @@ export async function failingProviders(db: Db, now = new Date()) {
       lastFailure: sql<number | null>`max(case when ${failed} then ${requestLogs.createdAt} end)`,
     })
     .from(requestLogs)
-    .innerJoin(
-      models,
-      sql`${models.id} = coalesce(${requestLogs.attemptedModelId}, ${requestLogs.requestedModelId})`,
-    )
+    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
     .innerJoin(providers, eq(models.providerId, providers.id))
     .where(gte(requestLogs.createdAt, new Date(now.getTime() - STATUS_WINDOW_MS)))
     .groupBy(providers.id)
@@ -266,7 +272,7 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
   const spend = await keySpend(db, keyIds, cal, now);
 
   for (const { key, team } of keys) {
-    const today = (spend.get(key.id)?.today ?? 0) + (spend.get(key.id)?.heldToday ?? 0);
+    const today = spend.get(key.id)?.today ?? 0;
     if (key.dailyLimitUsd && today >= key.dailyLimitUsd * 0.8) {
       const percent = Math.round((today / key.dailyLimitUsd) * 100);
       out.push({
@@ -322,13 +328,10 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
       last: sql<number>`max(${requestLogs.createdAt})`,
       error: sql<
         string | null
-      >`(select r.error from request_logs r join models m on m.id = coalesce(r.attempted_model_id, r.requested_model_id) where m.provider_id = ${providers.id} and r.error is not null order by r.created_at desc limit 1)`,
+      >`(select r.error from request_logs r join models m on m.id = r.requested_model_id where m.provider_id = ${providers.id} and r.error is not null order by r.created_at desc limit 1)`,
     })
     .from(requestLogs)
-    .innerJoin(
-      models,
-      sql`${models.id} = coalesce(${requestLogs.attemptedModelId}, ${requestLogs.requestedModelId})`,
-    )
+    .innerJoin(models, eq(requestLogs.requestedModelId, models.id))
     .innerJoin(providers, eq(models.providerId, providers.id))
     .where(
       and(

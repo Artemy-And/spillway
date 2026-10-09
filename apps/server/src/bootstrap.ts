@@ -1,12 +1,9 @@
 import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
-import { forgetComparisons } from './comparison/runner.ts';
-import { forgetTaskSets } from './comparison/task-sets.ts';
 import type { AppContext } from './context.ts';
 import { invites, models, providers, requestLogs, sessions, users } from './db/schema.ts';
 import { forgetExpired } from './gateway/cache.ts';
 import { listUpstreamModels } from './gateway/upstream.ts';
 import { hashPassword } from './lib/crypto.ts';
-import { forgetRoutingSessions } from './routing/sessions.ts';
 
 /** Makes sure someone can sign in, and adds providers from the environment on first start. */
 export async function bootstrap(ctx: AppContext): Promise<void> {
@@ -93,7 +90,4 @@ export async function cleanup(ctx: AppContext): Promise<void> {
   await ctx.db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
   await ctx.db.delete(invites).where(lt(invites.expiresAt, new Date()));
   await forgetExpired(ctx);
-  await forgetComparisons(ctx);
-  await forgetTaskSets(ctx);
-  await forgetRoutingSessions(ctx);
 }

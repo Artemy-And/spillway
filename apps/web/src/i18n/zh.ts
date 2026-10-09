@@ -1,12 +1,6 @@
 import { fmtLimit, fmtNumber, fmtUsd } from '../lib/format.ts';
-import { comparisonMessages } from './comparisons.ts';
 import type { Messages } from './en.ts';
-import { evaluationMessages } from './evaluations.ts';
 import { describePii, plural, type TraceParams } from './helpers.ts';
-import { profileErrors, profileMessages, profileTrace } from './profiles.ts';
-import { budgetMessages, budgetTrace } from './reservations.ts';
-import { sessionRoutingMessages } from './session-routing.ts';
-import { toolEvaluationMessages } from './tool-evaluations.ts';
 
 // Chinese has one plural form; the helper still formats the number for us.
 const p = plural('zh');
@@ -26,12 +20,6 @@ const pii = {
 };
 
 export const zh: Messages = {
-  comparisons: comparisonMessages.zh,
-  evaluations: evaluationMessages.zh,
-  toolEvaluations: toolEvaluationMessages.zh,
-  sessionRouting: sessionRoutingMessages.zh,
-  reservations: budgetMessages.zh,
-  profiles: profileMessages.zh,
   common: {
     save: '保存',
     saved: '已保存',
@@ -89,7 +77,6 @@ export const zh: Messages = {
   },
 
   errors: {
-    ...profileErrors.zh,
     'Wrong setup code. Spillway prints the setup link in its logs.':
       '设置代码错误。Spillway 启动时会把设置链接写入日志。',
     'Your email comes from single sign-on and cannot be changed here':
@@ -120,8 +107,6 @@ export const zh: Messages = {
   },
 
   nav: {
-    routingProfiles: profileMessages.zh.title,
-    comparisons: '模型对比',
     main: '主菜单',
     overview: '概览',
     keys: '密钥',
@@ -488,19 +473,6 @@ export const zh: Messages = {
   },
 
   trace: {
-    budgetReconciled: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceReconciled, t),
-    budgetReserved: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceReserved, t),
-    budgetReservationDenied: () => budgetMessages.zh.traceDenied,
-    budgetEstimateUnknown: () => budgetMessages.zh.traceUnknown,
-    budgetUncertain: (t: TraceParams) => budgetTrace(budgetMessages.zh.traceUnknownCharge, t),
-    profileApplied: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceApplied', t),
-    profileSkipped: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceSkipped', t),
-    profileFallback: (t: TraceParams) => profileTrace(profileMessages.zh, 'traceFallback', t),
-    sessionPinned: (t: TraceParams) =>
-      sessionRoutingMessages.zh.tracePinned.replace('{model}', String(t.model ?? '')),
-    sessionBlocked: (t: TraceParams) =>
-      sessionRoutingMessages.zh.traceBlocked + (t.message ? `: ${t.message}` : ''),
-    sessionKept: () => sessionRoutingMessages.zh.traceKept,
     modelMissing: (t: TraceParams) => `此网关上没有模型“${t.model}”`,
     modelNotAllowedTeam: (t: TraceParams) => `团队 ${t.name} 不允许使用 ${t.model}`,
     modelNotAllowedKey: (t: TraceParams) => `密钥 ${t.name} 不允许使用 ${t.model}`,

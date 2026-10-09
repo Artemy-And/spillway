@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { BudgetHolds } from '../components/BudgetHolds.tsx';
-import { BudgetNumbers } from '../components/BudgetNumbers.tsx';
 import { CheckIcon, PlusIcon } from '../components/icons.tsx';
 import {
   Button,
@@ -33,7 +31,7 @@ export function BudgetsPage() {
   const queryClient = useQueryClient();
   const { data: me } = useQuery(meQuery);
   const isAdmin = me?.user.role === 'admin';
-  const { data: teams = [] } = useQuery({ ...teamsQuery, refetchInterval: 5000 });
+  const { data: teams = [] } = useQuery(teamsQuery);
   const { data: models = [] } = useQuery(modelsQuery);
   const { data: rules } = useQuery({
     queryKey: ['rules'],
@@ -133,7 +131,6 @@ export function BudgetsPage() {
         </Card>
       </div>
 
-      <BudgetHolds />
       <Card aria-label={m.budgets.modelAccess} className="flex flex-col px-6 py-5">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-[15px] font-semibold">{m.budgets.modelAccessTitle}</h2>
@@ -219,9 +216,8 @@ function TeamBudget({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(team.monthlyBudgetUsd?.toString() ?? '');
   const budget = team.monthlyBudgetUsd;
-  const committed = team.spentMonth + team.activeMonth + team.uncertainMonth;
-  const used = budget ? pct(committed, budget) : 0;
-  const over = budget != null && committed >= budget;
+  const used = budget ? pct(team.spentMonth, budget) : 0;
+  const over = budget != null && team.spentMonth >= budget;
   const note =
     budget == null
       ? m.budgets.noBudget(fmtUsd(team.spentMonth), team.keys)
@@ -279,12 +275,6 @@ function TeamBudget({
         label={m.budgets.budgetUsed(team.name)}
       />
       <div className={cx('text-[13px]', over ? 'text-block-fg' : 'text-muted')}>{note}</div>
-      <BudgetNumbers
-        spent={team.spentMonth}
-        active={team.activeMonth}
-        uncertain={team.uncertainMonth}
-        remaining={team.remainingMonth}
-      />
     </div>
   );
 }

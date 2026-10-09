@@ -1,11 +1,4 @@
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type {
-  ComparisonReport,
-  ComparisonSummary,
-  ReferenceRun,
-  TaskSetInput,
-} from '../comparison/types.ts';
-import { type ModelFingerprint, ROUTING_OUTCOMES, type RoutingEvidence } from '../routing/types.ts';
 
 const id = () =>
   text('id')
@@ -143,34 +136,6 @@ export const apiKeys = sqliteTable(
   (t) => [index('api_keys_user_idx').on(t.userId), index('api_keys_team_idx').on(t.teamId)],
 );
 
-/** One row per cloud attempt; no prompts, answers or credentials. Unknown holds need reconciliation. */
-export const budgetReservations = sqliteTable(
-  'budget_reservations',
-  {
-    id: id(),
-    requestId: text('request_id').notNull(),
-    keyId: text('key_id').references(() => apiKeys.id, { onDelete: 'set null' }),
-    teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
-    modelName: text('model_name').notNull(),
-    providerName: text('provider_name').notNull(),
-    state: text('state', { enum: ['active', 'unknown', 'settled', 'released'] }).notNull(),
-    estimatedUsd: real('estimated_usd').notNull(),
-    heldUsd: real('held_usd').notNull(),
-    chargedUsd: real('charged_usd').notNull().default(0),
-    reason: text('reason'),
-    createdAt: createdAt(),
-    settledAt: timestamp('settled_at'),
-    sessionId: text('session_id'),
-  },
-  (t) => [
-    index('budget_key_idx').on(t.keyId, t.createdAt),
-    index('budget_team_idx').on(t.teamId, t.createdAt),
-    index('budget_request_idx').on(t.requestId),
-    index('budget_state_idx').on(t.state),
-    index('budget_session_idx').on(t.sessionId),
-  ],
-);
-
 export const requestLogs = sqliteTable(
   'request_logs',
   {
@@ -181,7 +146,6 @@ export const requestLogs = sqliteTable(
     format: text('format', { enum: CLIENT_FORMATS }).notNull(),
     requestedModel: text('requested_model').notNull(),
     requestedModelId: text('requested_model_id'),
-    attemptedModelId: text('attempted_model_id'),
     servedModelId: text('served_model_id'),
     servedModel: text('served_model'),
     servedLocal: integer('served_local', { mode: 'boolean' }).notNull().default(false),
@@ -192,17 +156,8 @@ export const requestLogs = sqliteTable(
     trace: text('trace', { mode: 'json' }).$type<TraceStep[]>().notNull(),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
-    usageKnown: integer('usage_known', { mode: 'boolean' }),
-    sessionId: text('session_id'),
     costUsd: real('cost_usd').notNull().default(0),
-    costKnown: integer('cost_known', { mode: 'boolean' }),
     savedUsd: real('saved_usd').notNull().default(0),
-    routingProfileId: text('routing_profile_id'),
-    routingProfileName: text('routing_profile_name'),
-    routingOutcome: text('routing_outcome', { enum: ROUTING_OUTCOMES }),
-    routingCostKnown: integer('routing_cost_known', { mode: 'boolean' }),
-    baselineCostUsd: real('baseline_cost_usd'),
-    routingSavingsUsd: real('routing_savings_usd'),
     latencyMs: integer('latency_ms').notNull().default(0),
     stream: integer('stream', { mode: 'boolean' }).notNull().default(false),
     pii: text('pii', { mode: 'json' }).$type<Record<string, number>>(),
@@ -214,8 +169,6 @@ export const requestLogs = sqliteTable(
     index('request_logs_created_idx').on(t.createdAt),
     index('request_logs_key_idx').on(t.keyId, t.createdAt),
     index('request_logs_team_idx').on(t.teamId, t.createdAt),
-    index('request_logs_routing_idx').on(t.routingProfileId, t.createdAt),
-    index('request_logs_session_idx').on(t.sessionId, t.createdAt),
   ],
 );
 
@@ -256,113 +209,3 @@ export type Provider = typeof providers.$inferSelect;
 export type Model = typeof models.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type RequestLog = typeof requestLogs.$inferSelect;
-
-/** Comparison reports contain masked outputs when text storage is enabled; never task prompts. */
-export const comparisons = sqliteTable('comparisons', {
-  id: id(),
-  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: createdAt(),
-  expiresAt: timestamp('expires_at').notNull(),
-  report: text('report', { mode: 'json' }).$type<ComparisonReport>().notNull(),
-  summary: text('summary', { mode: 'json' }).$type<ComparisonSummary>().notNull(),
-});
-
-/** Explicitly saved synthetic templates; reports only retain a content fingerprint and results. */
-export const taskSets = sqliteTable('task_sets', {
-  id: id(),
-  revision: integer('revision').notNull().default(1),
-  content: text('content', { mode: 'json' }).$type<TaskSetInput>().notNull(),
-  fingerprint: text('fingerprint').notNull(),
-  reference: text('reference', { mode: 'json' }).$type<ReferenceRun | null>(),
-  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: createdAt(),
-  updatedAt: timestamp('updated_at')
-    .notNull()
-    .$defaultFn(() => new Date()),
-  expiresAt: timestamp('expires_at').notNull(),
-});
-
-/** One explicit text or tool-session choice per key, backed by a completed comparison. */
-export const routingProfiles = sqliteTable('routing_profiles', {
-  id: id(),
-  name: text('name').notNull(),
-  keyId: text('key_id')
-    .notNull()
-    .unique()
-    .references(() => apiKeys.id, { onDelete: 'cascade' }),
-  comparisonId: text('comparison_id').notNull(),
-  baselineModelId: text('baseline_model_id')
-    .notNull()
-    .references(() => models.id, { onDelete: 'cascade' }),
-  candidateModelId: text('candidate_model_id')
-    .notNull()
-    .references(() => models.id, { onDelete: 'cascade' }),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-  fallbackOnError: integer('fallback_on_error', { mode: 'boolean' }).notNull().default(true),
-  rolloutPercent: integer('rollout_percent').notNull().default(100),
-  evidence: text('evidence', { mode: 'json' }).$type<RoutingEvidence>().notNull(),
-  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: createdAt(),
-  updatedAt: timestamp('updated_at')
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
-
-export type RoutingProfile = typeof routingProfiles.$inferSelect;
-
-/** Durable affinity contains hashes and model configuration only, never a conversation. */
-export const routingSessions = sqliteTable(
-  'routing_sessions',
-  {
-    id: text('id').primaryKey(),
-    keyId: text('key_id')
-      .notNull()
-      .references(() => apiKeys.id, { onDelete: 'cascade' }),
-    // No model/profile foreign keys: deleting them must not silently erase an active binding.
-    profileId: text('profile_id'),
-    requestedModelId: text('requested_model_id').notNull(),
-    selector: text('selector'),
-    targetModelId: text('target_model_id').notNull(),
-    contractHash: text('contract_hash').notNull(),
-    baseline: text('baseline', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
-    target: text('target', { mode: 'json' }).$type<ModelFingerprint>().notNull(),
-    createdAt: createdAt(),
-    expiresAt: timestamp('expires_at').notNull(),
-    nativeFormat: text('native_format', { enum: ['responses', 'anthropic'] }),
-  },
-  (table) => [
-    index('routing_sessions_key').on(table.keyId),
-    index('routing_sessions_expiry').on(table.expiresAt),
-  ],
-);
-
-/** Native continuity metadata only: no history, response IDs, thinking or signatures in plaintext. */
-export const nativeSessionStates = sqliteTable('native_session_states', {
-  sessionId: text('session_id')
-    .primaryKey()
-    .references(() => routingSessions.id, { onDelete: 'cascade' }),
-  format: text('format', { enum: ['responses', 'anthropic'] }).notNull(),
-  configHash: text('config_hash').notNull(),
-  credentialHash: text('credential_hash').notNull(),
-  headHash: text('head_hash'),
-  historyLength: integer('history_length').notNull().default(0),
-  pendingCallHash: text('pending_call_hash'),
-  contextTokens: integer('context_tokens').notNull().default(0),
-  pii: text('pii', { mode: 'json' }).$type<Record<string, number>>().notNull().default({}),
-  revision: integer('revision').notNull().default(0),
-  inFlight: text('in_flight'),
-  interrupted: integer('interrupted', { mode: 'boolean' }).notNull().default(false),
-});
-
-/** Flat pools only: a target is a concrete model with its own provider configuration. */
-export const modelAliases = sqliteTable('model_aliases', {
-  name: text('name').primaryKey(),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-  strategy: text('strategy', { enum: ['weighted', 'lowest-cost'] })
-    .notNull()
-    .default('weighted'),
-  targets: text('targets', { mode: 'json' })
-    .$type<{ modelId: string; weight: number }[]>()
-    .notNull(),
-  createdAt: createdAt(),
-});

@@ -231,7 +231,6 @@ export function responsesRequestToOpenAI(req: RRequest): OAIChatRequest {
   if (req.max_output_tokens) out.max_tokens = req.max_output_tokens;
   if (req.temperature != null) out.temperature = req.temperature;
   if (req.top_p != null) out.top_p = req.top_p;
-  if (req.parallel_tool_calls !== undefined) out.parallel_tool_calls = req.parallel_tool_calls;
   const format = req.text?.format;
   if (format?.type === 'json_schema') {
     out.response_format = {
