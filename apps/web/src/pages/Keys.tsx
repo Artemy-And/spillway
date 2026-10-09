@@ -518,8 +518,9 @@ function CreatedKey({
   const snippets = {
     chatbox: `Chatbox → Settings → Model provider → Add custom provider\n\nAPI mode:  OpenAI API Compatible\nAPI host:  ${origin}/v1\nAPI key:   ${value}`,
     curl: `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer ${value}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "${model}", "messages": [{"role": "user", "content": "Hi"}]}'`,
-    claude: `export ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=${model}\nclaude`,
-    codex: `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "spillway"\n\n[model_providers.spillway]\nname = "Spillway"\nbase_url = "${origin}/v1"\nenv_key = "SPILLWAY_API_KEY"\nwire_api = "responses"\n\n# then, in the terminal\nexport SPILLWAY_API_KEY=${value}\ncodex`,
+    // Claude Code also sends background requests (titles, summaries) to its Haiku model.
+    claude: `# macOS, Linux\nexport ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=${model}\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL=${model}\nclaude\n\n# Windows PowerShell\n$env:ANTHROPIC_BASE_URL = "${origin}"\n$env:ANTHROPIC_AUTH_TOKEN = "${value}"\n$env:ANTHROPIC_MODEL = "${model}"\n$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "${model}"\nclaude`,
+    codex: `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "spillway"\n\n[model_providers.spillway]\nname = "Spillway"\nbase_url = "${origin}/v1"\nenv_key = "SPILLWAY_API_KEY"\nwire_api = "responses"\n\n# then, in the terminal: macOS, Linux\nexport SPILLWAY_API_KEY=${value}\ncodex\n\n# or Windows PowerShell\n$env:SPILLWAY_API_KEY = "${value}"\ncodex`,
     webui: `Open WebUI → Settings → Connections\n\nOpenAI API:  ${origin}/v1\nOllama API:  ${origin}\nKey:         ${value}`,
   };
   return (

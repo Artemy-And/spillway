@@ -155,7 +155,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | Client | Setting |
 | --- | --- |
 | OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `sw-…` |
-| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` |
+| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` and `ANTHROPIC_DEFAULT_HAIKU_MODEL=<model name>` for its background requests |
 | Codex | a provider in `~/.codex/config.toml` with `base_url = "https://<gateway>/v1"`, `wire_api = "responses"` and the key in its `env_key` variable (below) |
 | Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…`; document search works through either |
 | Chatbox | custom provider, OpenAI API Compatible, host `https://<gateway>/v1`, key `sw-…` |
