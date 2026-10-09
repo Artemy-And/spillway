@@ -346,6 +346,38 @@ test('keys that must not fall back are blocked instead', async () => {
     .where(eq(apiKeys.id, keyId));
 });
 
+test('the log shows what the person asked, not the reminders and tool results around it', async () => {
+  const reminder =
+    '<system-reminder>\nCodebase and user instructions are shown below.\n</system-reminder>';
+  // How Claude Code sends a turn: reminders before the question, tool results after it.
+  const res = await call('/v1/messages', {
+    model: 'claude-sonnet',
+    max_tokens: 100,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: reminder },
+          { type: 'text', text: 'What does this project do?' },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { path: 'README.md' } }],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: 't1', content: '# Spillway\nA gateway.' },
+          { type: 'text', text: reminder },
+        ],
+      },
+    ],
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await lastLog()).promptPreview, 'What does this project do?');
+});
+
 test('a provider’s refusal is logged with its status and words, not its JSON', async () => {
   const ask = { model: 'gpt-mini', messages: [{ role: 'user', content: 'use up the quota' }] };
   const said = {

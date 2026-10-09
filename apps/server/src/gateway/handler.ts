@@ -186,6 +186,16 @@ export function promptCut(
   return kept > 0 && sent >= kept * 1.5 && sent - kept >= 2000 ? { sent, kept } : null;
 }
 
+/**
+ * What a person typed, without what their client wraps around it: Claude Code adds
+ * system-reminder blocks to the user turn, Codex sends its environment as user messages.
+ */
+function said(text: string): string {
+  return text
+    .replace(/<(system-reminder|environment_context|user_instructions)>[\s\S]*?<\/\1>/g, '')
+    .trim();
+}
+
 /** All text that would leave the building, plus the latest user turn for the log. */
 function promptText(format: Format, body: Record<string, unknown>): { all: string; last: string } {
   const parts: string[] = [];
@@ -209,7 +219,14 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
         })
         .join('\n');
       parts.push(text);
-      if (message.role === 'user' && text.trim()) last = text;
+      // Tool results come back in user turns too; the log shows what the person wrote.
+      const typed = said(
+        blocks
+          .map((block) => (block.type === 'text' ? block.text : ''))
+          .filter(Boolean)
+          .join('\n'),
+      );
+      if (message.role === 'user' && typed) last = typed;
     }
   } else if (format === 'ollama-generate') {
     const req = body as unknown as OllamaGenerateRequest;
@@ -230,7 +247,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       if (item.type === 'function_call') parts.push(callText(item.arguments));
       else if (item.type === 'custom_tool_call') parts.push(item.input ?? '');
       else if (item.type === 'local_shell_call') parts.push(callText(item.action));
-      if (message && item.role === 'user' && text.trim()) last = text;
+      if (message && item.role === 'user' && said(text)) last = said(text);
     }
   } else {
     const messages = (body.messages ?? []) as (
@@ -243,7 +260,7 @@ function promptText(format: Format, body: Record<string, unknown>): { all: strin
       if ('tool_calls' in message && Array.isArray(message.tool_calls)) {
         for (const call of message.tool_calls) parts.push(callText(call.function?.arguments));
       }
-      if (message.role === 'user' && text.trim()) last = text;
+      if (message.role === 'user' && said(text)) last = said(text);
     }
   }
   return { all: parts.join('\n'), last };
