@@ -94,6 +94,17 @@ const phoneLength = (value: string) => {
 };
 
 /**
+ * A passport number up to 20 characters after the word. The number is looked for first: the
+ * check for the word behind it is slow, and run at every position of a 200 KB coding-agent
+ * prompt it took over half a second.
+ */
+function passportPattern(): RegExp {
+  const word = String.raw`(?:паспорт\p{L}*|passport|passeport|pasaporte|reisepass|passaporto|paszport)`;
+  const number = String.raw`(?:\d{2} ?\d{2} ?\d{6}\b|\b(?=[A-Z0-9]*\d)[A-Z0-9]{6,9}\b)`;
+  return new RegExp(String.raw`(?=${number})(?<=${word}\P{N}{0,20})${number}`, 'giu');
+}
+
+/**
  * Order matters: specific formats run first, so an IBAN is never reported as a card and a card
  * never as a phone. Numbers that are only ever valid next to a keyword (passport, INN, a bare
  * SSN) require that keyword: prompts from coding tools are full of 9- and 10-digit numbers such
@@ -129,8 +140,7 @@ const detectors: Detector[] = [
   { kind: 'snils', pattern: /\b\d{3}-\d{3}-\d{3}[ -]\d{2}\b/g, valid: snils },
   {
     kind: 'passport',
-    pattern:
-      /(?<=(?:паспорт\p{L}*|passport|passeport|pasaporte|reisepass|passaporto|paszport)\P{N}{0,20})(?:\d{2} ?\d{2} ?\d{6}\b|\b(?=[A-Z0-9]*\d)[A-Z0-9]{6,9}\b)/giu,
+    pattern: passportPattern(),
   },
   {
     kind: 'inn',

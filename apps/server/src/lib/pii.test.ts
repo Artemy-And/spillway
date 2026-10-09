@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { maskPii } from './pii.ts';
 
@@ -60,6 +62,18 @@ test('scans long runs without spaces in linear time', () => {
   const { found } = maskPii(`${'x'.repeat(200_000)} ${'x.'.repeat(100_000)} anna@example.com`);
   assert.deepEqual(found, { email: 1 });
   assert.ok(performance.now() - started < 500);
+});
+
+test('scans a coding agent prompt of 200 KB quickly', () => {
+  // Source files read by tools, as Claude Code and Codex send them; the gateway waits for this.
+  const code = ['../gateway/handler.ts', '../gateway/policy.ts', '../admin/routes.ts']
+    .map((file) => readFileSync(join(import.meta.dirname, file), 'utf8'))
+    .join('\n');
+  const prompt = `${code.repeat(Math.ceil(200_000 / code.length))} Passport number: 123456789`;
+  const started = performance.now();
+  const { found } = maskPii(prompt);
+  assert.equal(found.passport, 1);
+  assert.ok(performance.now() - started < 150);
 });
 
 test('leaves ordinary text alone', () => {
