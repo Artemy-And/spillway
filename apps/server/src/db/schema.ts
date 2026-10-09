@@ -165,10 +165,12 @@ export const requestLogs = sqliteTable(
     responsePreview: text('response_preview'),
     error: text('error'),
   },
+  // Budgets sum cost per key and per team on every request; with the cost in the index SQLite
+  // never reads the rows themselves.
   (t) => [
     index('request_logs_created_idx').on(t.createdAt),
-    index('request_logs_key_idx').on(t.keyId, t.createdAt),
-    index('request_logs_team_idx').on(t.teamId, t.createdAt),
+    index('request_logs_key_idx').on(t.keyId, t.createdAt, t.costUsd),
+    index('request_logs_team_idx').on(t.teamId, t.createdAt, t.costUsd),
   ],
 );
 
