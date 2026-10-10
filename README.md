@@ -19,7 +19,7 @@ it, and keep a log of every request with personal data masked. Single sign-on is
 If you looked at LiteLLM or Portkey but have nobody to run them, Spillway is the smaller option: one
 container with an admin UI and SQLite inside.
 
-![A 26-second tour of Spillway for a made-up 10-person company. The Marketing team is over its $60 budget, and rule 1 sends its requests to a local model. The request log explains why one request went to Qwen Coder on the office GPU, and why another, with a card number in it, was blocked for cloud models. Then a new key for a laptop with a $10 daily limit, and the commands that point Claude Code at the gateway](docs/tour.gif)
+![A 26-second tour of Spillway for a made-up 10-person company. The Marketing team is over its $60 budget, and rule 1 sends its requests to a local model. The request log explains why one request went to Qwen Coder on the office GPU, and why another, with a card number in it, was blocked for cloud models. Then a new key for a laptop with a $10 daily limit, and the Claude Code settings that point it at the gateway and show the spending in its status line](docs/tour.gif)
 
 ```
  Claude Code ─┐
@@ -214,7 +214,7 @@ the same Codex can run on Claude or on the local model.
 
 **Overview.** Spend against the budget, the share served by local models, and what needs attention.
 
-![Overview: $152.65 of an $860 budget spent this month, 17% of requests served by local models, Marketing over its budget](docs/overview.png)
+![Overview: $147.82 of an $860 budget spent this month, 16% of requests served by local models, Marketing over its budget](docs/overview.png)
 
 **Keys.** One key per person, device or agent, each with its own daily limit.
 
