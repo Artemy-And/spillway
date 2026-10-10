@@ -21,6 +21,7 @@ import {
   type User,
   users,
 } from '../db/schema.ts';
+import { findModel } from '../gateway/policy.ts';
 import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
@@ -33,6 +34,7 @@ import {
   rulesSchema,
   settingsPatch,
 } from '../settings.ts';
+import { checkLocal, LocalCheckError, lengthenContext } from './local-check.ts';
 import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
@@ -566,6 +568,29 @@ export function adminRoutes(ctx: AppContext) {
             { error: error instanceof Error ? error.message : 'Could not list models' },
             502,
           );
+        }
+      })
+
+      // Can the local model take over for coding agents, and the one-click fix when it cannot.
+      .post('/models/:id/check', adminOnly, idParam, async (c) => {
+        const target = await findModel(db, eq(models.id, c.req.valid('param').id));
+        if (!target) return c.json({ error: 'Model not found' }, 404);
+        try {
+          return c.json(await checkLocal(ctx, target));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Could not check the model';
+          return c.json({ error: message }, error instanceof LocalCheckError ? 400 : 502);
+        }
+      })
+
+      .post('/models/:id/longer-context', adminOnly, idParam, async (c) => {
+        const target = await findModel(db, eq(models.id, c.req.valid('param').id));
+        if (!target) return c.json({ error: 'Model not found' }, 404);
+        try {
+          return c.json(await lengthenContext(ctx, target));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Could not change the model';
+          return c.json({ error: message }, error instanceof LocalCheckError ? 400 : 502);
         }
       })
 

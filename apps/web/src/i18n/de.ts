@@ -356,6 +356,7 @@ export const de: Messages = {
     teamOverBudget: (a) =>
       `${a.team} hat das Monatsbudget überschritten; Anfragen gehen an lokale Modelle`,
     spentOf: (spent, budget) => `${spent} von ${budget}`,
+    promptCutFix: 'Einstellungen & SSO → Lokales Modell für Umleitungen → Modell prüfen',
     promptCut: (a) =>
       `${a.model} hat in den letzten 24 Stunden bei ${p(a.count, { one: '# langen Prompt', other: '# langen Prompts' })} den Anfang verloren: Der Kontext von Ollama ist zu klein`,
     providerFailing: (a) =>
@@ -576,7 +577,7 @@ export const de: Messages = {
       t.detail ? upstream(t) : `${t.provider} ist ausgefallen: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} nicht erreichbar → an ${t.model} · lokal gesendet`,
     promptCut: (t: TraceParams) =>
-      `Ollama hat ${fmtNumber(t.kept ?? 0)} von etwa ${fmtNumber(t.sent ?? 0)} Prompt-Tokens behalten und den Anfang verworfen: Der Kontext ist zu klein. Starten Sie Ollama mit OLLAMA_CONTEXT_LENGTH=32768.`,
+      `Ollama hat ${fmtNumber(t.kept ?? 0)} von etwa ${fmtNumber(t.sent ?? 0)} Prompt-Tokens behalten und den Anfang verworfen: Der Kontext ist zu klein. Prüfen Sie das Modell unter Einstellungen & SSO → Lokales Modell für Umleitungen.`,
     cacheHit: (t: TraceParams) =>
       `Aus dem Cache beantwortet: ${fmtUsd(t.saved ?? 0)} nicht ausgegeben`,
   },
@@ -668,6 +669,31 @@ export const de: Messages = {
       `Modelle aus der Spillway-Preisliste (Stand: ${date}) bekommen ihren Preis beim Hinzufügen. Vergleichen Sie ihn mit der Preisseite Ihres Anbieters; ein leerer Preis heißt „noch nicht gesetzt“.`,
     enabledLabel: (model) => `${model} aktiv`,
     deleteModelConfirm: (name) => `${name} löschen?`,
+  },
+
+  localCheck: {
+    title: 'Taugt es für Claude Code und Codex?',
+    hint: 'Spillway lädt das Modell und prüft, was Coding-Agenten brauchen. Ein paar Sekunden, ohne GPU länger.',
+    run: 'Modell prüfen',
+    again: 'Erneut prüfen',
+    checking: 'Wird geprüft…',
+    contextOk: (n) => `Läuft mit ${n} Tokens: genug für Claude Code und Codex`,
+    contextShort: (n, needed) =>
+      `Läuft mit ${n} Tokens, Coding-Agenten senden aber bis zu ${needed}: der Anfang ihrer Prompts wird abgeschnitten`,
+    modelMax: (max) =>
+      `Das Modell selbst fasst höchstens ${max}; wählen Sie für Coding-Agenten eines mit längerem Kontext.`,
+    contextUnknown: (needed) =>
+      `Dieser Server sagt nicht, mit wie vielen Tokens er das Modell betreibt. Coding-Agenten brauchen mindestens ${needed}.`,
+    toolsOk: 'Ruft Tools auf, Agenten können damit Dateien bearbeiten und Befehle ausführen',
+    toolsNo:
+      'Kann keine Tools aufrufen: Claude Code und Codex könnten nur damit chatten. Wählen Sie ein Modell mit Tool-Unterstützung (Ollama kennzeichnet sie mit „tools“)',
+    toolsUnknown: 'Unklar, ob es Tools aufruft',
+    speed: (tps, seconds) =>
+      `Etwa ${tps} Tokens pro Sekunde: eine Antwort mit 500 Tokens dauert etwa ${seconds} s`,
+    fix: (n) => `${n} Tokens geben`,
+    fixing: 'Kopie wird erstellt…',
+    fixHint: (name) =>
+      `Spillway lässt Ollama eine Kopie namens ${name} mit dem längeren Kontext anlegen und wechselt dorthin. Es wird nichts heruntergeladen; das Modell braucht mehr Speicher.`,
   },
 
   settings: {

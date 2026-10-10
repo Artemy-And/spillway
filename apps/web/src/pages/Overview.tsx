@@ -51,7 +51,7 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
     case 'modelNoPrice':
       return { text: m.alerts.modelNoPrice(alert), meta: alert.models.join(', ') };
     case 'promptCut':
-      return { text: m.alerts.promptCut(alert), meta: 'OLLAMA_CONTEXT_LENGTH=32768' };
+      return { text: m.alerts.promptCut(alert), meta: m.alerts.promptCutFix };
   }
 }
 

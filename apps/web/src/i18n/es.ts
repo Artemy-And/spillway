@@ -354,6 +354,7 @@ export const es: Messages = {
     teamOverBudget: (a) =>
       `${a.team} superó su presupuesto mensual; las solicitudes van a modelos locales`,
     spentOf: (spent, budget) => `${spent} de ${budget}`,
+    promptCutFix: 'Ajustes y SSO → Modelo local de respaldo → Comprobar el modelo',
     promptCut: (a) =>
       `${a.model} perdió el principio de ${p(a.count, { one: '# prompt largo', other: '# prompts largos' })} en las últimas 24 horas: el contexto de Ollama es demasiado pequeño`,
     providerFailing: (a) =>
@@ -570,7 +571,7 @@ export const es: Messages = {
       t.detail ? upstream(t) : `${t.provider} falló: ${t.message}`,
     failover: (t: TraceParams) => `${t.provider} no disponible → enviada a ${t.model} · local`,
     promptCut: (t: TraceParams) =>
-      `Ollama conservó ${fmtNumber(t.kept ?? 0)} de unos ${fmtNumber(t.sent ?? 0)} tokens del prompt y descartó el principio: su contexto es demasiado pequeño. Inicia Ollama con OLLAMA_CONTEXT_LENGTH=32768.`,
+      `Ollama conservó ${fmtNumber(t.kept ?? 0)} de unos ${fmtNumber(t.sent ?? 0)} tokens del prompt y descartó el principio: su contexto es demasiado pequeño. Comprueba el modelo en Ajustes y SSO → Modelo local de respaldo.`,
     cacheHit: (t: TraceParams) => `Respondida desde la caché: ${fmtUsd(t.saved ?? 0)} sin gastar`,
   },
 
@@ -659,6 +660,31 @@ export const es: Messages = {
       `Los modelos de la lista de precios de Spillway (revisada en ${date}) reciben su precio al añadirlos. Compáralo con la página de precios de tu proveedor; un precio vacío significa «aún sin definir».`,
     enabledLabel: (model) => `${model} activo`,
     deleteModelConfirm: (name) => `¿Eliminar ${name}?`,
+  },
+
+  localCheck: {
+    title: '¿Sirve para Claude Code y Codex?',
+    hint: 'Spillway carga el modelo y comprueba lo que necesitan los agentes de código. Unos segundos, más sin GPU.',
+    run: 'Comprobar el modelo',
+    again: 'Comprobar de nuevo',
+    checking: 'Comprobando…',
+    contextOk: (n) => `Funciona con ${n} tokens: suficiente para Claude Code y Codex`,
+    contextShort: (n, needed) =>
+      `Funciona con ${n} tokens, pero los agentes de código envían hasta ${needed}: el principio de sus prompts se corta`,
+    modelMax: (max) =>
+      `El propio modelo admite como máximo ${max}; para agentes de código elige uno con un contexto más largo.`,
+    contextUnknown: (needed) =>
+      `Este servidor no indica con cuántos tokens ejecuta el modelo. Los agentes de código necesitan al menos ${needed}.`,
+    toolsOk: 'Llama a herramientas: los agentes pueden editar archivos y ejecutar comandos con él',
+    toolsNo:
+      'No llama a herramientas: Claude Code y Codex solo podrían chatear con él. Elige un modelo con soporte de herramientas (Ollama los marca con «tools»)',
+    toolsUnknown: 'No se pudo saber si llama a herramientas',
+    speed: (tps, seconds) =>
+      `Unos ${tps} tokens por segundo: una respuesta de 500 tokens tarda unos ${seconds} s`,
+    fix: (n) => `Darle ${n} tokens`,
+    fixing: 'Creando la copia…',
+    fixHint: (name) =>
+      `Spillway pide a Ollama una copia llamada ${name} que conserva el contexto más largo y cambia a ella. No se descarga nada; el modelo usa más memoria.`,
   },
 
   settings: {

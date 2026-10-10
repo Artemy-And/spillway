@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { CloseIcon, LinkIcon } from '../components/icons.tsx';
+import { LocalModelCheck } from '../components/LocalModelCheck.tsx';
 import {
   Button,
   Card,
@@ -114,6 +115,9 @@ export function SettingsPage() {
             label={m.settings.onFailure}
             description={m.settings.onFailureHint}
           />
+          {settings?.localModelId && (
+            <LocalModelCheck key={settings.localModelId} modelId={settings.localModelId} />
+          )}
         </Card>
 
         {settings && (

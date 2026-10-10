@@ -336,6 +336,7 @@ export const zh: Messages = {
     piiBlocked: (a) => `${a.count} 个发往云端模型的请求被拦截：发现敏感数据`,
     teamOverBudget: (a) => `${a.team} 已超出月度预算，请求将发往本地模型`,
     spentOf: (spent, budget) => `${spent} / ${budget}`,
+    promptCutFix: '设置与 SSO → 用于改道的本地模型 → 检查模型',
     promptCut: (a) =>
       `${a.model} 在过去 24 小时内有 ${a.count} 个长提示的开头被截掉：Ollama 的上下文太小`,
     providerFailing: (a) =>
@@ -537,7 +538,7 @@ export const zh: Messages = {
       t.detail ? upstream(t) : `${t.provider} 出错：${t.message}`,
     failover: (t: TraceParams) => `${t.provider} 不可用 → 已发往 ${t.model} · 本地`,
     promptCut: (t: TraceParams) =>
-      `Ollama 只保留了约 ${fmtNumber(t.sent ?? 0)} 个提示词元中的 ${fmtNumber(t.kept ?? 0)} 个，开头被丢弃：上下文太小。请用 OLLAMA_CONTEXT_LENGTH=32768 启动 Ollama。`,
+      `Ollama 只保留了约 ${fmtNumber(t.sent ?? 0)} 个提示词元中的 ${fmtNumber(t.kept ?? 0)} 个，开头被丢弃：上下文太小。请在「设置与 SSO → 用于改道的本地模型」中检查该模型。`,
     cacheHit: (t: TraceParams) => `由缓存应答：未花费 ${fmtUsd(t.saved ?? 0)}`,
   },
 
@@ -619,6 +620,28 @@ export const zh: Messages = {
       `Spillway 价目表中的模型（${date}核对）在添加时会自动填入价格。请与服务商的价格页面核对；价格留空表示尚未设置。`,
     enabledLabel: (model) => `启用 ${model}`,
     deleteModelConfirm: (name) => `删除 ${name}？`,
+  },
+
+  localCheck: {
+    title: '它适合 Claude Code 和 Codex 吗？',
+    hint: 'Spillway 会加载模型并检查编码代理需要的能力。几秒钟，没有 GPU 会更久。',
+    run: '检查模型',
+    again: '再次检查',
+    checking: '正在检查…',
+    contextOk: (n) => `以 ${n} 个词元运行：足够 Claude Code 和 Codex 使用`,
+    contextShort: (n, needed) =>
+      `以 ${n} 个词元运行，但编码代理最多会发送 ${needed} 个：它们提示词的开头会被截掉`,
+    modelMax: (max) => `模型本身最多支持 ${max} 个；编码代理请选用上下文更长的模型。`,
+    contextUnknown: (needed) => `此服务器不报告运行模型时的词元数。编码代理至少需要 ${needed} 个。`,
+    toolsOk: '可以调用工具：代理能通过它编辑文件、运行命令',
+    toolsNo:
+      '不能调用工具：Claude Code 和 Codex 只能和它聊天。请选用支持工具的模型（Ollama 上标有「tools」）',
+    toolsUnknown: '无法判断它能否调用工具',
+    speed: (tps, seconds) => `每秒约 ${tps} 个词元：500 个词元的回答约需 ${seconds} 秒`,
+    fix: (n) => `给它 ${n} 个词元`,
+    fixing: '正在创建副本…',
+    fixHint: (name) =>
+      `Spillway 会让 Ollama 创建名为 ${name}、保留更长上下文的副本，并切换过去。不会下载新内容，但模型会占用更多内存。`,
   },
 
   settings: {

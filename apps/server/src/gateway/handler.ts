@@ -748,7 +748,7 @@ export async function handleGateway(
                 ...trace,
                 step(
                   'warn',
-                  `Ollama kept ${cut.kept} of about ${cut.sent} prompt tokens and dropped the start: its context is too small. Start Ollama with OLLAMA_CONTEXT_LENGTH=32768.`,
+                  `Ollama kept ${cut.kept} of about ${cut.sent} prompt tokens and dropped the start: its context is too small. Check the model under Settings & SSO → Local model for rerouting.`,
                   'promptCut',
                   cut,
                 ),
