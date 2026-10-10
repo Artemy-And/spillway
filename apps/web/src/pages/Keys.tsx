@@ -515,11 +515,29 @@ function CreatedKey({
   const [tab, setTab] = useState<'curl' | 'chatbox' | 'claude' | 'codex' | 'webui'>('curl');
   const origin = window.location.origin;
   const model = m.keys.modelPlaceholder;
+  // In Windows PowerShell "curl" is another command; curl.exe works there and in Git Bash.
+  const windows = navigator.userAgent.includes('Windows');
   const snippets = {
     chatbox: `Chatbox → Settings → Model provider → Add custom provider\n\nAPI mode:  OpenAI API Compatible\nAPI host:  ${origin}/v1\nAPI key:   ${value}`,
     curl: `curl ${origin}/v1/chat/completions \\\n  -H "Authorization: Bearer ${value}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "${model}", "messages": [{"role": "user", "content": "Hi"}]}'`,
-    // Claude Code also sends background requests (titles, summaries) to its Haiku model.
-    claude: `# macOS, Linux\nexport ANTHROPIC_BASE_URL=${origin}\nexport ANTHROPIC_AUTH_TOKEN=${value}\nexport ANTHROPIC_MODEL=${model}\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL=${model}\nclaude\n\n# Windows PowerShell\n$env:ANTHROPIC_BASE_URL = "${origin}"\n$env:ANTHROPIC_AUTH_TOKEN = "${value}"\n$env:ANTHROPIC_MODEL = "${model}"\n$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "${model}"\nclaude`,
+    // Claude Code's settings file covers the terminal and VS Code. It also sends background
+    // requests (titles, summaries) to its Haiku model, and shows the status line after messages.
+    claude: JSON.stringify(
+      {
+        env: {
+          ANTHROPIC_BASE_URL: origin,
+          ANTHROPIC_AUTH_TOKEN: value,
+          ANTHROPIC_MODEL: model,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+        },
+        statusLine: {
+          type: 'command',
+          command: `${windows ? 'curl.exe' : 'curl'} -s -m 2 -H "Authorization: Bearer ${value}" --data-binary "@-" ${origin}/v1/spillway/status`,
+        },
+      },
+      null,
+      2,
+    ),
     codex: `# ~/.codex/config.toml\nmodel = "${model}"\nmodel_provider = "spillway"\n\n[model_providers.spillway]\nname = "Spillway"\nbase_url = "${origin}/v1"\nenv_key = "SPILLWAY_API_KEY"\nwire_api = "responses"\n\n# then, in the terminal: macOS, Linux\nexport SPILLWAY_API_KEY=${value}\ncodex\n\n# or Windows PowerShell\n$env:SPILLWAY_API_KEY = "${value}"\ncodex`,
     webui: `Open WebUI → Settings → Connections\n\nOpenAI API:  ${origin}/v1\nOllama API:  ${origin}\nKey:         ${value}`,
   };
@@ -553,9 +571,15 @@ function CreatedKey({
             { value: 'webui', label: 'Open WebUI' },
           ]}
         />
+        {tab === 'claude' && <p className="text-[12px] text-muted">{m.keys.claudeFile}</p>}
         <pre className="overflow-x-auto rounded-lg bg-rail p-3 font-mono text-xs leading-relaxed text-rail-ink">
           {snippets[tab]}
         </pre>
+        {tab === 'claude' && (
+          <p className="text-[12px] text-muted">
+            {m.keys.claudeStatus} {windows ? m.keys.claudeOnMac : m.keys.claudeOnWindows}
+          </p>
+        )}
       </div>
     </Aside>
   );

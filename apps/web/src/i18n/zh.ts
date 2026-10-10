@@ -394,6 +394,12 @@ export const zh: Messages = {
     connect: '连接客户端',
     client: '客户端',
     modelPlaceholder: '<模型名称>',
+    claudeFile:
+      '保存为主目录下 .claude 文件夹中的 settings.json（Windows 上为 C:\\Users\\<用户名>\\.claude）。如果文件已存在，把这些内容加进去。终端和 VS Code 中都会生效。',
+    claudeStatus:
+      '之后在终端里，Claude Code 底部那一行会显示这个密钥的花费，以及请求是否转到了本地模型。',
+    claudeOnMac: '在 Mac 或 Linux 上，请把 curl.exe 改成 curl。',
+    claudeOnWindows: '在 Windows 上，请把 curl 改成 curl.exe。',
   },
 
   budgets: {

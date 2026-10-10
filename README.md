@@ -157,15 +157,43 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | Client | Setting |
 | --- | --- |
 | OpenAI SDKs, n8n, curl | base URL `https://<gateway>/v1`, API key `sw-…` |
-| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` and `ANTHROPIC_DEFAULT_HAIKU_MODEL=<model name>` for its background requests |
+| Claude Code | `ANTHROPIC_BASE_URL=https://<gateway>`, `ANTHROPIC_AUTH_TOKEN=sw-…`, `ANTHROPIC_MODEL=<model name>` and `ANTHROPIC_DEFAULT_HAIKU_MODEL=<model name>` for its background requests, best in `~/.claude/settings.json` with the status line (below) |
 | Codex | a provider in `~/.codex/config.toml` with `base_url = "https://<gateway>/v1"`, `wire_api = "responses"` and the key in its `env_key` variable (below) |
 | Open WebUI | OpenAI connection `https://<gateway>/v1` or Ollama connection `https://<gateway>`, key `sw-…`; document search works through either |
 | Chatbox | custom provider, OpenAI API Compatible, host `https://<gateway>/v1`, key `sw-…` |
 
 The `model` a client sends is the **name** you gave the model in Spillway; it maps to any upstream
-model on any provider.
+model on any provider. The dialog of a new key shows the settings below with your address and key.
 
-Codex, in `~/.codex/config.toml`; the dialog of a new key shows the same with your address and key:
+Claude Code, in `~/.claude/settings.json` (on Windows `%USERPROFILE%\.claude\settings.json`), which
+the terminal and the VS Code extension both read:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://<gateway>",
+    "ANTHROPIC_AUTH_TOKEN": "sw-…",
+    "ANTHROPIC_MODEL": "<model name>",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "<model name>"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "curl -s -m 2 -H \"Authorization: Bearer sw-…\" --data-binary \"@-\" https://<gateway>/v1/spillway/status"
+  }
+}
+```
+
+The status line at the bottom of Claude Code in the terminal then shows what the key has spent and
+where its next request goes, updated after every answer:
+
+```text
+Spillway · $3.20 of $10.00 today · Engineering at 54% · Claude Sonnet
+Spillway · $10.40 of $10.00 today · Engineering at 55% · → Qwen Coder, local (daily limit reached)
+```
+
+On Windows, write `curl.exe`: in Windows PowerShell `curl` is a different command.
+
+Codex, in `~/.codex/config.toml`:
 
 ```toml
 model = "<model name>"

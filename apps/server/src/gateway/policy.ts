@@ -79,7 +79,7 @@ export async function findModel(db: Db, where: ReturnType<typeof eq>): Promise<T
   return row ?? null;
 }
 
-async function spent(
+export async function spent(
   db: Db,
   column: typeof requestLogs.keyId | typeof requestLogs.teamId,
   id: string,
@@ -100,6 +100,10 @@ interface Input {
   settings: Settings;
   /** Embeddings never switch to another model, see below. */
   purpose?: 'chat' | 'embeddings';
+  /** Only asking where a request would go (the status bar): no request is sent or counted. */
+  preview?: boolean;
+  /** How spending is added up; the status bar keeps team totals for a while. */
+  sum?: typeof spent;
   now?: Date;
 }
 
@@ -159,7 +163,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
   );
 
   // 2. Rate limit for agents
-  if (rules.agentRateLimit.enabled && key.kind === 'agent') {
+  if (rules.agentRateLimit.enabled && key.kind === 'agent' && !input.preview) {
     if (!ctx.rateLimiter.hit(key.id, rules.agentRateLimit.rpm)) {
       const rule = ruleNumber('agentRateLimit');
       const { rpm } = rules.agentRateLimit;
@@ -194,17 +198,18 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       hard: boolean;
     } | null = null;
 
+    const sum = input.sum ?? spent;
     const keyDay =
       key.dailyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
+        ? await sum(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
         : 0;
     const keyMonth =
       key.monthlyLimitUsd != null
-        ? await spent(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now))
+        ? await sum(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now))
         : 0;
     const teamMonth =
       team?.monthlyBudgetUsd != null
-        ? await spent(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
+        ? await sum(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
         : 0;
 
     if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {

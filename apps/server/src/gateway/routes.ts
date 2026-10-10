@@ -7,6 +7,7 @@ import { models, providers } from '../db/schema.ts';
 import { handleEmbeddings } from './embeddings.ts';
 import { authenticate, errorResponse, type Format, handleGateway } from './handler.ts';
 import { findModel } from './policy.ts';
+import { handleStatus } from './status.ts';
 import { callUpstream, upstreamFailure } from './upstream.ts';
 
 /** Model ids a key may call: enabled ones, narrowed by its team and its own list. */
@@ -54,6 +55,17 @@ export function gatewayRoutes(ctx: AppContext) {
   app.post('/api/embed', guarded('ollama-chat'), (c) => handleEmbeddings(ctx, c, 'ollama-embed'));
   app.post('/api/embeddings', guarded('ollama-chat'), (c) =>
     handleEmbeddings(ctx, c, 'ollama-embeddings'),
+  );
+
+  // The line in Claude Code's status bar: spending and where requests go (see status.ts).
+  app.on(
+    ['GET', 'POST'],
+    '/v1/spillway/status',
+    bodyLimit({
+      maxSize: 64 * 1024,
+      onError: (c) => c.text('Spillway · status request too large', 413),
+    }),
+    (c) => handleStatus(ctx, c),
   );
 
   // One list that satisfies both OpenAI and Anthropic SDKs.

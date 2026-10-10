@@ -437,6 +437,12 @@ export const ru: Messages = {
     connect: 'Подключить приложение',
     client: 'Приложение',
     modelPlaceholder: '<имя модели>',
+    claudeFile:
+      'Сохраните как settings.json в папке .claude в домашней папке (в Windows: C:\\Users\\<имя>\\.claude). Если файл уже есть, добавьте в него эти строки. Так работает и в терминале, и в VS Code.',
+    claudeStatus:
+      'В терминале в нижней строке Claude Code появятся траты по ключу и то, уходят ли запросы на локальную модель.',
+    claudeOnMac: 'На Mac и Linux пишите curl вместо curl.exe.',
+    claudeOnWindows: 'В Windows пишите curl.exe вместо curl.',
   },
 
   budgets: {

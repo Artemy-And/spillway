@@ -414,6 +414,12 @@ export const es: Messages = {
     connect: 'Conectar un cliente',
     client: 'Cliente',
     modelPlaceholder: '<nombre del modelo>',
+    claudeFile:
+      'Guárdalo como settings.json en la carpeta .claude de la carpeta personal (en Windows, C:\\Users\\<nombre>\\.claude). Si el archivo ya existe, añade estas líneas. Sirve para la terminal y para VS Code.',
+    claudeStatus:
+      'En la terminal, la línea inferior de Claude Code mostrará lo que ha gastado la clave y si las solicitudes van al modelo local.',
+    claudeOnMac: 'En Mac o Linux, escribe curl en lugar de curl.exe.',
+    claudeOnWindows: 'En Windows, escribe curl.exe en lugar de curl.',
   },
 
   budgets: {
