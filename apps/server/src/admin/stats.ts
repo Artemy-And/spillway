@@ -382,6 +382,8 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
 
     // Ollama dropped the start of long prompts because its context is too small (the gateway
     // marks such requests with a promptCut step); rerouted agents then lose their instructions.
+    // The unary + keeps SQLite on the last day of logs: without it, SQLite builds a temporary
+    // index over the whole log on every call to start from the few models instead.
     const cuts = await db
       .select({
         model: sql<string>`coalesce(${models.label}, ${models.name})`,
@@ -389,11 +391,11 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
         last: sql<number>`max(${requestLogs.createdAt})`,
       })
       .from(requestLogs)
-      .innerJoin(models, eq(requestLogs.servedModelId, models.id))
+      .innerJoin(models, sql`+${requestLogs.servedModelId} = ${models.id}`)
       .where(
         and(
           gte(requestLogs.createdAt, lastDay),
-          eq(requestLogs.servedLocal, true),
+          sql`+${requestLogs.servedLocal} = 1`,
           sql`exists (select 1 from json_each(${requestLogs.trace}) where json_extract(value, '$.code') = 'promptCut')`,
         ),
       )
