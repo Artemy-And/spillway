@@ -89,7 +89,7 @@ docker compose logs spillway    # prints the setup link
 ```
 
 This pulls the signed image `ghcr.io/artemy-and/spillway` for amd64 or arm64; nothing is built
-on your machine. `latest` follows releases. To pin one, put `SPILLWAY_TAG=0.3.3` in `.env` next
+on your machine. `latest` follows releases. To pin one, put `SPILLWAY_TAG=0.4.0` in `.env` next
 to the compose file (`.env.example` lists every setting). Put Spillway behind your usual reverse
 proxy for HTTPS and set `PUBLIC_URL` to the address people open.
 
@@ -136,8 +136,8 @@ with no long-lived signing key, and carry an SBOM and build provenance. To check
 it:
 
 ```sh
-cosign verify ghcr.io/artemy-and/spillway:0.3.3 \
-  --certificate-identity https://github.com/Artemy-And/spillway/.github/workflows/release.yml@refs/tags/v0.3.3 \
+cosign verify ghcr.io/artemy-and/spillway:0.4.0 \
+  --certificate-identity https://github.com/Artemy-And/spillway/.github/workflows/release.yml@refs/tags/v0.4.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
