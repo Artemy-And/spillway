@@ -575,6 +575,9 @@ function CreatedKey({
         <pre className="overflow-x-auto rounded-lg bg-rail p-3 font-mono text-xs leading-relaxed text-rail-ink">
           {snippets[tab]}
         </pre>
+        <div>
+          <CopyButton value={snippets[tab]} />
+        </div>
         {tab === 'claude' && (
           <p className="text-[12px] text-muted">
             {m.keys.claudeStatus} {windows ? m.keys.claudeOnMac : m.keys.claudeOnWindows}
