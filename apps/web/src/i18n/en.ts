@@ -319,6 +319,14 @@ export const en = {
     modelSpend: (name: string) => `${name} spend`,
     byApp: 'Requests by app',
     appShare: (name: string) => `${name} share of requests`,
+    whatIf: 'The same requests on another model',
+    whatIfPick: 'Choose a model',
+    whatIfCost: (cost: string, actual: string) => `About ${cost} instead of ${actual}`,
+    whatIfUnpriced: (n: number) =>
+      p(n, {
+        one: '# request to a model without a price is not counted',
+        other: '# requests to models without a price are not counted',
+      }),
     noPaid: 'No paid requests in this period.',
     localReq: (n: string) => `${n} req · $0`,
   },

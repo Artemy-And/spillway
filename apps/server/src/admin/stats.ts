@@ -244,6 +244,60 @@ export async function overview(
   };
 }
 
+/**
+ * About what the paid requests of a period would have cost on another cloud model. The log keeps
+ * all prompt tokens in one number, cached ones included, so the prompt side is scaled from what
+ * it actually cost by the two input prices: prompts that were cached are taken to be cached on the
+ * other model as well. Answers are the output tokens at the other model's price. Requests to
+ * models without a price have nothing to scale from; they are left out and counted.
+ * Runs when someone picks a model, not with Overview's refresh; the created index has the tokens.
+ */
+export async function whatIf(
+  db: Db,
+  period: Period,
+  keyIds: string[] | null,
+  cal: Calendar,
+  target: { inputPrice: number; outputPrice: number },
+  now = new Date(),
+) {
+  const rows = await db
+    .select({
+      inputPrice: models.inputPrice,
+      outputPrice: models.outputPrice,
+      requests: sql<number>`count(*)`,
+      cost: sum(sql`${requestLogs.costUsd}`),
+      output: sum(sql`${requestLogs.outputTokens}`),
+    })
+    .from(requestLogs)
+    // The unary + keeps SQLite on the period's logs, looking each model up, not the other way.
+    .innerJoin(models, sql`+${requestLogs.servedModelId} = ${models.id}`)
+    .where(
+      and(
+        gte(requestLogs.createdAt, periodStart(period, cal, now)),
+        keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
+        eq(requestLogs.servedLocal, false),
+        eq(requestLogs.status, 200),
+      ),
+    )
+    .groupBy(models.id)
+    .all();
+
+  const out = { actual: 0, cost: 0, requests: 0, unpriced: 0 };
+  for (const row of rows) {
+    if (!row.inputPrice || !row.outputPrice) {
+      out.unpriced += row.requests;
+      continue;
+    }
+    const answers = (row.output * row.outputPrice) / 1e6;
+    const prompts = Math.max(0, row.cost - answers);
+    out.actual += row.cost;
+    out.cost +=
+      prompts * (target.inputPrice / row.inputPrice) + (row.output * target.outputPrice) / 1e6;
+    out.requests += row.requests;
+  }
+  return out;
+}
+
 /** Alerts carry a code and params; the admin UI turns them into text in the viewer's language. */
 type Alert =
   | {

@@ -35,7 +35,7 @@ import {
   settingsPatch,
 } from '../settings.ts';
 import { checkLocal, LocalCheckError, lengthenContext } from './local-check.ts';
-import { failingProviders, keySpend, overview, type Period, teamSpend } from './stats.ts';
+import { failingProviders, keySpend, overview, type Period, teamSpend, whatIf } from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
 /** USD per million tokens */
@@ -246,6 +246,27 @@ export function adminRoutes(ctx: AppContext) {
           const keyIds = await ownKeyIds(ctx, c.get('user'));
           const cal = calendarOf(await ctx.settings.get());
           return c.json(await overview(db, c.req.valid('query').period as Period, keyIds, cal));
+        },
+      )
+
+      .get(
+        '/what-if',
+        zValidator(
+          'query',
+          z.object({ period: z.enum(['7d', '30d', 'month']).default('month'), model: z.string() }),
+        ),
+        async (c) => {
+          const query = c.req.valid('query');
+          const target = await findModel(db, eq(models.id, query.model));
+          const { inputPrice, outputPrice } = target?.model ?? {};
+          if (!target || target.provider.isLocal || !inputPrice || !outputPrice) {
+            return c.json({ error: 'Pick a cloud model with a price' }, 400);
+          }
+          const keyIds = await ownKeyIds(ctx, c.get('user'));
+          const cal = calendarOf(await ctx.settings.get());
+          return c.json(
+            await whatIf(db, query.period as Period, keyIds, cal, { inputPrice, outputPrice }),
+          );
         },
       )
 

@@ -346,6 +346,14 @@ export const es: Messages = {
     modelSpend: (name) => `Gasto en ${name}`,
     byApp: 'Solicitudes por app',
     appShare: (name) => `Parte de las solicitudes de ${name}`,
+    whatIf: 'Las mismas solicitudes con otro modelo',
+    whatIfPick: 'Elige un modelo',
+    whatIfCost: (cost, actual) => `Unos ${cost} en lugar de ${actual}`,
+    whatIfUnpriced: (n) =>
+      p(n, {
+        one: '# solicitud a un modelo sin precio no se cuenta',
+        other: '# solicitudes a modelos sin precio no se cuentan',
+      }),
     noPaid: 'No hay solicitudes de pago en este periodo.',
     localReq: (n) => `${n} sol. · 0 $`,
   },

@@ -349,6 +349,14 @@ export const de: Messages = {
     modelSpend: (name) => `Ausgaben für ${name}`,
     byApp: 'Anfragen nach App',
     appShare: (name) => `Anteil von ${name} an den Anfragen`,
+    whatIf: 'Dieselben Anfragen mit einem anderen Modell',
+    whatIfPick: 'Modell wählen',
+    whatIfCost: (cost, actual) => `Etwa ${cost} statt ${actual}`,
+    whatIfUnpriced: (n) =>
+      p(n, {
+        one: '# Anfrage an ein Modell ohne Preis ist nicht mitgezählt',
+        other: '# Anfragen an Modelle ohne Preis sind nicht mitgezählt',
+      }),
     noPaid: 'Keine kostenpflichtigen Anfragen in diesem Zeitraum.',
     localReq: (n) => `${n} Anfr. · 0 $`,
   },

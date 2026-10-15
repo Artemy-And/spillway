@@ -57,6 +57,13 @@
       "when": 1792070992822,
       "tag": "0007_request_app",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792071867905,
+      "tag": "0008_what_if_index",
+      "breakpoints": true
     }
   ]
 }

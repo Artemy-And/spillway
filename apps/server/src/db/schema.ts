@@ -186,6 +186,7 @@ export const requestLogs = sqliteTable(
       t.costUsd,
       t.savedUsd,
       t.app,
+      t.outputTokens,
     ),
     index('request_logs_key_idx').on(t.keyId, t.createdAt, t.costUsd),
     index('request_logs_team_idx').on(t.teamId, t.createdAt, t.costUsd),

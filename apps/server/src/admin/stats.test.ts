@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { models, providers, requestLogs } from '../db/schema.ts';
 import { calendar } from '../lib/time.ts';
 import { testApp } from '../testing.ts';
-import { overview } from './stats.ts';
+import { overview, whatIf } from './stats.ts';
 
 test('the daily chart counts requests on the gateway’s own calendar days', async () => {
   const { ctx } = await testApp();
@@ -94,4 +94,72 @@ test('requests by app leave out requests from before apps were told apart', asyn
     { app: 'other', requests: 3, spend: 0 },
   ]);
   assert.equal(data.requests, 7);
+});
+
+test('another model’s cost keeps the prompts that were cached as cached', async () => {
+  const { ctx, get, setupAdmin } = await testApp();
+  const [cloud, other, local] = await ctx.db
+    .insert(providers)
+    .values([
+      { name: 'Anthropic', kind: 'anthropic' as const, baseUrl: 'https://api.anthropic.com' },
+      { name: 'OpenAI', kind: 'openai' as const, baseUrl: 'https://api.openai.com/v1' },
+      { name: 'Ollama', kind: 'ollama' as const, baseUrl: 'http://ollama:11434', isLocal: true },
+    ])
+    .returning();
+  const [sonnet, mini, unpriced, qwen] = await ctx.db
+    .insert(models)
+    .values([
+      { name: 'sonnet', providerId: cloud!.id, upstreamModel: 's', inputPrice: 3, outputPrice: 15 },
+      { name: 'mini', providerId: other!.id, upstreamModel: 'm', inputPrice: 0.25, outputPrice: 2 },
+      { name: 'new-model', providerId: other!.id, upstreamModel: 'n' },
+      { name: 'qwen', providerId: local!.id, upstreamModel: 'q', inputPrice: 0, outputPrice: 0 },
+    ])
+    .returning();
+  // A Claude Code turn: 100,000 prompt tokens, 90,000 of them read from the cache at a tenth of
+  // the price, and 1,000 output tokens: 0.03 + 0.027 + 0.015 = $0.072.
+  const log = (id: string, model: string, cost: number, extra = {}) => ({
+    id,
+    createdAt: new Date('2026-10-09T10:00:00Z'),
+    format: 'anthropic' as const,
+    requestedModel: 'sonnet',
+    servedModelId: model,
+    inputTokens: 100_000,
+    outputTokens: 1000,
+    costUsd: cost,
+    status: 200,
+    result: 'ok' as const,
+    latencyMs: 1,
+    trace: [],
+    ...extra,
+  });
+  await ctx.db
+    .insert(requestLogs)
+    .values([
+      log('r1', sonnet!.id, 0.072),
+      log('r2', sonnet!.id, 0.072),
+      log('r3', unpriced!.id, 0),
+      log('r4', qwen!.id, 0, { servedLocal: true, result: 'rerouted' }),
+      log('r5', sonnet!.id, 0, { status: 403, result: 'blocked_pii' }),
+    ]);
+
+  const result = await whatIf(
+    ctx.db,
+    '7d',
+    null,
+    calendar('UTC'),
+    { inputPrice: 0.25, outputPrice: 2 },
+    new Date('2026-10-09T12:00:00Z'),
+  );
+  // On mini with the same caching: 0.0025 + 0.00225 + 0.002 = $0.00675 a turn.
+  assert.equal(result.requests, 2);
+  assert.equal(result.unpriced, 1);
+  assert.ok(Math.abs(result.actual - 0.144) < 1e-9);
+  assert.ok(Math.abs(result.cost - 0.0135) < 1e-9);
+
+  // Only cloud models with a price can be picked.
+  const admin = await setupAdmin();
+  const ask = (model: string) => get(`/admin/api/what-if?period=7d&model=${model}`, admin);
+  assert.equal((await ask(qwen!.id)).status, 400);
+  assert.equal((await ask(unpriced!.id)).status, 400);
+  assert.equal((await ask(mini!.id)).status, 200);
 });

@@ -1,12 +1,21 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Checklist } from '../components/Checklist.tsx';
 import { DailyChart } from '../components/DailyChart.tsx';
-import { Card, Chip, cx, Empty, PageHeader, Progress, Segmented } from '../components/ui.tsx';
+import {
+  Card,
+  Chip,
+  cx,
+  Empty,
+  PageHeader,
+  Progress,
+  Segmented,
+  Select,
+} from '../components/ui.tsx';
 import type { Messages } from '../i18n/en.ts';
 import { useI18n } from '../i18n/index.tsx';
-import { api, meQuery, type Overview, unwrap } from '../lib/api.ts';
+import { api, meQuery, modelsQuery, type Overview, unwrap } from '../lib/api.ts';
 import { fmtDate, fmtLimit, fmtMonth, fmtNumber, fmtUsd, pct } from '../lib/format.ts';
 
 type Period = '7d' | '30d' | 'month';
@@ -53,6 +62,50 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
     case 'promptCut':
       return { text: m.alerts.promptCut(alert), meta: m.alerts.promptCutFix };
   }
+}
+
+/** What the period's paid requests would have cost on another cloud model, asked for on demand. */
+function WhatIf({ period }: { period: Period }) {
+  const { m } = useI18n();
+  const id = useId();
+  const [modelId, setModelId] = useState('');
+  const { data: models } = useQuery(modelsQuery);
+  const { data } = useQuery({
+    queryKey: ['what-if', period, modelId],
+    queryFn: () => unwrap(api['what-if'].$get({ query: { period, model: modelId } })),
+    enabled: !!modelId,
+    placeholderData: keepPreviousData,
+  });
+  const choices = (models ?? []).filter(
+    (row) => !row.isLocal && row.enabled && row.inputPrice && row.outputPrice,
+  );
+  if (choices.length < 2) return null;
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line-soft pt-3.5">
+      <label htmlFor={id} className="flex flex-col gap-1.5 text-[13px] text-muted">
+        {m.overview.whatIf}
+        <Select id={id} value={modelId} onChange={(e) => setModelId(e.target.value)}>
+          <option value="">{m.overview.whatIfPick}</option>
+          {choices.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.label ?? row.name}
+            </option>
+          ))}
+        </Select>
+      </label>
+      {modelId && data && (
+        <div className="text-sm font-medium">
+          {data.requests
+            ? m.overview.whatIfCost(fmtUsd(data.cost), fmtUsd(data.actual))
+            : m.overview.noPaid}
+        </div>
+      )}
+      {modelId && !!data?.unpriced && (
+        <div className="text-xs text-muted">{m.overview.whatIfUnpriced(data.unpriced)}</div>
+      )}
+    </div>
+  );
 }
 
 export function OverviewPage() {
@@ -330,6 +383,7 @@ export function OverviewPage() {
           ) : (
             <p className="text-sm text-muted">{m.overview.noPaid}</p>
           )}
+          {!!data?.models.length && <WhatIf period={period} />}
           {!!data?.localModels.length && (
             <div className="mt-auto flex flex-col gap-3.5">
               {data.localModels.map((row) => (

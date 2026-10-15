@@ -348,6 +348,14 @@ export const fr: Messages = {
     modelSpend: (name) => `Dépenses pour ${name}`,
     byApp: 'Requêtes par app',
     appShare: (name) => `Part des requêtes de ${name}`,
+    whatIf: 'Les mêmes requêtes avec un autre modèle',
+    whatIfPick: 'Choisir un modèle',
+    whatIfCost: (cost, actual) => `Environ ${cost} au lieu de ${actual}`,
+    whatIfUnpriced: (n) =>
+      p(n, {
+        one: '# requête vers un modèle sans prix n’est pas comptée',
+        other: '# requêtes vers des modèles sans prix ne sont pas comptées',
+      }),
     noPaid: 'Aucune requête payante sur cette période.',
     localReq: (n) => `${n} req. · 0 $`,
   },
