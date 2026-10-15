@@ -166,9 +166,21 @@ export const requestLogs = sqliteTable(
     error: text('error'),
   },
   // Budgets sum cost per key and per team on every request; with the cost in the index SQLite
-  // never reads the rows themselves.
+  // never reads the rows themselves. Overview does the same over a whole period: the created
+  // index holds every column its sums and groups read, so it never touches the previews either.
   (t) => [
-    index('request_logs_created_idx').on(t.createdAt),
+    index('request_logs_created_idx').on(
+      t.createdAt,
+      t.keyId,
+      t.servedModelId,
+      t.servedModel,
+      t.servedLocal,
+      t.status,
+      t.result,
+      t.ruleId,
+      t.costUsd,
+      t.savedUsd,
+    ),
     index('request_logs_key_idx').on(t.keyId, t.createdAt, t.costUsd),
     index('request_logs_team_idx').on(t.teamId, t.createdAt, t.costUsd),
   ],
