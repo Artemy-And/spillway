@@ -68,6 +68,14 @@ export const en = {
     delete: (name: string) => `Delete ${name}`,
   },
   kinds: { person: 'Person', device: 'Device', agent: 'Agent' },
+  /** Apps Spillway tells apart in requests; their names are brands and stay as they are. */
+  apps: {
+    'claude-code': 'Claude Code',
+    codex: 'Codex',
+    n8n: 'n8n',
+    'open-webui': 'Open WebUI',
+    other: 'Other apps',
+  },
   results: {
     ok: 'OK',
     rerouted: 'Rerouted',
@@ -309,6 +317,8 @@ export const en = {
     noRequests: 'No requests in this period yet.',
     byModel: 'Spend by model',
     modelSpend: (name: string) => `${name} spend`,
+    byApp: 'Requests by app',
+    appShare: (name: string) => `${name} share of requests`,
     noPaid: 'No paid requests in this period.',
     localReq: (n: string) => `${n} req · $0`,
   },

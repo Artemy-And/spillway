@@ -50,6 +50,13 @@
       "when": 1792070372250,
       "tag": "0006_overview_index",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792070992822,
+      "tag": "0007_request_app",
+      "breakpoints": true
     }
   ]
 }

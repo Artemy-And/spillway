@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
+import { type App, apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import type { Calendar } from '../lib/time.ts';
 
 export type Period = '7d' | '30d' | 'month';
@@ -197,6 +197,19 @@ export async function overview(
     .orderBy(desc(sql`sum(${requestLogs.costUsd})`))
     .all();
 
+  // Requests from before Spillway told apps apart have none and are left out.
+  const byApp = await db
+    .select({
+      app: requestLogs.app,
+      requests: sql<number>`count(*)`,
+      spend: sum(sql`${requestLogs.costUsd}`),
+    })
+    .from(requestLogs)
+    .where(and(inPeriod, isNotNull(requestLogs.app)))
+    .groupBy(requestLogs.app)
+    .orderBy(desc(sql`count(*)`))
+    .all();
+
   const budget = keyIds
     ? null
     : await db
@@ -223,6 +236,10 @@ export async function overview(
     spenders,
     models: byModel.filter((row) => !row.local).slice(0, 5),
     localModels: byModel.filter((row) => row.local),
+    // Named apps first, the rest after them.
+    apps: byApp
+      .filter((row): row is typeof row & { app: App } => row.app !== null)
+      .sort((a, b) => Number(a.app === 'other') - Number(b.app === 'other')),
     alerts: await alerts(db, keyIds, cal, now),
   };
 }

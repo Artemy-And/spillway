@@ -14,6 +14,7 @@ import { sha256, shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
 import type { Settings } from '../settings.ts';
+import { detectApp } from './apps.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
 import {
@@ -645,6 +646,7 @@ export async function handleGateway(
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: isOllama(format) ? 'ollama' : (format as 'openai' | 'anthropic' | 'responses'),
+    app: detectApp(c.req.raw.headers),
     requestedModel: body.model,
     requestedModelId: decision.requested?.model.id ?? null,
     servedModelId: decision.target?.model.id ?? null,

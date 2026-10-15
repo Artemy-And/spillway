@@ -67,6 +67,13 @@ export const ru: Messages = {
     delete: (name) => `Удалить ${name}`,
   },
   kinds: { person: 'Человек', device: 'Устройство', agent: 'Агент' },
+  apps: {
+    'claude-code': 'Claude Code',
+    codex: 'Codex',
+    n8n: 'n8n',
+    'open-webui': 'Open WebUI',
+    other: 'Другие программы',
+  },
   results: {
     ok: 'OK',
     rerouted: 'Перенаправлен',
@@ -360,6 +367,8 @@ export const ru: Messages = {
     noRequests: 'За этот период запросов нет.',
     byModel: 'Расходы по моделям',
     modelSpend: (name) => `Расходы на ${name}`,
+    byApp: 'Запросы по программам',
+    appShare: (name) => `Доля запросов ${name}`,
     noPaid: 'Платных запросов за период нет.',
     localReq: (n) => `${n} запр. · $0`,
   },

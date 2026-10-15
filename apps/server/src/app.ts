@@ -72,6 +72,7 @@ function exportRoutes(ctx: AppContext) {
       'costUsd',
       'savedUsd',
       'latencyMs',
+      'app',
     ] as const;
     const csv = [
       columns.join(','),

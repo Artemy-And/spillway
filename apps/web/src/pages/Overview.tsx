@@ -82,6 +82,7 @@ export function OverviewPage() {
     : [];
   const topShare = data?.spenders.length ? Math.max(...data.spenders.map((s) => s.spend)) : 0;
   const topModel = data?.models.length ? Math.max(...data.models.map((m) => m.spend)) : 0;
+  const appRequests = data?.apps.reduce((total, row) => total + row.requests, 0) ?? 0;
   const days = period === 'month' ? 'month' : period === '7d' ? 7 : 30;
   const periods: { value: Period; label: string }[] = [
     { value: '7d', label: m.overview.periods['7d'] },
@@ -239,54 +240,77 @@ export function OverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card aria-label={m.overview.topSpenders} className="flex flex-col px-6 py-5 xl:col-span-2">
-          <h2 className="mb-2 text-[15px] font-semibold">{m.overview.topSpenders}</h2>
-          <div className="overflow-x-auto">
-            <div className="min-w-[560px]">
-              <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
-                <div>{m.common.key}</div>
-                <div>{m.common.team}</div>
-                <div className="text-right">{m.overview.requestsCol}</div>
-                <div className="text-right">{m.overview.spend}</div>
-                <div>{m.overview.share}</div>
+        <div className="flex flex-col gap-4 xl:col-span-2">
+          <Card aria-label={m.overview.topSpenders} className="flex flex-1 flex-col px-6 py-5">
+            <h2 className="mb-2 text-[15px] font-semibold">{m.overview.topSpenders}</h2>
+            <div className="overflow-x-auto">
+              <div className="min-w-[560px]">
+                <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
+                  <div>{m.common.key}</div>
+                  <div>{m.common.team}</div>
+                  <div className="text-right">{m.overview.requestsCol}</div>
+                  <div className="text-right">{m.overview.spend}</div>
+                  <div>{m.overview.share}</div>
+                </div>
+                {data?.spenders.length ? (
+                  data.spenders.map((row) => {
+                    const share = pct(row.spend, data.spend);
+                    return (
+                      <div
+                        key={row.keyId}
+                        className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] items-center gap-3 border-b border-line-soft py-2.5 text-sm"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-mono text-[13px]">{row.name}</span>
+                          <Chip>{m.kinds[row.kind]}</Chip>
+                        </div>
+                        <div className="truncate text-ink-2">{row.team ?? '—'}</div>
+                        <div className="text-right font-mono text-[13px]">
+                          {fmtNumber(row.requests)}
+                        </div>
+                        <div className="text-right font-mono text-[13px] font-medium">
+                          {fmtUsd(row.spend)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            value={topShare ? (row.spend / topShare) * 100 : 0}
+                            label={m.overview.shareOf(row.name)}
+                          />
+                          <span className="w-9 text-right font-mono text-xs text-muted">
+                            {share}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <Empty>{m.overview.noRequests}</Empty>
+                )}
               </div>
-              {data?.spenders.length ? (
-                data.spenders.map((row) => {
-                  const share = pct(row.spend, data.spend);
+            </div>
+          </Card>
+
+          {!!data?.apps.length && (
+            <Card aria-label={m.overview.byApp} className="flex flex-col gap-3.5 px-6 py-5">
+              <h2 className="text-[15px] font-semibold">{m.overview.byApp}</h2>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-x-6 gap-y-4">
+                {data.apps.map((row) => {
+                  const share = pct(row.requests, appRequests);
                   return (
-                    <div
-                      key={row.keyId}
-                      className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] items-center gap-3 border-b border-line-soft py-2.5 text-sm"
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-mono text-[13px]">{row.name}</span>
-                        <Chip>{m.kinds[row.kind]}</Chip>
+                    <div key={row.app} className="flex flex-col gap-1.5">
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span className="min-w-0">{m.apps[row.app]}</span>
+                        <span className="font-mono text-[13px]">{share}%</span>
                       </div>
-                      <div className="truncate text-ink-2">{row.team ?? '—'}</div>
-                      <div className="text-right font-mono text-[13px]">
-                        {fmtNumber(row.requests)}
-                      </div>
-                      <div className="text-right font-mono text-[13px] font-medium">
-                        {fmtUsd(row.spend)}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={topShare ? (row.spend / topShare) * 100 : 0}
-                          label={m.overview.shareOf(row.name)}
-                        />
-                        <span className="w-9 text-right font-mono text-xs text-muted">
-                          {share}%
-                        </span>
-                      </div>
+                      <Progress value={share} label={m.overview.appShare(m.apps[row.app])} />
+                      <div className="font-mono text-xs text-muted">{fmtUsd(row.spend)}</div>
                     </div>
                   );
-                })
-              ) : (
-                <Empty>{m.overview.noRequests}</Empty>
-              )}
-            </div>
-          </div>
-        </Card>
+                })}
+              </div>
+            </Card>
+          )}
+        </div>
 
         <Card aria-label={m.overview.byModel} className="flex flex-col gap-3.5 px-6 py-5">
           <h2 className="text-[15px] font-semibold">{m.overview.byModel}</h2>
@@ -306,17 +330,21 @@ export function OverviewPage() {
           ) : (
             <p className="text-sm text-muted">{m.overview.noPaid}</p>
           )}
-          {data?.localModels.map((row) => (
-            <div
-              key={row.model}
-              className="mt-auto flex justify-between gap-3 rounded-lg bg-accent-soft px-3.5 py-3 text-[13px] text-accent-strong"
-            >
-              <span className="truncate">{row.model}</span>
-              <span className="font-mono whitespace-nowrap">
-                {m.overview.localReq(fmtNumber(row.requests))}
-              </span>
+          {!!data?.localModels.length && (
+            <div className="mt-auto flex flex-col gap-3.5">
+              {data.localModels.map((row) => (
+                <div
+                  key={row.model}
+                  className="flex justify-between gap-3 rounded-lg bg-accent-soft px-3.5 py-3 text-[13px] text-accent-strong"
+                >
+                  <span className="truncate">{row.model}</span>
+                  <span className="font-mono whitespace-nowrap">
+                    {m.overview.localReq(fmtNumber(row.requests))}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </Card>
       </div>
     </>

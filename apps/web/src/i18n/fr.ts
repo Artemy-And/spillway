@@ -67,6 +67,13 @@ export const fr: Messages = {
     delete: (name) => `Supprimer ${name}`,
   },
   kinds: { person: 'Personne', device: 'Appareil', agent: 'Agent' },
+  apps: {
+    'claude-code': 'Claude Code',
+    codex: 'Codex',
+    n8n: 'n8n',
+    'open-webui': 'Open WebUI',
+    other: 'Autres apps',
+  },
   results: {
     ok: 'OK',
     rerouted: 'Redirigée',
@@ -339,6 +346,8 @@ export const fr: Messages = {
     noRequests: 'Aucune requête sur cette période.',
     byModel: 'Dépenses par modèle',
     modelSpend: (name) => `Dépenses pour ${name}`,
+    byApp: 'Requêtes par app',
+    appShare: (name) => `Part des requêtes de ${name}`,
     noPaid: 'Aucune requête payante sur cette période.',
     localReq: (n) => `${n} req. · 0 $`,
   },

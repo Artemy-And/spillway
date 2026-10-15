@@ -4,6 +4,7 @@ import type { requestLogs } from '../db/schema.ts';
 import { shortId } from '../lib/crypto.ts';
 import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
+import { detectApp } from './apps.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { answered, authenticate, errorResponse, PREVIEW, writeLog } from './handler.ts';
 import { Meter } from './meter.ts';
@@ -106,6 +107,7 @@ export async function handleEmbeddings(
     keyId: caller.key.id,
     teamId: caller.key.teamId,
     format: format === 'openai' ? 'openai' : 'ollama',
+    app: detectApp(c.req.raw.headers),
     requestedModel: body.model,
     requestedModelId: decision.requested?.model.id ?? null,
     servedModelId: decision.target?.model.id ?? null,

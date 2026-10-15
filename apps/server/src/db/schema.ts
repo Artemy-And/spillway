@@ -24,10 +24,13 @@ export const RESULTS = [
   'rate_limited',
   'error',
 ] as const;
+/** Apps told apart by how they name themselves in requests (see gateway/apps.ts). */
+export const APPS = ['claude-code', 'codex', 'n8n', 'open-webui', 'other'] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 export type KeyKind = (typeof KEY_KINDS)[number];
 export type Result = (typeof RESULTS)[number];
+export type App = (typeof APPS)[number];
 export type TraceTone = 'ok' | 'warn' | 'info' | 'block';
 /**
  * One line of a request's "why". `text` is English for API clients and old rows;
@@ -144,6 +147,8 @@ export const requestLogs = sqliteTable(
     keyId: text('key_id').references(() => apiKeys.id, { onDelete: 'set null' }),
     teamId: text('team_id').references(() => teams.id, { onDelete: 'set null' }),
     format: text('format', { enum: CLIENT_FORMATS }).notNull(),
+    /** The app that sent it; null on requests from before Spillway told apps apart. */
+    app: text('app', { enum: APPS }),
     requestedModel: text('requested_model').notNull(),
     requestedModelId: text('requested_model_id'),
     servedModelId: text('served_model_id'),
@@ -180,6 +185,7 @@ export const requestLogs = sqliteTable(
       t.ruleId,
       t.costUsd,
       t.savedUsd,
+      t.app,
     ),
     index('request_logs_key_idx').on(t.keyId, t.createdAt, t.costUsd),
     index('request_logs_team_idx').on(t.teamId, t.createdAt, t.costUsd),

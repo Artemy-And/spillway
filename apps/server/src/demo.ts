@@ -6,6 +6,7 @@ import { createMiddleware } from 'hono/factory';
 import type { AppContext } from './context.ts';
 import {
   type ApiKey,
+  type App,
   apiKeys,
   type Model,
   models,
@@ -211,6 +212,8 @@ interface Scenario {
   key: string;
   model: string;
   format: Format;
+  /** The app the gateway recognises; chat apps and scripts are 'other', as they are for real */
+  app?: App;
   stream: boolean;
   perDay: [number, number];
   input: [number, number];
@@ -243,6 +246,7 @@ const SCENARIOS: Scenario[] = [
     key: 'anna-macbook',
     model: 'claude-sonnet',
     format: 'anthropic',
+    app: 'claude-code',
     stream: true,
     perDay: [40, 70],
     input: [15_000, 60_000],
@@ -253,6 +257,7 @@ const SCENARIOS: Scenario[] = [
     key: 'ben-laptop',
     model: 'claude-sonnet',
     format: 'anthropic',
+    app: 'claude-code',
     stream: true,
     perDay: [25, 50],
     input: [12_000, 50_000],
@@ -407,6 +412,7 @@ const MARKETING: Omit<Scenario, 'perDay'> = {
   key: 'marketing-bot',
   model: 'claude-sonnet',
   format: 'openai',
+  app: 'n8n',
   stream: false,
   input: [4000, 9000],
   output: [1500, 4000],
@@ -716,6 +722,7 @@ function simulate(world: World, events: Event[], loop: { start: number; cross: n
       keyId: key.id,
       teamId: key.teamId,
       format: scenario.format,
+      app: scenario.app ?? 'other',
       requestedModel: requested.model.name,
       requestedModelId: requested.model.id,
       servedModelId: blocked ? null : target.model.id,

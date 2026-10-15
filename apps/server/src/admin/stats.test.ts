@@ -54,3 +54,44 @@ test('the daily chart counts requests on the gateway’s own calendar days', asy
   assert.deepEqual(day('2026-10-09'), { date: '2026-10-09', cloud: 1, local: 1 });
   assert.equal(data.daily.length, 14);
 });
+
+test('requests by app leave out requests from before apps were told apart', async () => {
+  const { ctx } = await testApp();
+  const log = (id: string, app: 'claude-code' | 'codex' | 'other' | null, cost: number) => ({
+    id,
+    createdAt: new Date('2026-10-09T10:00:00Z'),
+    format: 'anthropic' as const,
+    app,
+    requestedModel: 'claude',
+    status: 200,
+    result: 'ok' as const,
+    costUsd: cost,
+    latencyMs: 1,
+    trace: [],
+  });
+  await ctx.db
+    .insert(requestLogs)
+    .values([
+      log('r1', 'other', 0),
+      log('r2', 'other', 0),
+      log('r3', 'other', 0),
+      log('r4', 'claude-code', 0.5),
+      log('r5', 'claude-code', 0.25),
+      log('r6', 'codex', 0.1),
+      log('r7', null, 9),
+    ]);
+
+  const data = await overview(
+    ctx.db,
+    '7d',
+    null,
+    calendar('UTC'),
+    new Date('2026-10-09T12:00:00Z'),
+  );
+  assert.deepEqual(data.apps, [
+    { app: 'claude-code', requests: 2, spend: 0.75 },
+    { app: 'codex', requests: 1, spend: 0.1 },
+    { app: 'other', requests: 3, spend: 0 },
+  ]);
+  assert.equal(data.requests, 7);
+});

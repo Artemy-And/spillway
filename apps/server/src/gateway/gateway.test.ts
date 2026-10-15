@@ -652,3 +652,29 @@ test('Ollama dropping the start of a long prompt is logged and shown on the over
     count: 1,
   });
 });
+
+test('the log and the overview say which app sent a request', async () => {
+  await call(
+    '/v1/messages',
+    { model: 'gpt-mini', max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] },
+    { 'user-agent': 'claude-cli/2.1.300 (external, cli)', 'x-app': 'cli' },
+  );
+  assert.equal((await lastLog()).app, 'claude-code');
+
+  await call('/v1/responses', codexRequest('gpt-mini'), {
+    originator: 'codex_cli_rs',
+    'user-agent': 'codex_cli_rs/0.160.1 (Windows 10.0.26300; x86_64)',
+  });
+  assert.equal((await lastLog()).app, 'codex');
+
+  await call('/v1/chat/completions', {
+    model: 'gpt-mini',
+    messages: [{ role: 'user', content: 'hi' }],
+  });
+  assert.equal((await lastLog()).app, 'other');
+
+  const { apps } = await overview(ctx.db, '7d', null, calendar('UTC'));
+  const names = apps.map((row) => row.app);
+  assert.ok(names.includes('claude-code') && names.includes('codex'));
+  assert.equal(names.at(-1), 'other');
+});

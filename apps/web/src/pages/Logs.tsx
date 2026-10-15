@@ -250,6 +250,7 @@ function Details({ log }: { log: LogDetail }) {
         <dd className="font-mono text-xs">{fmtSeconds(log.latencyMs)}</dd>
         <dt className="text-muted">{m.logs.client}</dt>
         <dd>
+          {log.app && log.app !== 'other' && `${m.apps[log.app]} · `}
           {m.logs.clientApi(client)}
           {log.stream && ` · ${m.logs.streaming}`}
         </dd>

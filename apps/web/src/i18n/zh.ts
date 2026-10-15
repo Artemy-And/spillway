@@ -66,6 +66,13 @@ export const zh: Messages = {
     delete: (name) => `删除 ${name}`,
   },
   kinds: { person: '个人', device: '设备', agent: '智能体' },
+  apps: {
+    'claude-code': 'Claude Code',
+    codex: 'Codex',
+    n8n: 'n8n',
+    'open-webui': 'Open WebUI',
+    other: '其他应用',
+  },
   results: {
     ok: '成功',
     rerouted: '已改道',
@@ -324,6 +331,8 @@ export const zh: Messages = {
     noRequests: '此时段内还没有请求。',
     byModel: '按模型统计花费',
     modelSpend: (name) => `${name} 的花费`,
+    byApp: '按应用统计请求',
+    appShare: (name) => `${name} 的请求占比`,
     noPaid: '此时段内没有付费请求。',
     localReq: (n) => `${n} 次 · $0`,
   },
