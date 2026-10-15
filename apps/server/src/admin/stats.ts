@@ -6,6 +6,7 @@ import type { Calendar } from '../lib/time.ts';
 export type Period = '7d' | '30d' | 'month';
 
 const DAY = 86_400_000;
+const WEEK = 7 * DAY;
 
 export function periodStart(period: Period, cal: Calendar, now = new Date()): Date {
   if (period === '7d') return cal.daysAgo(6, now);
@@ -45,13 +46,29 @@ export async function keySpend(db: Db, keyIds: string[] | null, cal: Calendar, n
 }
 
 export async function teamSpend(db: Db, cal: Calendar, now = new Date()) {
+  const spend = await teamMonthAndWeek(db, cal, now);
+  return new Map([...spend].map(([teamId, row]) => [teamId, row.month]));
+}
+
+/** Spend per team this month and in the last 7 days, in one pass over the team index. */
+async function teamMonthAndWeek(db: Db, cal: Calendar, now: Date) {
+  const month = cal.startOfMonth(now);
+  const week = new Date(now.getTime() - WEEK);
   const rows = await db
-    .select({ teamId: requestLogs.teamId, month: sum(sql`${requestLogs.costUsd}`) })
+    .select({
+      teamId: requestLogs.teamId,
+      month: sum(
+        sql`case when ${requestLogs.createdAt} >= ${month.getTime()} then ${requestLogs.costUsd} end`,
+      ),
+      week: sum(
+        sql`case when ${requestLogs.createdAt} >= ${week.getTime()} then ${requestLogs.costUsd} end`,
+      ),
+    })
     .from(requestLogs)
-    .where(gte(requestLogs.createdAt, cal.startOfMonth(now)))
+    .where(gte(requestLogs.createdAt, month < week ? month : week))
     .groupBy(requestLogs.teamId)
     .all();
-  return new Map(rows.map((row) => [row.teamId, row.month]));
+  return new Map(rows.map(({ teamId, ...spend }) => [teamId, spend]));
 }
 
 /** Everything the Overview screen shows. `keyIds` narrows it to one person's keys. */
@@ -210,6 +227,19 @@ export async function overview(
     .orderBy(desc(sql`count(*)`))
     .all();
 
+  // This month's spend carried to the month's end at the pace of the last 7 days, which follows
+  // an agent that started looping this week better than the month's average does.
+  let forecast: number | null = null;
+  if (period === 'month') {
+    const week = await db
+      .select({ spend: sum(sql`${requestLogs.costUsd}`) })
+      .from(requestLogs)
+      .where(and(gte(requestLogs.createdAt, new Date(now.getTime() - WEEK)), scope))
+      .get();
+    const daysLeft = (cal.startOfNextMonth(now).getTime() - now.getTime()) / DAY;
+    forecast = (totals?.spend ?? 0) + ((week?.spend ?? 0) / 7) * daysLeft;
+  }
+
   const budget = keyIds
     ? null
     : await db
@@ -226,6 +256,7 @@ export async function overview(
     saved: totals?.saved ?? 0,
     savedCache: totals?.savedCache ?? 0,
     budget: budget?.total ?? null,
+    forecast,
     requests: totals?.requests ?? 0,
     previousRequests: previous?.requests ?? 0,
     local: totals?.local ?? 0,
@@ -317,6 +348,16 @@ type Alert =
       team: string;
       spent: number;
       budget: number;
+      at: number;
+    }
+  | {
+      tone: 'warn';
+      code: 'teamBudgetPace';
+      team: string;
+      spent: number;
+      budget: number;
+      /** When the budget runs out at the pace of the last 7 days */
+      reachesAt: number;
       at: number;
     }
   | {
@@ -482,9 +523,9 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
       });
     }
 
-    const spentByTeam = await teamSpend(db, cal, now);
+    const spentByTeam = await teamMonthAndWeek(db, cal, now);
     for (const team of await db.select().from(teams).all()) {
-      const spent = spentByTeam.get(team.id) ?? 0;
+      const spent = spentByTeam.get(team.id)?.month ?? 0;
       if (team.monthlyBudgetUsd != null && spent >= team.monthlyBudgetUsd) {
         out.push({
           tone: 'block',
@@ -492,6 +533,22 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
           team: team.name,
           spent,
           budget: team.monthlyBudgetUsd,
+          at: now.getTime(),
+        });
+        continue;
+      }
+      // Still under budget, but at the pace of the last 7 days it runs out before the month ends.
+      const perDay = (spentByTeam.get(team.id)?.week ?? 0) / 7;
+      if (team.monthlyBudgetUsd == null || perDay <= 0) continue;
+      const reachesAt = now.getTime() + ((team.monthlyBudgetUsd - spent) / perDay) * DAY;
+      if (reachesAt < cal.startOfNextMonth(now).getTime()) {
+        out.push({
+          tone: 'warn',
+          code: 'teamBudgetPace',
+          team: team.name,
+          spent,
+          budget: team.monthlyBudgetUsd,
+          reachesAt,
           at: now.getTime(),
         });
       }

@@ -284,6 +284,7 @@ export const en = {
       `${percent}% of ${budget} budget · resets ${date}`,
     budgetsMonthly: 'Team budgets are monthly',
     noBudgets: 'No team budgets set yet',
+    forecast: (amount: string) => `At the last 7 days’ pace, about ${amount} by month end`,
     saved: (amount: string) => `${amount} saved by local models`,
     savedCache: (amount: string) => `${amount} saved by the cache`,
     requests: 'Requests',
@@ -350,6 +351,8 @@ export const en = {
     teamOverBudget: (a: AlertOf<'teamOverBudget'>) =>
       `${a.team} is over its monthly budget; requests go to local models`,
     spentOf: (spent: string, budget: string) => `${spent} of ${budget}`,
+    teamBudgetPace: (a: AlertOf<'teamBudgetPace'>, date: string) =>
+      `${a.team} will run out of its ${fmtLimit(a.budget)} budget around ${date} at the last 7 days’ pace`,
     promptCutFix: 'Settings & SSO → Local model for rerouting → Check the model',
     promptCut: (a: AlertOf<'promptCut'>) =>
       `${a.model} lost the start of ${p(a.count, { one: '# long prompt', other: '# long prompts' })} in the last 24 hours: Ollama's context is too small`,

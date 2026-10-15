@@ -55,6 +55,11 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
         text: m.alerts.teamOverBudget(alert),
         meta: m.alerts.spentOf(fmtUsd(alert.spent), fmtLimit(alert.budget)),
       };
+    case 'teamBudgetPace':
+      return {
+        text: m.alerts.teamBudgetPace(alert, fmtDate(new Date(alert.reachesAt).toISOString())),
+        meta: m.alerts.spentOf(fmtUsd(alert.spent), fmtLimit(alert.budget)),
+      };
     case 'providerFailing':
       return { text: m.alerts.providerFailing(alert), meta: alert.error ?? '' };
     case 'modelNoPrice':
@@ -188,6 +193,18 @@ export function OverviewPage() {
           ) : (
             <div className="text-[13px] text-muted">
               {data?.budget ? m.overview.budgetsMonthly : m.overview.noBudgets}
+            </div>
+          )}
+          {period === 'month' && !!data?.forecast && data.forecast > data.spend && (
+            <div
+              className={cx(
+                'text-[13px]',
+                data.budget && data.forecast > data.budget ? 'text-warn-fg' : 'text-muted',
+              )}
+            >
+              {m.overview.forecast(
+                fmtLimit(data.forecast >= 10 ? Math.round(data.forecast) : data.forecast),
+              )}
             </div>
           )}
           {!!data?.saved && (

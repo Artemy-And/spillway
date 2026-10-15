@@ -314,6 +314,7 @@ export const de: Messages = {
       `${percent}% von ${budget} Budget · zurückgesetzt am ${date}`,
     budgetsMonthly: 'Team-Budgets gelten pro Monat',
     noBudgets: 'Noch keine Team-Budgets',
+    forecast: (amount) => `Im Tempo der letzten 7 Tage etwa ${amount} bis Monatsende`,
     saved: (amount) => `${amount} durch lokale Modelle gespart`,
     savedCache: (amount) => `${amount} durch den Cache gespart`,
     requests: 'Anfragen',
@@ -373,6 +374,8 @@ export const de: Messages = {
     teamOverBudget: (a) =>
       `${a.team} hat das Monatsbudget überschritten; Anfragen gehen an lokale Modelle`,
     spentOf: (spent, budget) => `${spent} von ${budget}`,
+    teamBudgetPace: (a, date) =>
+      `${a.team} erreicht im Tempo der letzten 7 Tage etwa am ${date} sein Budget von ${fmtLimit(a.budget)}`,
     promptCutFix: 'Einstellungen & SSO → Lokales Modell für Umleitungen → Modell prüfen',
     promptCut: (a) =>
       `${a.model} hat in den letzten 24 Stunden bei ${p(a.count, { one: '# langen Prompt', other: '# langen Prompts' })} den Anfang verloren: Der Kontext von Ollama ist zu klein`,

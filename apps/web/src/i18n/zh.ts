@@ -300,6 +300,7 @@ export const zh: Messages = {
     budgetLine: (percent, budget, date) => `已用 ${budget} 预算的 ${percent}% · ${date} 重置`,
     budgetsMonthly: '团队预算按月计算',
     noBudgets: '尚未设置团队预算',
+    forecast: (amount) => `按最近 7 天的速度，到月底约为 ${amount}`,
     saved: (amount) => `本地模型节省了 ${amount}`,
     savedCache: (amount) => `缓存节省了 ${amount}`,
     requests: '请求数',
@@ -349,6 +350,8 @@ export const zh: Messages = {
     piiBlocked: (a) => `${a.count} 个发往云端模型的请求被拦截：发现敏感数据`,
     teamOverBudget: (a) => `${a.team} 已超出月度预算，请求将发往本地模型`,
     spentOf: (spent, budget) => `${spent} / ${budget}`,
+    teamBudgetPace: (a, date) =>
+      `按最近 7 天的速度，${a.team} 将在 ${date} 左右用完 ${fmtLimit(a.budget)} 的预算`,
     promptCutFix: '设置与 SSO → 用于改道的本地模型 → 检查模型',
     promptCut: (a) =>
       `${a.model} 在过去 24 小时内有 ${a.count} 个长提示的开头被截掉：Ollama 的上下文太小`,

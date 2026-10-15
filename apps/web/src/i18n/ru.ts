@@ -316,6 +316,7 @@ export const ru: Messages = {
     budgetLine: (percent, budget, date) => `${percent}% от бюджета ${budget} · обнулится ${date}`,
     budgetsMonthly: 'Бюджеты команд считаются по месяцам',
     noBudgets: 'Бюджеты команд пока не заданы',
+    forecast: (amount) => `При темпе последних 7 дней к концу месяца выйдет около ${amount}`,
     saved: (amount) => `${amount} сэкономили локальные модели`,
     savedCache: (amount) => `${amount} сэкономил кэш`,
     requests: 'Запросы',
@@ -396,6 +397,8 @@ export const ru: Messages = {
     teamOverBudget: (a) =>
       `Команда ${a.team} превысила месячный бюджет, запросы идут на локальные модели`,
     spentOf: (spent, budget) => `${spent} из ${budget}`,
+    teamBudgetPace: (a, date) =>
+      `Команда ${a.team} исчерпает бюджет ${fmtLimit(a.budget)} примерно ${date}, если темп последних 7 дней сохранится`,
     promptCutFix: 'Настройки и SSO → Локальная модель для перенаправления → Проверить модель',
     promptCut: (a) =>
       `${a.model}: за сутки обрезано начало у ${p(a.count, { one: '# длинного запроса', few: '# длинных запросов', many: '# длинных запросов', other: '# длинного запроса' })}, у Ollama слишком маленький контекст`,

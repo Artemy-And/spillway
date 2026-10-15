@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { models, providers, requestLogs } from '../db/schema.ts';
+import { models, providers, requestLogs, teams } from '../db/schema.ts';
 import { calendar } from '../lib/time.ts';
 import { testApp } from '../testing.ts';
 import { overview, whatIf } from './stats.ts';
@@ -162,4 +162,53 @@ test('another model’s cost keeps the prompts that were cached as cached', asyn
   assert.equal((await ask(qwen!.id)).status, 400);
   assert.equal((await ask(unpriced!.id)).status, 400);
   assert.equal((await ask(mini!.id)).status, 200);
+});
+
+test('the month is carried to its end at the last 7 days’ pace, and teams that run out are named', async () => {
+  const { ctx } = await testApp();
+  const [fast, slow, over] = await ctx.db
+    .insert(teams)
+    .values([
+      { name: 'Marketing', monthlyBudgetUsd: 100 },
+      { name: 'Sales', monthlyBudgetUsd: 100 },
+      { name: 'Support', monthlyBudgetUsd: 10 },
+    ])
+    .returning();
+  const log = (id: string, teamId: string, at: string, cost: number) => ({
+    id,
+    teamId,
+    createdAt: new Date(at),
+    format: 'openai' as const,
+    requestedModel: 'gpt',
+    costUsd: cost,
+    status: 200,
+    result: 'ok' as const,
+    latencyMs: 1,
+    trace: [],
+  });
+  await ctx.db.insert(requestLogs).values([
+    // Marketing: $25 early in the month, then $35 in the last 7 days, $5 a day
+    log('m1', fast!.id, '2026-10-02T10:00:00Z', 25),
+    log('m2', fast!.id, '2026-10-12T10:00:00Z', 35),
+    // Sales: $7 in the last 7 days, $1 a day, far from its budget
+    log('s1', slow!.id, '2026-10-12T10:00:00Z', 7),
+    // Support is already over its budget
+    log('o1', over!.id, '2026-10-12T10:00:00Z', 12),
+  ]);
+
+  const now = new Date('2026-10-15T00:00:00Z');
+  const data = await overview(ctx.db, 'month', null, calendar('UTC'), now);
+  // $79 so far and $54 in the last 7 days, carried over the 17 days left in October
+  assert.ok(Math.abs((data.forecast ?? 0) - (79 + (54 / 7) * 17)) < 1e-9);
+
+  const pace = data.alerts.filter((a) => a.code === 'teamBudgetPace');
+  // Marketing has $40 left at $5 a day: 8 days, October 23
+  assert.deepEqual(
+    pace.map((a) => a.code === 'teamBudgetPace' && [a.team, new Date(a.reachesAt).toISOString()]),
+    [['Marketing', '2026-10-23T00:00:00.000Z']],
+  );
+  assert.ok(data.alerts.some((a) => a.code === 'teamOverBudget' && a.team === 'Support'));
+
+  // Other periods have no forecast
+  assert.equal((await overview(ctx.db, '7d', null, calendar('UTC'), now)).forecast, null);
 });
