@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { models, providers, requestLogs, teams } from '../db/schema.ts';
+import { apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
 import { calendar } from '../lib/time.ts';
 import { testApp } from '../testing.ts';
-import { overview, whatIf } from './stats.ts';
+import { localUse, overview, whatIf } from './stats.ts';
 
 test('the daily chart counts requests on the gateway’s own calendar days', async () => {
   const { ctx } = await testApp();
@@ -211,4 +211,56 @@ test('the month is carried to its end at the last 7 days’ pace, and teams that
 
   // Other periods have no forecast
   assert.equal((await overview(ctx.db, '7d', null, calendar('UTC'), now)).forecast, null);
+});
+
+test('local model use is counted per key by the time its answers took', async () => {
+  const { ctx } = await testApp();
+  const [eng] = await ctx.db.insert(teams).values({ name: 'Engineering' }).returning();
+  const [anna, bot] = await ctx.db
+    .insert(apiKeys)
+    .values([
+      { name: 'anna-laptop', kind: 'person' as const, teamId: eng!.id, prefix: 'sw-a', hash: 'a' },
+      { name: 'review-bot', kind: 'agent' as const, prefix: 'sw-b', hash: 'b' },
+    ])
+    .returning();
+  const log = (id: string, keyId: string, latencyMs: number, extra = {}) => ({
+    id,
+    keyId,
+    createdAt: new Date('2026-10-09T10:00:00Z'),
+    format: 'ollama' as const,
+    requestedModel: 'qwen',
+    servedLocal: true,
+    inputTokens: 1000,
+    outputTokens: 200,
+    status: 200,
+    result: 'ok' as const,
+    latencyMs,
+    trace: [],
+    ...extra,
+  });
+  await ctx.db.insert(requestLogs).values([
+    log('r1', anna!.id, 30_000),
+    log('r2', bot!.id, 50_000),
+    log('r3', bot!.id, 70_000),
+    // A cloud answer and a failed local one are not local model use
+    log('r4', anna!.id, 90_000, { servedLocal: false }),
+    log('r5', anna!.id, 90_000, { status: 500, result: 'error' }),
+  ]);
+
+  const now = new Date('2026-10-09T12:00:00Z');
+  const use = await localUse(ctx.db, '7d', null, calendar('UTC'), now);
+  assert.equal(use.timeMs, 150_000);
+  assert.deepEqual(
+    use.keys.map((row) => [row.name, row.team, row.requests, row.tokens, row.timeMs]),
+    [
+      ['review-bot', null, 2, 2400, 120_000],
+      ['anna-laptop', 'Engineering', 1, 1200, 30_000],
+    ],
+  );
+  // A member sees their own keys only
+  const own = await localUse(ctx.db, '7d', [anna!.id], calendar('UTC'), now);
+  assert.deepEqual(
+    own.keys.map((row) => row.name),
+    ['anna-laptop'],
+  );
 });

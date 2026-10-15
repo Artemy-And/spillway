@@ -276,6 +276,47 @@ export async function overview(
 }
 
 /**
+ * Who keeps the local models busy: requests, tokens and the time answers took, per key. Local
+ * answers cost nothing, so top spenders cannot show it. Time is from request to last token, so a
+ * request waiting behind others in Ollama's queue counts its wait too.
+ * Runs when someone switches to it, not with Overview's refresh; the created index has the numbers.
+ */
+export async function localUse(
+  db: Db,
+  period: Period,
+  keyIds: string[] | null,
+  cal: Calendar,
+  now = new Date(),
+) {
+  const keys = await db
+    .select({
+      keyId: apiKeys.id,
+      name: apiKeys.name,
+      kind: apiKeys.kind,
+      team: teams.name,
+      requests: sql<number>`count(*)`,
+      tokens: sum(sql`${requestLogs.inputTokens} + ${requestLogs.outputTokens}`),
+      timeMs: sum(sql`${requestLogs.latencyMs}`),
+    })
+    .from(requestLogs)
+    .innerJoin(apiKeys, eq(requestLogs.keyId, apiKeys.id))
+    .leftJoin(teams, eq(apiKeys.teamId, teams.id))
+    .where(
+      and(
+        gte(requestLogs.createdAt, periodStart(period, cal, now)),
+        keyIds ? inArray(requestLogs.keyId, keyIds) : undefined,
+        eq(requestLogs.servedLocal, true),
+        eq(requestLogs.status, 200),
+      ),
+    )
+    .groupBy(apiKeys.id)
+    .orderBy(desc(sql`sum(${requestLogs.latencyMs})`))
+    .all();
+  // The busiest five, and every key's time for their shares
+  return { keys: keys.slice(0, 5), timeMs: keys.reduce((total, row) => total + row.timeMs, 0) };
+}
+
+/**
  * About what the paid requests of a period would have cost on another cloud model. The log keeps
  * all prompt tokens in one number, cached ones included, so the prompt side is scaled from what
  * it actually cost by the two input prices: prompts that were cached are taken to be cached on the

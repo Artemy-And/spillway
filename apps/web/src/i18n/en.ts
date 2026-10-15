@@ -311,6 +311,17 @@ export const en = {
     nothing:
       'Nothing needs attention. Limits, blocks, failing providers and unused keys show up here.',
     topSpenders: 'Top spenders',
+    spendView: 'Spend',
+    localView: 'Local models',
+    showBy: 'Show',
+    localUse: 'Local model use',
+    tokensCol: 'Tokens',
+    timeCol: 'Model time',
+    shareTime: 'Share of time',
+    timeShareOf: (name: string) => `${name} share of local model time`,
+    noLocal: 'No requests to local models in this period.',
+    timeHint:
+      "Model time runs from the request to the last word of the answer, waiting in the model's queue included.",
     requestsCol: 'Requests',
     spend: 'Spend',
     share: 'Share of spend',

@@ -16,7 +16,7 @@ import {
 import type { Messages } from '../i18n/en.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, modelsQuery, type Overview, unwrap } from '../lib/api.ts';
-import { fmtDate, fmtLimit, fmtMonth, fmtNumber, fmtUsd, pct } from '../lib/format.ts';
+import { fmtDate, fmtDuration, fmtLimit, fmtMonth, fmtNumber, fmtUsd, pct } from '../lib/format.ts';
 
 type Period = '7d' | '30d' | 'month';
 type Alert = Overview['alerts'][number];
@@ -69,6 +69,65 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
   }
 }
 
+/** Who keeps the local models busy; local answers cost nothing, so spend cannot show it. */
+function LocalUse({ period }: { period: Period }) {
+  const { m } = useI18n();
+  const { data } = useQuery({
+    queryKey: ['local-use', period],
+    queryFn: () => unwrap(api['local-use'].$get({ query: { period } })),
+    placeholderData: keepPreviousData,
+  });
+  const top = data?.keys.length ? Math.max(...data.keys.map((row) => row.timeMs)) : 0;
+  const columns = 'grid grid-cols-[2fr_1.2fr_0.9fr_1fr_1fr_1.4fr] gap-3';
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[640px]">
+        <div className={cx(columns, 'border-b border-line py-2.5 text-xs font-medium text-muted')}>
+          <div>{m.common.key}</div>
+          <div>{m.common.team}</div>
+          <div className="text-right">{m.overview.requestsCol}</div>
+          <div className="text-right">{m.overview.tokensCol}</div>
+          <div className="text-right">{m.overview.timeCol}</div>
+          <div>{m.overview.shareTime}</div>
+        </div>
+        {data?.keys.length ? (
+          data.keys.map((row) => (
+            <div
+              key={row.keyId}
+              className={cx(columns, 'items-center border-b border-line-soft py-2.5 text-sm')}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-mono text-[13px]">{row.name}</span>
+                <Chip>{m.kinds[row.kind]}</Chip>
+              </div>
+              <div className="truncate text-ink-2">{row.team ?? '—'}</div>
+              <div className="text-right font-mono text-[13px]">{fmtNumber(row.requests)}</div>
+              <div className="text-right font-mono text-[13px]">{fmtNumber(row.tokens)}</div>
+              <div className="text-right font-mono text-[13px] font-medium">
+                {fmtDuration(row.timeMs)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Progress
+                  value={top ? (row.timeMs / top) * 100 : 0}
+                  color="bg-local"
+                  label={m.overview.timeShareOf(row.name)}
+                />
+                <span className="w-9 text-right font-mono text-xs text-muted">
+                  {pct(row.timeMs, data.timeMs)}%
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <Empty>{m.overview.noLocal}</Empty>
+        )}
+        <p className="mt-3 text-xs text-muted">{m.overview.timeHint}</p>
+      </div>
+    </div>
+  );
+}
+
 /** What the period's paid requests would have cost on another cloud model, asked for on demand. */
 function WhatIf({ period }: { period: Period }) {
   const { m } = useI18n();
@@ -116,6 +175,7 @@ function WhatIf({ period }: { period: Period }) {
 export function OverviewPage() {
   const { m, join } = useI18n();
   const [period, setPeriod] = useState<Period>('month');
+  const [view, setView] = useState<'spend' | 'local'>('spend');
   const { data: me } = useQuery(meQuery);
   const { data } = useQuery({
     queryKey: ['overview', period],
@@ -311,53 +371,75 @@ export function OverviewPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="flex flex-col gap-4 xl:col-span-2">
-          <Card aria-label={m.overview.topSpenders} className="flex flex-1 flex-col px-6 py-5">
-            <h2 className="mb-2 text-[15px] font-semibold">{m.overview.topSpenders}</h2>
-            <div className="overflow-x-auto">
-              <div className="min-w-[560px]">
-                <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
-                  <div>{m.common.key}</div>
-                  <div>{m.common.team}</div>
-                  <div className="text-right">{m.overview.requestsCol}</div>
-                  <div className="text-right">{m.overview.spend}</div>
-                  <div>{m.overview.share}</div>
-                </div>
-                {data?.spenders.length ? (
-                  data.spenders.map((row) => {
-                    const share = pct(row.spend, data.spend);
-                    return (
-                      <div
-                        key={row.keyId}
-                        className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] items-center gap-3 border-b border-line-soft py-2.5 text-sm"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate font-mono text-[13px]">{row.name}</span>
-                          <Chip>{m.kinds[row.kind]}</Chip>
-                        </div>
-                        <div className="truncate text-ink-2">{row.team ?? '—'}</div>
-                        <div className="text-right font-mono text-[13px]">
-                          {fmtNumber(row.requests)}
-                        </div>
-                        <div className="text-right font-mono text-[13px] font-medium">
-                          {fmtUsd(row.spend)}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Progress
-                            value={topShare ? (row.spend / topShare) * 100 : 0}
-                            label={m.overview.shareOf(row.name)}
-                          />
-                          <span className="w-9 text-right font-mono text-xs text-muted">
-                            {share}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <Empty>{m.overview.noRequests}</Empty>
-                )}
-              </div>
+          <Card
+            aria-label={view === 'local' ? m.overview.localUse : m.overview.topSpenders}
+            className="flex flex-1 flex-col px-6 py-5"
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-[15px] font-semibold">
+                {view === 'local' ? m.overview.localUse : m.overview.topSpenders}
+              </h2>
+              {!!data?.localModels.length && (
+                <Segmented
+                  label={m.overview.showBy}
+                  value={view}
+                  options={[
+                    { value: 'spend', label: m.overview.spendView },
+                    { value: 'local', label: m.overview.localView },
+                  ]}
+                  onChange={setView}
+                />
+              )}
             </div>
+            {view === 'local' ? (
+              <LocalUse period={period} />
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[560px]">
+                  <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] gap-3 border-b border-line py-2.5 text-xs font-medium text-muted">
+                    <div>{m.common.key}</div>
+                    <div>{m.common.team}</div>
+                    <div className="text-right">{m.overview.requestsCol}</div>
+                    <div className="text-right">{m.overview.spend}</div>
+                    <div>{m.overview.share}</div>
+                  </div>
+                  {data?.spenders.length ? (
+                    data.spenders.map((row) => {
+                      const share = pct(row.spend, data.spend);
+                      return (
+                        <div
+                          key={row.keyId}
+                          className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1.4fr] items-center gap-3 border-b border-line-soft py-2.5 text-sm"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-mono text-[13px]">{row.name}</span>
+                            <Chip>{m.kinds[row.kind]}</Chip>
+                          </div>
+                          <div className="truncate text-ink-2">{row.team ?? '—'}</div>
+                          <div className="text-right font-mono text-[13px]">
+                            {fmtNumber(row.requests)}
+                          </div>
+                          <div className="text-right font-mono text-[13px] font-medium">
+                            {fmtUsd(row.spend)}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Progress
+                              value={topShare ? (row.spend / topShare) * 100 : 0}
+                              label={m.overview.shareOf(row.name)}
+                            />
+                            <span className="w-9 text-right font-mono text-xs text-muted">
+                              {share}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <Empty>{m.overview.noRequests}</Empty>
+                  )}
+                </div>
+              </div>
+            )}
           </Card>
 
           {!!data?.apps.length && (

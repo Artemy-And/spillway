@@ -340,6 +340,17 @@ export const fr: Messages = {
     nothing:
       'Rien à signaler. Limites, blocages, fournisseurs en panne et clés inutilisées apparaîtront ici.',
     topSpenders: 'Plus gros consommateurs',
+    spendView: 'Dépenses',
+    localView: 'Modèles locaux',
+    showBy: 'Afficher',
+    localUse: 'Utilisation des modèles locaux',
+    tokensCol: 'Tokens',
+    timeCol: 'Temps modèle',
+    shareTime: 'Part du temps',
+    timeShareOf: (name) => `Part de ${name} dans le temps des modèles locaux`,
+    noLocal: 'Aucune requête vers les modèles locaux sur cette période.',
+    timeHint:
+      'Le temps modèle va de la requête au dernier mot de la réponse, attente dans la file du modèle comprise.',
     requestsCol: 'Requêtes',
     spend: 'Dépenses',
     share: 'Part des dépenses',

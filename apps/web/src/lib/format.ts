@@ -53,6 +53,30 @@ export const fmtLimit = (value: number) =>
       }).format(value)
     : money2.format(value);
 
+const durations = new Map<string, Intl.NumberFormat>();
+
+/** "45 sec", "38 min", "2.5 hr": in the largest unit that is at least one. */
+export function fmtDuration(ms: number): string {
+  const [value, unit] =
+    ms < 60_000
+      ? [ms / 1000, 'second']
+      : ms < 3_600_000
+        ? [ms / 60_000, 'minute']
+        : [ms / 3_600_000, 'hour'];
+  const key = `${locale} ${unit}`;
+  let format = durations.get(key);
+  if (!format) {
+    format = new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit,
+      unitDisplay: 'short',
+      maximumFractionDigits: unit === 'hour' ? 1 : 0,
+    });
+    durations.set(key, format);
+  }
+  return format.format(value);
+}
+
 /** "5 min ago", "yesterday"; a dash when it never happened. */
 export function fmtAgo(iso: string | null | undefined): string {
   if (!iso) return '—';

@@ -338,6 +338,17 @@ export const es: Messages = {
     nothing:
       'Nada pendiente. Aquí aparecerán límites, bloqueos, proveedores que fallan y claves sin uso.',
     topSpenders: 'Quién gasta más',
+    spendView: 'Gasto',
+    localView: 'Modelos locales',
+    showBy: 'Mostrar',
+    localUse: 'Uso de los modelos locales',
+    tokensCol: 'Tokens',
+    timeCol: 'Tiempo de modelo',
+    shareTime: 'Parte del tiempo',
+    timeShareOf: (name) => `Parte de ${name} en el tiempo de los modelos locales`,
+    noLocal: 'No hay solicitudes a modelos locales en este periodo.',
+    timeHint:
+      'El tiempo de modelo va de la solicitud a la última palabra de la respuesta, incluida la espera en la cola del modelo.',
     requestsCol: 'Solicitudes',
     spend: 'Gasto',
     share: 'Parte del gasto',

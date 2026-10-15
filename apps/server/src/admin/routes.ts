@@ -35,7 +35,15 @@ import {
   settingsPatch,
 } from '../settings.ts';
 import { checkLocal, LocalCheckError, lengthenContext } from './local-check.ts';
-import { failingProviders, keySpend, overview, type Period, teamSpend, whatIf } from './stats.ts';
+import {
+  failingProviders,
+  keySpend,
+  localUse,
+  overview,
+  type Period,
+  teamSpend,
+  whatIf,
+} from './stats.ts';
 
 const money = z.number().min(0).max(1_000_000).nullable();
 /** USD per million tokens */
@@ -246,6 +254,16 @@ export function adminRoutes(ctx: AppContext) {
           const keyIds = await ownKeyIds(ctx, c.get('user'));
           const cal = calendarOf(await ctx.settings.get());
           return c.json(await overview(db, c.req.valid('query').period as Period, keyIds, cal));
+        },
+      )
+
+      .get(
+        '/local-use',
+        zValidator('query', z.object({ period: z.enum(['7d', '30d', 'month']).default('month') })),
+        async (c) => {
+          const keyIds = await ownKeyIds(ctx, c.get('user'));
+          const cal = calendarOf(await ctx.settings.get());
+          return c.json(await localUse(db, c.req.valid('query').period as Period, keyIds, cal));
         },
       )
 

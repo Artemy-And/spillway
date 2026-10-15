@@ -1,0 +1,2 @@
+DROP INDEX `request_logs_created_idx`;--> statement-breakpoint
+CREATE INDEX `request_logs_created_idx` ON `request_logs` (`created_at`,`key_id`,`served_model_id`,`served_model`,`served_local`,`status`,`result`,`rule_id`,`cost_usd`,`saved_usd`,`app`,`output_tokens`,`input_tokens`,`latency_ms`);

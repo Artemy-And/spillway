@@ -341,6 +341,17 @@ export const de: Messages = {
     nothing:
       'Alles ruhig. Limits, Sperren, ausfallende Anbieter und ungenutzte Schlüssel erscheinen hier.',
     topSpenders: 'Größte Verbraucher',
+    spendView: 'Ausgaben',
+    localView: 'Lokale Modelle',
+    showBy: 'Anzeigen',
+    localUse: 'Nutzung lokaler Modelle',
+    tokensCol: 'Tokens',
+    timeCol: 'Modellzeit',
+    shareTime: 'Anteil an der Zeit',
+    timeShareOf: (name) => `Anteil von ${name} an der Zeit lokaler Modelle`,
+    noLocal: 'Keine Anfragen an lokale Modelle in diesem Zeitraum.',
+    timeHint:
+      'Die Modellzeit läuft von der Anfrage bis zum letzten Wort der Antwort, Wartezeit in der Warteschlange des Modells eingeschlossen.',
     requestsCol: 'Anfragen',
     spend: 'Ausgaben',
     share: 'Anteil an Ausgaben',
