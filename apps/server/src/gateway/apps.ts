@@ -1,5 +1,14 @@
 import type { App } from '../db/schema.ts';
 
+/** Names for notices, which go out in English; the admin UI has its own in every language. */
+export const APP_NAMES: Record<App, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  n8n: 'n8n',
+  'open-webui': 'Open WebUI',
+  other: 'other apps',
+};
+
 /**
  * The app behind a request, from what the app itself sends; nothing has to be set up on its side.
  * Only names an app gives on its own count, so a label in the log is never a guess:

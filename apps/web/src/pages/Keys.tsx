@@ -278,7 +278,12 @@ export function KeysPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-[13px] text-ink-2">{fmtAgo(key.lastUsedAt)}</div>
+                    <div className="flex flex-col text-[13px] text-ink-2">
+                      {fmtAgo(key.lastUsedAt)}
+                      {key.lastApp && key.lastApp !== 'other' && (
+                        <span className="text-xs text-muted">{m.apps[key.lastApp]}</span>
+                      )}
+                    </div>
                     <div>
                       <Status tone={s.tone}>{s.label}</Status>
                     </div>

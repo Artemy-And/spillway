@@ -515,6 +515,8 @@ export const es: Messages = {
     allKeys: 'Todas las claves',
     allModels: 'Todos los modelos',
     result: 'Resultado',
+    app: 'App',
+    allApps: 'Todas las apps',
     allResults: 'Todos los resultados',
     last24h: 'Últimas 24 horas',
     last7d: 'Últimos 7 días',

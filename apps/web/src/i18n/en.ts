@@ -495,6 +495,8 @@ export const en = {
     allKeys: 'All keys',
     allModels: 'All models',
     result: 'Result',
+    app: 'App',
+    allApps: 'All apps',
     allResults: 'All results',
     last24h: 'Last 24 hours',
     last7d: 'Last 7 days',

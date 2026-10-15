@@ -194,3 +194,16 @@ test('nothing is sent while no channel is set up', async () => {
   assert.equal(await watch(t.ctx), 0);
   assert.equal(slack.length, 0);
 });
+
+test('the Monday summary says which apps sent the requests', async () => {
+  const cal = calendar('Europe/Berlin');
+  const at = cal.at(2026, 10, 1, 12);
+  await log({ app: 'claude-code' }, at);
+  await log({ app: 'claude-code' }, at);
+  await log({ app: 'other' }, at);
+  await log({ app: 'codex' }, at);
+  await log({}, at); // from before the upgrade, left out
+
+  const [, notice] = (await weeklyNotice(t.ctx, cal, cal.at(2026, 10, 5, 9, 30)))!;
+  assert.ok(notice.lines.includes('Requests by app: Claude Code 50%, Codex 25%, other apps 25%.'));
+});

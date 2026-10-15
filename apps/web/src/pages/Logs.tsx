@@ -1,4 +1,4 @@
-import type { Result, TraceStep } from '@server/db/schema.ts';
+import type { App, Result, TraceStep } from '@server/db/schema.ts';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -66,6 +66,7 @@ export function LogsPage() {
   const [keyId, setKeyId] = useState('');
   const [model, setModel] = useState('');
   const [result, setResult] = useState<Result | ''>('');
+  const [app, setApp] = useState<App | ''>('');
   const [period, setPeriod] = useState<Period>('24h');
 
   const { data: keys = [] } = useQuery({
@@ -74,7 +75,7 @@ export function LogsPage() {
   });
   const { data: models = [] } = useQuery(modelsQuery);
   const { data: rows = [], isFetching } = useQuery({
-    queryKey: ['logs', keyId, model, result, period],
+    queryKey: ['logs', keyId, model, result, app, period],
     queryFn: () =>
       unwrap(
         api.logs.$get({
@@ -84,6 +85,7 @@ export function LogsPage() {
             ...(keyId && { keyId }),
             ...(model && { model }),
             ...(result && { result }),
+            ...(app && { app }),
           },
         }),
       ),
@@ -140,6 +142,16 @@ export function LogsPage() {
             {(Object.keys(RESULT_TONES) as Result[]).map((value) => (
               <option key={value} value={value}>
                 {m.results[value]}
+              </option>
+            ))}
+          </Select>
+        </Filter>
+        <Filter label={m.logs.app}>
+          <Select value={app} onChange={(e) => setApp(e.target.value as App | '')}>
+            <option value="">{m.logs.allApps}</option>
+            {(Object.keys(m.apps) as App[]).map((value) => (
+              <option key={value} value={value}>
+                {m.apps[value]}
               </option>
             ))}
           </Select>

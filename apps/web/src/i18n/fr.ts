@@ -518,6 +518,8 @@ export const fr: Messages = {
     allKeys: 'Toutes les clés',
     allModels: 'Tous les modèles',
     result: 'Résultat',
+    app: 'App',
+    allApps: 'Toutes les apps',
     allResults: 'Tous les résultats',
     last24h: 'Dernières 24 heures',
     last7d: '7 derniers jours',

@@ -1,9 +1,10 @@
 // Alerts to Slack, Microsoft Teams and email: budgets running out, providers failing and coming
 // back, and a Monday summary. An admin without DevOps does not open the dashboard every day.
-import { and, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { failingProviders, keySpend, teamSpend } from './admin/stats.ts';
 import type { AppContext } from './context.ts';
-import { apiKeys, models, providers, requestLogs, settings, teams } from './db/schema.ts';
+import { type App, apiKeys, models, providers, requestLogs, settings, teams } from './db/schema.ts';
+import { APP_NAMES } from './gateway/apps.ts';
 import { findModel, modelLabel, ruleNumber } from './gateway/policy.ts';
 import { type Mail, sendMail } from './lib/smtp.ts';
 import { type Calendar, usd } from './lib/time.ts';
@@ -366,6 +367,20 @@ export async function weeklyNotice(
       return `${team.name} ${percent}% of ${usd(team.monthlyBudgetUsd!)}`;
     });
 
+  // Requests from before Spillway told apps apart have none and are left out.
+  const byApp = await ctx.db
+    .select({ app: requestLogs.app, requests: sql<number>`count(*)` })
+    .from(requestLogs)
+    .where(and(inWeek, isNotNull(requestLogs.app)))
+    .groupBy(requestLogs.app)
+    .orderBy(desc(sql`count(*)`))
+    .all();
+  const withApp = byApp.reduce((total, row) => total + row.requests, 0);
+  const apps = byApp
+    .filter((row): row is typeof row & { app: App } => row.app !== null)
+    .sort((a, b) => Number(a.app === 'other') - Number(b.app === 'other'))
+    .map((row) => `${APP_NAMES[row.app]} ${Math.round((row.requests / withApp) * 100)}%`);
+
   const day = (date: Date) =>
     date.toLocaleDateString('en-US', { timeZone: cal.zone, month: 'short', day: 'numeric' });
   const share = Math.round((totals.local / totals.requests) * 100);
@@ -380,6 +395,7 @@ export async function weeklyNotice(
         ...(spenders.length
           ? [`Top spenders: ${spenders.map((row) => `${row.name} ${usd(row.spend)}`).join(', ')}.`]
           : []),
+        ...(apps.length ? [`Requests by app: ${apps.join(', ')}.`] : []),
         ...(budgets.length ? [`Team budgets this month: ${budgets.join(', ')}.`] : []),
       ],
       path: '/',

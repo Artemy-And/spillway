@@ -7,6 +7,8 @@ import { passwordSchema } from '../auth/routes.ts';
 import { type AuthEnv, adminOnly, requireUser } from '../auth/session.ts';
 import { type AppContext, SOURCE_URL, VERSION } from '../context.ts';
 import {
+  APPS,
+  type App,
   apiKeys,
   KEY_KINDS,
   models,
@@ -292,7 +294,14 @@ export function adminRoutes(ctx: AppContext) {
       .get('/keys', async (c) => {
         const keyIds = await ownKeyIds(ctx, c.get('user'));
         const rows = await db
-          .select({ key: apiKeys, owner: users.name, ownerEmail: users.email, team: teams.name })
+          .select({
+            key: apiKeys,
+            owner: users.name,
+            ownerEmail: users.email,
+            team: teams.name,
+            // The app of the key's latest request: one step down its index and one row
+            lastApp: sql<App | null>`(select r.app from request_logs r where r.key_id = ${apiKeys.id} order by r.created_at desc limit 1)`,
+          })
           .from(apiKeys)
           .leftJoin(users, eq(apiKeys.userId, users.id))
           .leftJoin(teams, eq(apiKeys.teamId, teams.id))
@@ -305,13 +314,14 @@ export function adminRoutes(ctx: AppContext) {
           .all();
         const spend = await keySpend(db, keyIds, calendarOf(await ctx.settings.get()));
         return c.json(
-          rows.map(({ key, owner, ownerEmail, team }) => {
+          rows.map(({ key, owner, ownerEmail, team, lastApp }) => {
             const { hash: _hash, ...safe } = key;
             const usage = spend.get(key.id);
             return {
               ...safe,
               owner: owner ?? ownerEmail ?? null,
               team,
+              lastApp,
               spentToday: usage?.today ?? 0,
               spentMonth: usage?.month ?? 0,
               requestsMonth: usage?.requests ?? 0,
@@ -719,6 +729,7 @@ export function adminRoutes(ctx: AppContext) {
             keyId: z.string().optional(),
             model: z.string().optional(),
             result: z.enum(RESULTS).optional(),
+            app: z.enum(APPS).optional(),
             period: z.enum(['24h', '7d', '30d']).default('24h'),
             before: z.string().optional(),
             limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -765,6 +776,7 @@ export function adminRoutes(ctx: AppContext) {
                     )
                   : undefined,
                 query.result ? eq(requestLogs.result, query.result) : undefined,
+                query.app ? eq(requestLogs.app, query.app) : undefined,
                 query.before ? lt(requestLogs.createdAt, new Date(query.before)) : undefined,
               ),
             )

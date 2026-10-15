@@ -486,6 +486,8 @@ export const zh: Messages = {
     allKeys: '全部密钥',
     allModels: '全部模型',
     result: '结果',
+    app: '应用',
+    allApps: '全部应用',
     allResults: '全部结果',
     last24h: '最近 24 小时',
     last7d: '最近 7 天',

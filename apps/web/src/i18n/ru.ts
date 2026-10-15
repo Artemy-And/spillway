@@ -540,6 +540,8 @@ export const ru: Messages = {
     allKeys: 'Все ключи',
     allModels: 'Все модели',
     result: 'Результат',
+    app: 'Программа',
+    allApps: 'Все программы',
     allResults: 'Все результаты',
     last24h: 'Последние 24 часа',
     last7d: 'Последние 7 дней',
