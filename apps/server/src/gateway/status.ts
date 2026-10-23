@@ -8,7 +8,15 @@ import { requestLogs } from '../db/schema.ts';
 import { usd } from '../lib/time.ts';
 import { calendarOf } from '../settings.ts';
 import { authenticate } from './handler.ts';
-import { type Caller, type Decision, decide, spent, type Target } from './policy.ts';
+import {
+  askUrl,
+  type Caller,
+  type Decision,
+  dailyLimit,
+  decide,
+  spent,
+  type Target,
+} from './policy.ts';
 
 const LINE_MS = 10_000;
 const TEAM_MS = 60_000;
@@ -86,16 +94,13 @@ async function statusLine(
   const now = new Date();
   const { key, team } = caller;
   const parts = ['Spillway'];
-  if (key.dailyLimitUsd == null && key.monthlyLimitUsd != null) {
+  const limit = dailyLimit(key, cal, now);
+  if (limit == null && key.monthlyLimitUsd != null) {
     const month = await sum(ctx.db, requestLogs.keyId, key.id, cal.startOfMonth(now));
     parts.push(`${usd(month)} of ${usd(key.monthlyLimitUsd)} this month`);
   } else {
     const today = await sum(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now));
-    parts.push(
-      key.dailyLimitUsd == null
-        ? `${usd(today)} today`
-        : `${usd(today)} of ${usd(key.dailyLimitUsd)} today`,
-    );
+    parts.push(limit == null ? `${usd(today)} today` : `${usd(today)} of ${usd(limit)} today`);
   }
   if (team?.monthlyBudgetUsd) {
     const month = await sum(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now));
@@ -103,7 +108,12 @@ async function statusLine(
   }
   if (model) {
     const input = { caller, requestedName: model, pii: {}, settings, now, preview: true, sum };
-    parts.push(destination(await decide(ctx, input)));
+    const decision = await decide(ctx, input);
+    parts.push(destination(decision));
+    // The person behind the key can ask an admin for more today; others have no one to ask as.
+    if (key.userId && decision.trace.some((step) => step.code === 'keyDailyLimit')) {
+      parts.push(`ask for more: ${askUrl(ctx)}`);
+    }
   }
   return parts.join(' · ');
 }

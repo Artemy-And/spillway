@@ -45,6 +45,8 @@ export type TraceStep = {
 
 /** Why rule 5 stopped a key: what it spent in the last hour against its busiest hour before. */
 export type Runaway = { at: number; spent: number; usual: number };
+/** Dollars added to a key's daily limit for one day, "2026-10-23" on the gateway's calendar. */
+export type Extra = { day: string; usd: number };
 
 export const teams = sqliteTable('teams', {
   id: id(),
@@ -140,8 +142,32 @@ export const apiKeys = sqliteTable(
     revokedAt: timestamp('revoked_at'),
     /** Set when rule 5 stopped the key for unusual spending, until an admin lets it back */
     runaway: text('runaway', { mode: 'json' }).$type<Runaway>(),
+    /** What an admin added to the daily limit for one day, on the gateway's calendar */
+    extra: text('extra', { mode: 'json' }).$type<Extra>(),
   },
   (t) => [index('api_keys_user_idx').on(t.userId), index('api_keys_team_idx').on(t.teamId)],
+);
+
+/** Someone used up their key's daily limit and asked an admin for more, for that day. */
+export const limitAsks = sqliteTable(
+  'limit_asks',
+  {
+    id: id(),
+    keyId: text('key_id')
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    usd: real('usd').notNull(),
+    reason: text('reason'),
+    /** The day it is for, "2026-10-23" on the gateway's calendar */
+    day: text('day').notNull(),
+    createdAt: createdAt(),
+    /** null = waiting for an admin */
+    approved: integer('approved', { mode: 'boolean' }),
+    decidedAt: timestamp('decided_at'),
+    decidedBy: text('decided_by').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [index('limit_asks_day_idx').on(t.day, t.keyId)],
 );
 
 export const requestLogs = sqliteTable(
@@ -236,4 +262,5 @@ export type User = typeof users.$inferSelect;
 export type Provider = typeof providers.$inferSelect;
 export type Model = typeof models.$inferSelect;
 export type ApiKey = typeof apiKeys.$inferSelect;
+export type LimitAsk = typeof limitAsks.$inferSelect;
 export type RequestLog = typeof requestLogs.$inferSelect;

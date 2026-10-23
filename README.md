@@ -50,6 +50,9 @@ For a setup you keep, use [Docker Compose](#quick-start).
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
   per team and per key. Prices of well-known models fill in when you add them, and a cloud model
   without a price is flagged instead of quietly counting as free.
+- **Tight limits that do not stop work.** Someone who uses up the day's limit sees where to ask
+  for more, in Claude Code's status line or in the refusal their app shows. An admin gets a
+  message and approves it with one click; the extra counts for that day only.
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
 - **Team budgets and five routing rules**: switch to the local model at N% of the team budget, keep

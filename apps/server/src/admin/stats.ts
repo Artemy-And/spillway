@@ -1,7 +1,9 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { type App, apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
+import { dailyLimit } from '../gateway/policy.ts';
 import type { Calendar } from '../lib/time.ts';
+import { waitingAsks } from './asks.ts';
 
 export type Period = '7d' | '30d' | 'month';
 
@@ -383,6 +385,15 @@ type Alert =
     }
   | { tone: 'muted'; code: 'keyUnused'; key: string; days: number; at: number }
   | {
+      tone: 'warn';
+      code: 'limitAsk';
+      key: string;
+      person: string;
+      usd: number;
+      reason: string | null;
+      at: number;
+    }
+  | {
       tone: 'block';
       code: 'keyRunaway';
       key: string;
@@ -442,14 +453,15 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
       out.push({ tone: 'block', code: 'keyRunaway', key: key.name, spent, usual, at });
     }
     const today = spend.get(key.id)?.today ?? 0;
-    if (key.dailyLimitUsd && today >= key.dailyLimitUsd * 0.8) {
-      const percent = Math.round((today / key.dailyLimitUsd) * 100);
+    const limit = dailyLimit(key, cal, now);
+    if (limit && today >= limit * 0.8) {
+      const percent = Math.round((today / limit) * 100);
       out.push({
         tone: percent >= 100 ? 'block' : 'warn',
         code: 'keyLimit',
         key: key.name,
         percent,
-        limit: key.dailyLimitUsd,
+        limit,
         team,
         at: now.getTime(),
       });
@@ -462,6 +474,21 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
         key: key.name,
         days: Math.floor((now.getTime() - lastUsed.getTime()) / DAY),
         at: 0,
+      });
+    }
+  }
+
+  // Someone used up their daily limit and asked for more; it waits for an admin.
+  if (!keyIds) {
+    for (const ask of await waitingAsks(db, cal, now)) {
+      out.push({
+        tone: 'warn',
+        code: 'limitAsk',
+        key: ask.key,
+        person: ask.person,
+        usd: ask.usd,
+        reason: ask.reason,
+        at: ask.createdAt.getTime(),
       });
     }
   }

@@ -56,12 +56,12 @@ function status(key: KeyRow, m: Messages): { label: string; tone: Tone } {
   const labels = m.keys.status;
   if (key.revokedAt) return { label: labels.revoked, tone: 'off' };
   if (key.runaway) return { label: labels.stopped, tone: 'block' };
-  if (key.dailyLimitUsd != null && key.spentToday >= key.dailyLimitUsd) {
+  if (key.dailyLimitToday != null && key.spentToday >= key.dailyLimitToday) {
     return key.fallbackToLocal
       ? { label: labels.localOnly, tone: 'info' }
       : { label: labels.limitReached, tone: 'block' };
   }
-  if (key.dailyLimitUsd && key.spentToday >= key.dailyLimitUsd * 0.8)
+  if (key.dailyLimitToday && key.spentToday >= key.dailyLimitToday * 0.8)
     return { label: labels.nearLimit, tone: 'warn' };
   return { label: labels.active, tone: 'ok' };
 }
@@ -96,9 +96,17 @@ export function KeysPage() {
     | { mode: 'new' }
     | { mode: 'edit'; id: string }
     | { mode: 'created'; key: string; name: string }
+    | { mode: 'ask'; id: string }
     | null
   >(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [askDraft, setAskDraft] = useState({ usd: '', reason: '' });
+  // Admins get what waits for them; everyone else what they asked for today.
+  const { data: asks = [] } = useQuery({
+    queryKey: ['asks'],
+    queryFn: () => unwrap(api.asks.$get()),
+    refetchInterval: 30_000,
+  });
 
   const counts = useMemo(() => {
     const live = keys.filter((k) => !k.revokedAt);
@@ -166,6 +174,30 @@ export function KeysPage() {
     onSuccess: refresh,
   });
 
+  const refreshAsks = () =>
+    Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: ['asks'] })]);
+  const askMore = useMutation({
+    mutationFn: (json: { keyId: string; usd: number; reason?: string }) =>
+      unwrap(api.asks.$post({ json })),
+    onSuccess: async () => {
+      await refreshAsks();
+      setPanel(null);
+    },
+  });
+  const answer = useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) =>
+      approve
+        ? unwrap(api.asks[':id'].approve.$post({ param: { id } }))
+        : unwrap(api.asks[':id'].decline.$post({ param: { id } })),
+    onSuccess: refreshAsks,
+  });
+
+  const openAsk = (key: KeyRow) => {
+    askMore.reset();
+    setAskDraft({ usd: key.dailyLimitUsd?.toString() ?? '', reason: '' });
+    setPanel({ mode: 'ask', id: key.id });
+  };
+
   const openNew = () => {
     save.reset();
     setDraft({ ...EMPTY, teamId: me?.user.teamId ?? '' });
@@ -188,6 +220,7 @@ export function KeysPage() {
   };
 
   const editing = panel?.mode === 'edit' ? keys.find((k) => k.id === panel.id) : undefined;
+  const asking = panel?.mode === 'ask' ? keys.find((k) => k.id === panel.id) : undefined;
 
   return (
     <>
@@ -225,6 +258,52 @@ export function KeysPage() {
             </label>
           </div>
 
+          {isAdmin && asks.length > 0 && (
+            <Card aria-label={m.keys.asksTitle} className="flex flex-col gap-1 px-5 py-4">
+              <h2 className="mb-1 text-[15px] font-semibold">{m.keys.asksTitle}</h2>
+              {asks.map((ask) => {
+                const key = keys.find((row) => row.id === ask.keyId);
+                return (
+                  <div
+                    key={ask.id}
+                    className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft py-2.5 first-of-type:border-0"
+                  >
+                    <div className="flex min-w-0 flex-col gap-0.5 text-sm">
+                      <span>
+                        {m.keys.asksLine(ask.person || m.keys.noOwner, fmtLimit(ask.usd), ask.key)}
+                      </span>
+                      <span className="text-xs text-muted">
+                        {[
+                          key?.dailyLimitToday != null &&
+                            `${fmtUsd(key.spentToday)} / ${fmtLimit(key.dailyLimitToday)}`,
+                          ask.reason,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        disabled={answer.isPending}
+                        onClick={() => answer.mutate({ id: ask.id, approve: false })}
+                      >
+                        {m.keys.decline}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        disabled={answer.isPending}
+                        onClick={() => answer.mutate({ id: ask.id, approve: true })}
+                      >
+                        {m.keys.approve}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              <ErrorNote error={answer.error} />
+            </Card>
+          )}
+
           <Card className="overflow-x-auto px-5 py-1">
             <div className="min-w-[640px]">
               <div className="grid grid-cols-[2fr_0.9fr_1.7fr_1fr_1fr] gap-3.5 border-b border-line py-3 text-xs font-medium text-muted">
@@ -237,7 +316,19 @@ export function KeysPage() {
               {visible.length === 0 && <Empty>{keys.length ? m.keys.noMatch : m.keys.none}</Empty>}
               {visible.map((key) => {
                 const s = status(key, m);
-                const used = key.dailyLimitUsd ? pct(key.spentToday, key.dailyLimitUsd) : 0;
+                const limit = key.dailyLimitToday;
+                const used = limit ? pct(key.spentToday, limit) : 0;
+                const extra =
+                  limit != null && key.dailyLimitUsd != null ? limit - key.dailyLimitUsd : 0;
+                // Someone can ask an admin for more on their own key once it is nearly used up.
+                // Admins change the limit themselves instead.
+                const mine = !!me && !isAdmin && key.userId === me.user.id && !key.revokedAt;
+                const myAsk = mine ? asks.find((ask) => ask.keyId === key.id) : undefined;
+                const canAsk =
+                  mine &&
+                  limit != null &&
+                  key.spentToday >= limit * 0.8 &&
+                  myAsk?.approved !== null;
                 return (
                   <div
                     key={key.id}
@@ -267,7 +358,7 @@ export function KeysPage() {
                       <Chip>{m.kinds[key.kind]}</Chip>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      {key.dailyLimitUsd != null ? (
+                      {limit != null ? (
                         <>
                           <Progress
                             value={used}
@@ -275,7 +366,12 @@ export function KeysPage() {
                             label={m.keys.limitUsed(key.name)}
                           />
                           <span className="font-mono text-xs text-ink-2">
-                            {fmtUsd(key.spentToday)} / {fmtLimit(key.dailyLimitUsd)}
+                            {fmtUsd(key.spentToday)} / {fmtLimit(limit)}
+                            {extra > 0 && (
+                              <span className="ml-1.5 font-sans text-accent">
+                                {m.keys.extraToday(fmtLimit(extra))}
+                              </span>
+                            )}
                           </span>
                         </>
                       ) : (
@@ -302,6 +398,23 @@ export function KeysPage() {
                           {m.keys.letBack}
                         </button>
                       )}
+                      {mine && myAsk?.approved === null && (
+                        <span className="text-xs text-muted">
+                          {m.keys.asked(fmtLimit(myAsk.usd))}
+                        </span>
+                      )}
+                      {mine && myAsk?.approved === false && (
+                        <span className="text-xs text-muted">{m.keys.askDeclined}</span>
+                      )}
+                      {canAsk && (
+                        <button
+                          type="button"
+                          onClick={() => openAsk(key)}
+                          className="cursor-pointer text-xs font-medium text-accent hover:underline"
+                        >
+                          {m.keys.askMore}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -312,6 +425,68 @@ export function KeysPage() {
 
         {panel?.mode === 'created' && (
           <CreatedKey name={panel.name} value={panel.key} onClose={() => setPanel(null)} />
+        )}
+
+        {asking && (
+          <Aside label={m.keys.askMore}>
+            <form
+              className="flex flex-col gap-[18px]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                askMore.mutate({
+                  keyId: asking.id,
+                  usd: Number(askDraft.usd),
+                  reason: askDraft.reason.trim() || undefined,
+                });
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-[17px] font-semibold">{m.keys.askTitle(asking.name)}</h2>
+                <button
+                  type="button"
+                  aria-label={m.common.close}
+                  onClick={() => setPanel(null)}
+                  className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <span className="font-mono text-[13px] text-ink-2">
+                {fmtUsd(asking.spentToday)} / {fmtLimit(asking.dailyLimitToday ?? 0)}
+              </span>
+              <Field label={m.keys.askAmount}>
+                <Input
+                  mono
+                  required
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  value={askDraft.usd}
+                  onChange={(e) => setAskDraft({ ...askDraft, usd: e.target.value })}
+                />
+              </Field>
+              <Field label={m.keys.askReason}>
+                <Input
+                  maxLength={500}
+                  placeholder={m.keys.askReasonPlaceholder}
+                  value={askDraft.reason}
+                  onChange={(e) => setAskDraft({ ...askDraft, reason: e.target.value })}
+                />
+              </Field>
+              <p className="text-[13px] leading-relaxed text-muted">{m.keys.askNote}</p>
+              <ErrorNote error={askMore.error} />
+              <div className="flex justify-end gap-2.5">
+                <Button onClick={() => setPanel(null)}>{m.common.cancel}</Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={askMore.isPending || !(Number(askDraft.usd) > 0)}
+                >
+                  {m.keys.askSend}
+                </Button>
+              </div>
+            </form>
+          </Aside>
         )}
 
         {(panel?.mode === 'new' || panel?.mode === 'edit') && (

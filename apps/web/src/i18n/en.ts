@@ -352,6 +352,9 @@ export const en = {
     keyRunaway: (a: AlertOf<'keyRunaway'>) =>
       `${a.key} was stopped for unusual spending: ${fmtUsd(a.spent)} in an hour, while its busiest hour before was ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'If this is expected, let it back on the Keys page',
+    limitAsk: (a: AlertOf<'limitAsk'>) =>
+      `${a.person} asks for ${fmtLimit(a.usd)} more today on ${a.key}`,
+    approveOnKeys: 'Approve or decline it on the Keys page',
     modelNoPrice: (a: AlertOf<'modelNoPrice'>) =>
       p(a.models.length, {
         one: '# cloud model has no price, so its spend is not counted',
@@ -419,6 +422,22 @@ export const en = {
     fallbackNone: 'Pick a local model in Settings first; until then requests are blocked.',
     adminSets: 'Limits for your keys are set by an admin.',
     revoke: 'Revoke',
+    askMore: 'Ask for more',
+    askTitle: (name: string) => `Ask for more on ${name}`,
+    askAmount: 'How much more today, $',
+    askReason: 'Why (optional)',
+    askReasonPlaceholder: 'Release prep, a long refactor…',
+    askNote:
+      'An admin gets a message and answers on this page. What they approve is added for today only.',
+    askSend: 'Ask',
+    asked: (amount: string) => `Asked for ${amount} more · waiting`,
+    extraToday: (amount: string) => `+${amount} today`,
+    askDeclined: 'An admin declined today',
+    asksTitle: 'Asking for more today',
+    asksLine: (person: string, amount: string, key: string) =>
+      `${person} asks for ${amount} more today on ${key}`,
+    approve: 'Approve',
+    decline: 'Decline',
     letBack: 'Let back',
     stoppedNote: (spent: string, usual: string, time: string) =>
       `Rule 5 stopped this key at ${time}: it spent ${spent} in an hour, while its busiest hour in the two weeks before was ${usual}. Its cloud requests go to the local model, or are refused, until you let it back.`,

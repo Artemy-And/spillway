@@ -23,7 +23,7 @@ import {
   type User,
   users,
 } from '../db/schema.ts';
-import { findModel } from '../gateway/policy.ts';
+import { dailyLimit, findModel } from '../gateway/policy.ts';
 import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { letAllBack, letBack } from '../gateway/runaway.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
@@ -37,6 +37,7 @@ import {
   rulesSchema,
   settingsPatch,
 } from '../settings.ts';
+import { answerAsk, askForMore, asksBy, waitingAsks } from './asks.ts';
 import { checkLocal, LocalCheckError, lengthenContext } from './local-check.ts';
 import {
   failingProviders,
@@ -96,6 +97,12 @@ const modelInput = z.object({
 });
 
 const idParam = zValidator('param', z.object({ id: z.string() }));
+
+const askInput = z.object({
+  keyId: z.string(),
+  usd: z.number().positive().max(100_000),
+  reason: z.string().trim().max(500).optional(),
+});
 
 /** null = everything (admins); otherwise the ids of the person's own keys. */
 async function ownKeyIds(ctx: AppContext, user: User): Promise<string[] | null> {
@@ -313,7 +320,8 @@ export function adminRoutes(ctx: AppContext) {
             desc(apiKeys.createdAt),
           )
           .all();
-        const spend = await keySpend(db, keyIds, calendarOf(await ctx.settings.get()));
+        const cal = calendarOf(await ctx.settings.get());
+        const spend = await keySpend(db, keyIds, cal);
         return c.json(
           rows.map(({ key, owner, ownerEmail, team, lastApp }) => {
             const { hash: _hash, ...safe } = key;
@@ -323,6 +331,8 @@ export function adminRoutes(ctx: AppContext) {
               owner: owner ?? ownerEmail ?? null,
               team,
               lastApp,
+              /** The daily limit plus what an admin approved on top for today */
+              dailyLimitToday: dailyLimit(key, cal),
               spentToday: usage?.today ?? 0,
               spentMonth: usage?.month ?? 0,
               requestsMonth: usage?.requests ?? 0,
@@ -374,6 +384,43 @@ export function adminRoutes(ctx: AppContext) {
       .post('/keys/:id/let-back', adminOnly, idParam, async (c) => {
         const ok = await letBack(ctx, c.req.valid('param').id);
         if (!ok) return c.json({ error: 'This key is not stopped' }, 409);
+        return c.json({ ok: true });
+      })
+
+      // ── Asking for more ─────────────────────────────────────────────────────
+      // Admins see what waits for them; everyone else sees what they asked for today.
+      .get('/asks', async (c) => {
+        const user = c.get('user');
+        const cal = calendarOf(await ctx.settings.get());
+        return c.json(
+          user.role === 'admin' ? await waitingAsks(db, cal) : await asksBy(db, user.id, cal),
+        );
+      })
+
+      .post('/asks', zValidator('json', askInput), async (c) => {
+        const { keyId, usd, reason } = c.req.valid('json');
+        const result = await askForMore(
+          db,
+          { keyId, userId: c.get('user').id, usd, reason: reason || null },
+          calendarOf(await ctx.settings.get()),
+        );
+        if ('error' in result) return c.json({ error: result.error }, result.status);
+        return c.json(result.ask, 201);
+      })
+
+      .post('/asks/:id/approve', adminOnly, idParam, async (c) => {
+        const { id } = c.req.valid('param');
+        const cal = calendarOf(await ctx.settings.get());
+        const result = await answerAsk(db, id, true, c.get('user').id, cal);
+        if ('error' in result) return c.json({ error: result.error }, result.status);
+        return c.json({ ok: true });
+      })
+
+      .post('/asks/:id/decline', adminOnly, idParam, async (c) => {
+        const { id } = c.req.valid('param');
+        const cal = calendarOf(await ctx.settings.get());
+        const result = await answerAsk(db, id, false, c.get('user').id, cal);
+        if ('error' in result) return c.json({ error: result.error }, result.status);
         return c.json({ ok: true });
       })
 

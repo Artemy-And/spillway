@@ -379,6 +379,8 @@ export const es: Messages = {
     keyRunaway: (a) =>
       `${a.key} se detuvo por un gasto inusual: ${fmtUsd(a.spent)} en una hora, cuando su hora más cara antes fue de ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Si es lo previsto, reactívela en la página Claves',
+    limitAsk: (a) => `${a.person} pide ${fmtLimit(a.usd)} más para hoy en ${a.key}`,
+    approveOnKeys: 'Apruébelo o recháselo en la página Claves',
     modelNoPrice: (a) =>
       `Modelos en la nube sin precio: ${a.models.length}. Su gasto no cuenta en los presupuestos`,
     piiBlocked: (a) =>
@@ -439,6 +441,21 @@ export const es: Messages = {
       'Elige primero un modelo local en Ajustes; hasta entonces las solicitudes se bloquean.',
     adminSets: 'Los límites de tus claves los fija un admin.',
     revoke: 'Revocar',
+    askMore: 'Pedir más',
+    askTitle: (name) => `Pedir más para ${name}`,
+    askAmount: 'Cuánto más para hoy, $',
+    askReason: 'Por qué (opcional)',
+    askReasonPlaceholder: 'Preparar la versión, una refactorización larga…',
+    askNote:
+      'Un admin recibe un mensaje y responde en esta página. Lo que apruebe se suma solo por hoy.',
+    askSend: 'Pedir',
+    asked: (amount) => `Pediste ${amount} más · esperando respuesta`,
+    extraToday: (amount) => `+${amount} hoy`,
+    askDeclined: 'Un admin lo rechazó hoy',
+    asksTitle: 'Piden más para hoy',
+    asksLine: (person, amount, key) => `${person} pide ${amount} más para hoy en ${key}`,
+    approve: 'Aprobar',
+    decline: 'Rechazar',
     letBack: 'Reactivar',
     stoppedNote: (spent, usual, time) =>
       `La regla 5 detuvo esta clave a las ${time}: gastó ${spent} en una hora, cuando su hora más cara de las dos semanas anteriores fue de ${usual}. Hasta que la reactive, sus solicitudes a la nube van al modelo local o se rechazan.`,

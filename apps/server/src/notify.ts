@@ -1,11 +1,12 @@
 // Alerts to Slack, Microsoft Teams and email: budgets running out, providers failing and coming
 // back, and a Monday summary. An admin without DevOps does not open the dashboard every day.
 import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { waitingAsks } from './admin/asks.ts';
 import { failingProviders, keySpend, teamSpend } from './admin/stats.ts';
 import type { AppContext } from './context.ts';
 import { type App, apiKeys, models, providers, requestLogs, settings, teams } from './db/schema.ts';
 import { APP_NAMES } from './gateway/apps.ts';
-import { findModel, modelLabel, ruleNumber } from './gateway/policy.ts';
+import { dailyLimit, findModel, modelLabel, ruleNumber } from './gateway/policy.ts';
 import { type Mail, sendMail } from './lib/smtp.ts';
 import { type Calendar, usd } from './lib/time.ts';
 import { calendarOf, type Settings } from './settings.ts';
@@ -218,14 +219,16 @@ async function budgetNotices(
         },
       ]);
     }
-    // A zero limit means no cloud at all for this key, which is no news.
-    if (key.dailyLimitUsd && (usage?.today ?? 0) >= key.dailyLimitUsd) {
+    // A zero limit means no cloud at all for this key, which is no news. A limit raised for the
+    // day is news again when it runs out too.
+    const limit = dailyLimit(key, cal, now);
+    if (limit && (usage?.today ?? 0) >= limit) {
       out.push([
-        `key-day:${key.id}:${cal.dayKey(now)}`,
+        `key-day:${key.id}:${cal.dayKey(now)}${limit === key.dailyLimitUsd ? '' : `:${limit}`}`,
         {
           title: `Key ${key.name} reached its daily limit`,
           lines: [
-            `${usd(usage?.today ?? 0)} of ${usd(key.dailyLimitUsd)} spent today.`,
+            `${usd(usage?.today ?? 0)} of ${usd(limit)} spent today.`,
             `Its cloud requests ${then} until midnight.`,
           ],
           path: '/keys',
@@ -244,6 +247,25 @@ async function budgetNotices(
         },
       ]);
     }
+  }
+
+  for (const ask of await waitingAsks(ctx.db, cal, now)) {
+    const key = keys.find((row) => row.id === ask.keyId);
+    const limit = key ? dailyLimit(key, cal, now) : null;
+    out.push([
+      `ask:${ask.id}`,
+      {
+        title: `${ask.person || 'Someone'} asks for ${usd(ask.usd)} more today on ${ask.key}`,
+        lines: [
+          ...(limit != null
+            ? [`${usd(spend.get(ask.keyId)?.today ?? 0)} of ${usd(limit)} spent today.`]
+            : []),
+          ...(ask.reason ? [`Why: ${ask.reason}`] : []),
+          'Approve or decline it on the Keys page.',
+        ],
+        path: '/keys',
+      },
+    ]);
   }
   return out;
 }

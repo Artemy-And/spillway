@@ -15,15 +15,31 @@ import {
   type User,
 } from '../db/schema.ts';
 import { describePii, type PiiCounts, type PiiKind } from '../lib/pii.ts';
-import { usd } from '../lib/time.ts';
+import { type Calendar, usd } from '../lib/time.ts';
 import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
 
+/** A key read from the database; one put together in code may leave out the newer columns */
+export type CallerKey = Omit<ApiKey, 'runaway' | 'extra'> &
+  Partial<Pick<ApiKey, 'runaway' | 'extra'>>;
+
 export interface Caller {
-  /** A key read from the database; one put together in code may leave out rule 5's state */
-  key: Omit<ApiKey, 'runaway'> & Partial<Pick<ApiKey, 'runaway'>>;
+  key: CallerKey;
   team: Team | null;
   user: User | null;
 }
+
+/** A key's daily limit today: what an admin set, plus what one approved on top for today. */
+export function dailyLimit(
+  key: Pick<CallerKey, 'dailyLimitUsd' | 'extra'>,
+  cal: Calendar,
+  now = new Date(),
+): number | null {
+  if (key.dailyLimitUsd == null) return null;
+  return key.dailyLimitUsd + (key.extra?.day === cal.dayKey(now) ? key.extra.usd : 0);
+}
+
+/** Where a person whose key used up its daily limit can ask an admin for more. */
+export const askUrl = (ctx: AppContext) => `${ctx.env.PUBLIC_URL.replace(/\/+$/, '')}/keys`;
 
 export interface Target {
   model: Model;
@@ -200,6 +216,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
     } | null = null;
 
     const sum = input.sum ?? spent;
+    const today = dailyLimit(key, cal, now);
     const keyDay =
       key.dailyLimitUsd != null
         ? await sum(ctx.db, requestLogs.keyId, key.id, cal.startOfDay(now))
@@ -227,13 +244,13 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         allowed: key.fallbackToLocal,
         hard: true,
       };
-    } else if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
+    } else if (today != null && keyDay >= today) {
       reroute = {
         reason: step(
           'warn',
-          `Key ${key.name} reached its ${usd(key.dailyLimitUsd)} daily limit (${usd(keyDay)} spent)`,
+          `Key ${key.name} reached its ${usd(today)} daily limit (${usd(keyDay)} spent)`,
           'keyDailyLimit',
-          { key: key.name, limit: key.dailyLimitUsd, spent: keyDay },
+          { key: key.name, limit: today, spent: keyDay },
         ),
         ruleId: null,
         allowed: key.fallbackToLocal,
@@ -337,7 +354,12 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
                   'Request blocked: no local model is configured',
                   'blockedNoLocalModel',
                 );
-        return stop('blocked_budget', 429, blocked, requested, reroute.ruleId);
+        const refused = stop('blocked_budget', 429, blocked, requested, reroute.ruleId);
+        // The client shows this text: someone who used up the day's limit learns where to ask.
+        if (reroute.reason.code === 'keyDailyLimit' && key.userId) {
+          refused.message = `${reroute.reason.text}. ${blocked.text}. Ask an admin for more: ${askUrl(ctx)}`;
+        }
+        return refused;
       }
       target = local;
       result = 'rerouted';
@@ -353,7 +375,7 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       );
     } else {
       const parts = [
-        key.dailyLimitUsd != null ? `key ${usd(keyDay)} of ${usd(key.dailyLimitUsd)} today` : null,
+        today != null ? `key ${usd(keyDay)} of ${usd(today)} today` : null,
         team?.monthlyBudgetUsd
           ? `${team.name} at ${Math.round((teamMonth / team.monthlyBudgetUsd) * 100)}% of ${usd(team.monthlyBudgetUsd)}`
           : null,
@@ -361,8 +383,8 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
       trace.push(
         parts.length
           ? step('ok', `Within budget: ${parts.join(' · ')}`, 'withinBudget', {
-              keySpent: key.dailyLimitUsd != null ? keyDay : null,
-              keyLimit: key.dailyLimitUsd,
+              keySpent: today != null ? keyDay : null,
+              keyLimit: today,
               team: team?.monthlyBudgetUsd ? team.name : null,
               teamPercent: team?.monthlyBudgetUsd
                 ? Math.round((teamMonth / team.monthlyBudgetUsd) * 100)

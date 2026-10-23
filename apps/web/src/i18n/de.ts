@@ -381,6 +381,8 @@ export const de: Messages = {
     keyRunaway: (a) =>
       `${a.key} wurde wegen ungewöhnlicher Ausgaben gestoppt: ${fmtUsd(a.spent)} in einer Stunde, die teuerste Stunde davor lag bei ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Wenn das so gewollt ist, auf der Seite „Schlüssel“ freigeben',
+    limitAsk: (a) => `${a.person} fragt für heute ${fmtLimit(a.usd)} mehr für ${a.key} an`,
+    approveOnKeys: 'Auf der Seite „Schlüssel“ freigeben oder ablehnen',
     modelNoPrice: (a) =>
       `Cloud-Modelle ohne Preis: ${a.models.length}. Ihre Kosten fließen nicht in die Budgets ein`,
     piiBlocked: (a) =>
@@ -442,6 +444,21 @@ export const de: Messages = {
       'Wählen Sie zuerst in den Einstellungen ein lokales Modell; bis dahin werden Anfragen blockiert.',
     adminSets: 'Limits für Ihre Schlüssel legt ein Admin fest.',
     revoke: 'Widerrufen',
+    askMore: 'Mehr anfragen',
+    askTitle: (name) => `Mehr für ${name} anfragen`,
+    askAmount: 'Wie viel mehr für heute, $',
+    askReason: 'Warum (optional)',
+    askReasonPlaceholder: 'Release-Vorbereitung, großes Refactoring …',
+    askNote:
+      'Ein Admin bekommt eine Nachricht und antwortet auf dieser Seite. Was er freigibt, gilt nur für heute.',
+    askSend: 'Anfragen',
+    asked: (amount) => `${amount} mehr angefragt · wartet auf Antwort`,
+    extraToday: (amount) => `+${amount} für heute`,
+    askDeclined: 'Heute von einem Admin abgelehnt',
+    asksTitle: 'Anfragen für heute',
+    asksLine: (person, amount, key) => `${person} fragt für heute ${amount} mehr für ${key} an`,
+    approve: 'Freigeben',
+    decline: 'Ablehnen',
     letBack: 'Freigeben',
     stoppedNote: (spent, usual, time) =>
       `Regel 5 hat diesen Schlüssel um ${time} gestoppt: ${spent} in einer Stunde, während die teuerste Stunde der zwei Wochen davor bei ${usual} lag. Bis Sie ihn freigeben, gehen seine Cloud-Anfragen an das lokale Modell oder werden abgelehnt.`,
