@@ -52,6 +52,8 @@ export interface TraceParams {
   /** promptCut: tokens sent, about, and tokens Ollama kept */
   sent?: number;
   kept?: number;
+  /** runaway: the key's busiest hour before it was stopped */
+  usual?: number;
 }
 
 /** "card numbers ×2, emails ×1" with the language's own labels. */

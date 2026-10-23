@@ -25,6 +25,7 @@ const RESET = '\x1b[0m';
 
 /** Why a request would not go to the model asked for, by trace step. */
 const REASONS: Record<string, string> = {
+  runaway: 'stopped: unusual spending',
   keyDailyLimit: 'daily limit reached',
   keyMonthlyLimit: 'monthly limit reached',
   teamBudget: 'team budget',

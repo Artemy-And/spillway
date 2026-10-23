@@ -382,6 +382,16 @@ type Alert =
       at: number;
     }
   | { tone: 'muted'; code: 'keyUnused'; key: string; days: number; at: number }
+  | {
+      tone: 'block';
+      code: 'keyRunaway';
+      key: string;
+      /** Spent in the hour before rule 5 stopped the key */
+      spent: number;
+      /** The key's busiest hour before that */
+      usual: number;
+      at: number;
+    }
   | { tone: 'block'; code: 'piiBlocked'; key: string; count: number; at: number }
   | {
       tone: 'block';
@@ -427,6 +437,10 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
   const spend = await keySpend(db, keyIds, cal, now);
 
   for (const { key, team } of keys) {
+    if (key.runaway) {
+      const { spent, usual, at } = key.runaway;
+      out.push({ tone: 'block', code: 'keyRunaway', key: key.name, spent, usual, at });
+    }
     const today = spend.get(key.id)?.today ?? 0;
     if (key.dailyLimitUsd && today >= key.dailyLimitUsd * 0.8) {
       const percent = Math.round((today / key.dailyLimitUsd) * 100);

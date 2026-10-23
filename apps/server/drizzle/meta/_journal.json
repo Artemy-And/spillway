@@ -71,6 +71,13 @@
       "when": 1792078349333,
       "tag": "0009_local_use_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792764754682,
+      "tag": "0010_runaway_guard",
+      "breakpoints": true
     }
   ]
 }

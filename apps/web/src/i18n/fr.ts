@@ -378,6 +378,9 @@ export const fr: Messages = {
     keyUnused: (a) =>
       `La clé ${a.key} n’a pas servi depuis ${p(a.days, { one: '# jour', other: '# jours' })}`,
     considerRevoking: 'Envisagez de la révoquer',
+    keyRunaway: (a) =>
+      `${a.key} a été arrêtée pour dépenses inhabituelles : ${fmtUsd(a.spent)} en une heure, alors que son heure la plus chère auparavant était de ${fmtUsd(a.usual)}`,
+    letBackOnKeys: 'Si c’est voulu, rétablissez-la sur la page Clés',
     modelNoPrice: (a) =>
       `Modèles cloud sans prix : ${a.models.length}. Leurs coûts ne comptent pas dans les budgets`,
     piiBlocked: (a) =>
@@ -419,6 +422,7 @@ export const fr: Messages = {
       revoked: 'Révoquée',
       localOnly: 'Local uniquement',
       limitReached: 'Limite atteinte',
+      stopped: 'Arrêtée',
       nearLimit: 'Proche de la limite',
       active: 'Active',
     },
@@ -437,6 +441,9 @@ export const fr: Messages = {
       'Choisissez d’abord un modèle local dans les réglages ; d’ici là, les requêtes sont bloquées.',
     adminSets: 'Les limites de vos clés sont fixées par un admin.',
     revoke: 'Révoquer',
+    letBack: 'Rétablir',
+    stoppedNote: (spent, usual, time) =>
+      `La règle 5 a arrêté cette clé à ${time} : ${spent} en une heure, alors que son heure la plus chère des deux semaines précédentes était de ${usual}. Tant que vous ne la rétablissez pas, ses requêtes vers le cloud vont au modèle local ou sont refusées.`,
     revokeConfirm: (name) =>
       `Révoquer ${name} ? Les applications qui l’utilisent cessent aussitôt de fonctionner.`,
     create: 'Créer la clé',
@@ -501,6 +508,13 @@ export const fr: Messages = {
     startLabel: 'Début de journée',
     endLabel: 'Fin de journée',
     offThen: 'Modèles locaux uniquement',
+    runawayBefore: 'Une clé sans limite propre dépense plus de',
+    runawayMiddle: '× son heure la plus chère des deux semaines précédentes, et au moins',
+    runawayAfter: '$ en une heure',
+    timesLabel: 'Multiple de son heure la plus chère',
+    minLabel: 'Dépense minimale en une heure, dollars',
+    runawayThen: (local) =>
+      `Arrêter la clé : envoyer ses requêtes à ${local} jusqu’à ce qu’un admin la rétablisse`,
     zoneHint: 'Fuseau horaire de la passerelle. Modifiable dans les paramètres.',
     matched: (n) => `Déclenchée ${times(n)} ce mois-ci`,
     discard: 'Annuler les changements',
@@ -584,6 +598,10 @@ export const fr: Messages = {
     blockedKeyNoFallback: () =>
       'Requête bloquée : cette clé bloque au lieu de passer à un modèle local',
     blockedNoLocalModel: () => 'Requête bloquée : aucun modèle local n’est configuré',
+    runaway: (t: TraceParams) =>
+      `Règle ${t.rule} : la clé ${t.key} a dépensé ${fmtUsd(t.spent ?? 0)} en une heure ; son heure la plus chère auparavant était de ${fmtUsd(t.usual ?? 0)}`,
+    runawayStopped: () =>
+      'Requête bloquée : Spillway a arrêté cette clé pour dépenses inhabituelles ; un admin peut la rétablir sur la page Clés',
     embeddings: (t: TraceParams) =>
       `Embeddings pour ${p(t.count ?? 1, { one: '# texte', other: '# textes' })}`,
     ruleSkippedEmbeddings: (t: TraceParams) =>

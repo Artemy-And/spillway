@@ -17,6 +17,17 @@ export const rulesSchema = z.object({
   offHours: z
     .object({ enabled: z.boolean(), from: time, to: time })
     .default({ enabled: false, from: '08:00', to: '20:00' }),
+  /**
+   * A key without limits of its own that spends `times` its busiest hour before, and at least
+   * `minUsd` in an hour, stops until an admin lets it back
+   */
+  runawayGuard: z
+    .object({
+      enabled: z.boolean(),
+      times: z.number().int().min(2).max(100),
+      minUsd: z.number().min(1).max(100_000),
+    })
+    .default({ enabled: true, times: 3, minUsd: 20 }),
 });
 
 /** Where alerts go and which ones. Webhook URLs are secrets: they are kept sealed by the vault. */
@@ -87,7 +98,13 @@ export type RuleId = keyof Settings['rules'];
 /** The calendar budgets and working hours follow. */
 export const calendarOf = (settings: Settings) => calendar(settings.timeZone ?? SERVER_ZONE);
 
-export const RULE_IDS: RuleId[] = ['budgetThreshold', 'piiGuard', 'agentRateLimit', 'offHours'];
+export const RULE_IDS: RuleId[] = [
+  'budgetThreshold',
+  'piiGuard',
+  'agentRateLimit',
+  'offHours',
+  'runawayGuard',
+];
 
 const KEY = 'app';
 
@@ -106,7 +123,8 @@ export class SettingsStore {
     return this.#cache;
   }
 
-  async update(patch: Partial<Settings>): Promise<Settings> {
+  /** Takes what the schema takes: parts left out of a section, like a newer rule, get defaults. */
+  async update(patch: Partial<z.input<typeof settingsSchema>>): Promise<Settings> {
     const next = settingsSchema.parse({ ...(await this.get()), ...patch });
     await this.#db
       .insert(settings)

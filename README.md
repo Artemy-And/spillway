@@ -52,14 +52,19 @@ For a setup you keep, use [Docker Compose](#quick-start).
   without a price is flagged instead of quietly counting as free.
 - **The cloud goes down, work does not.** When a provider fails, times out or rate limits, the
   local model answers instead, and the provider shows up under Needs attention.
-- **Team budgets and four routing rules**: switch to the local model at N% of the team budget, keep
+- **Team budgets and five routing rules**: switch to the local model at N% of the team budget, keep
   card numbers, IBANs, US Social Security and UK National Insurance numbers, passport numbers and
-  API keys away from cloud models, rate limit agents, and keep off-hours traffic local. Numbers that
-  need context, like passports, only count next to the word itself, so timestamps and IDs in code
-  never block a request.
+  API keys away from cloud models, rate limit agents, keep off-hours traffic local, and stop a
+  runaway key. Numbers that need context, like passports, only count next to the word itself, so
+  timestamps and IDs in code never block a request.
+- **A brake for runaway agents.** A key without a limit of its own that suddenly spends far more in
+  an hour than in any hour of the two weeks before (by default three times, and at least $20) is
+  stopped: its requests go to the local model until an admin lets it back with one click. An agent
+  stuck in a loop overnight is stopped within the hour instead of burning through the month's
+  budget.
 - **Alerts where you already are.** Slack, Microsoft Teams or email when a team nears or passes
-  its budget, a key hits its limit, or a provider goes down and comes back, plus a Monday summary
-  of spend and savings.
+  its budget, a key hits its limit or is stopped for unusual spending, or a provider goes down and
+  comes back, plus a Monday summary of spend and savings.
 - **An optional response cache.** The same key sending the same request again gets the stored
   answer for free; handy for n8n workflows and re-indexing documents. Off by default, and it never
   keeps prompts with personal data.
@@ -75,7 +80,7 @@ For a setup you keep, use [Docker Compose](#quick-start).
 ## What stays free
 
 Single sign-on, keys, budgets and limits, the routing rules (local fallback, personal data, rate
-limits, off-hours), alerts, the response cache, the request log and all three API formats are free
+limits, off-hours, runaway keys), alerts, the response cache, the request log and all three API formats are free
 and stay in this repository under AGPL-3.0. If paid options come later, they will be new things
 around Spillway, such as a managed instance or support. Nothing on this list will move behind a paywall.
 

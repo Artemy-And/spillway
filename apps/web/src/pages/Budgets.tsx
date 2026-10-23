@@ -391,6 +391,46 @@ function RuleList({
       ),
       action: m.budgets.offThen,
     },
+    {
+      id: 'runawayGuard',
+      when: (
+        <>
+          {m.budgets.runawayBefore}
+          <input
+            aria-label={m.budgets.timesLabel}
+            type="number"
+            min={2}
+            max={100}
+            disabled={!editable}
+            className={num}
+            value={draft.runawayGuard.times}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                runawayGuard: { ...draft.runawayGuard, times: Number(e.target.value) },
+              })
+            }
+          />
+          {m.budgets.runawayMiddle}
+          <input
+            aria-label={m.budgets.minLabel}
+            type="number"
+            min={1}
+            disabled={!editable}
+            className={num}
+            value={draft.runawayGuard.minUsd}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                runawayGuard: { ...draft.runawayGuard, minUsd: Number(e.target.value) },
+              })
+            }
+          />
+          {m.budgets.runawayAfter}
+        </>
+      ),
+      action: m.budgets.runawayThen(localName),
+    },
   ];
 
   return (

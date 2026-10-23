@@ -376,6 +376,9 @@ export const es: Messages = {
     keyUnused: (a) =>
       `La clave ${a.key} no se usa desde hace ${p(a.days, { one: '# día', other: '# días' })}`,
     considerRevoking: 'Quizá convenga revocarla',
+    keyRunaway: (a) =>
+      `${a.key} se detuvo por un gasto inusual: ${fmtUsd(a.spent)} en una hora, cuando su hora más cara antes fue de ${fmtUsd(a.usual)}`,
+    letBackOnKeys: 'Si es lo previsto, reactívela en la página Claves',
     modelNoPrice: (a) =>
       `Modelos en la nube sin precio: ${a.models.length}. Su gasto no cuenta en los presupuestos`,
     piiBlocked: (a) =>
@@ -417,6 +420,7 @@ export const es: Messages = {
       revoked: 'Revocada',
       localOnly: 'Solo local',
       limitReached: 'Límite alcanzado',
+      stopped: 'Detenida',
       nearLimit: 'Cerca del límite',
       active: 'Activa',
     },
@@ -435,6 +439,9 @@ export const es: Messages = {
       'Elige primero un modelo local en Ajustes; hasta entonces las solicitudes se bloquean.',
     adminSets: 'Los límites de tus claves los fija un admin.',
     revoke: 'Revocar',
+    letBack: 'Reactivar',
+    stoppedNote: (spent, usual, time) =>
+      `La regla 5 detuvo esta clave a las ${time}: gastó ${spent} en una hora, cuando su hora más cara de las dos semanas anteriores fue de ${usual}. Hasta que la reactive, sus solicitudes a la nube van al modelo local o se rechazan.`,
     revokeConfirm: (name) =>
       `¿Revocar ${name}? Las apps que la usan dejarán de funcionar al instante.`,
     create: 'Crear clave',
@@ -498,6 +505,13 @@ export const es: Messages = {
     startLabel: 'Inicio de la jornada',
     endLabel: 'Fin de la jornada',
     offThen: 'Solo modelos locales',
+    runawayBefore: 'Una clave sin límite propio gasta más de',
+    runawayMiddle: '× su hora más cara de las dos semanas anteriores, y al menos',
+    runawayAfter: '$ en una hora',
+    timesLabel: 'Veces su hora más cara',
+    minLabel: 'Gasto mínimo en una hora, dólares',
+    runawayThen: (local) =>
+      `Detener la clave: enviar sus solicitudes a ${local} hasta que un admin la reactive`,
     zoneHint: 'Zona horaria de la pasarela. Se cambia en Ajustes.',
     matched: (n) => `Se activó ${times(n)} este mes`,
     discard: 'Descartar',
@@ -580,6 +594,10 @@ export const es: Messages = {
     blockedKeyNoFallback: () =>
       'Solicitud bloqueada: esta clave bloquea en lugar de pasar a un modelo local',
     blockedNoLocalModel: () => 'Solicitud bloqueada: no hay un modelo local configurado',
+    runaway: (t: TraceParams) =>
+      `Regla ${t.rule}: la clave ${t.key} gastó ${fmtUsd(t.spent ?? 0)} en una hora; su hora más cara antes fue de ${fmtUsd(t.usual ?? 0)}`,
+    runawayStopped: () =>
+      'Solicitud bloqueada: Spillway detuvo esta clave por un gasto inusual; un admin puede reactivarla en la página Claves',
     embeddings: (t: TraceParams) =>
       `Embeddings para ${p(t.count ?? 1, { one: '# texto', other: '# textos' })}`,
     ruleSkippedEmbeddings: (t: TraceParams) =>

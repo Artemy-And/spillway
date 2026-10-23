@@ -19,7 +19,8 @@ import { usd } from '../lib/time.ts';
 import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
 
 export interface Caller {
-  key: ApiKey;
+  /** A key read from the database; one put together in code may leave out rule 5's state */
+  key: Omit<ApiKey, 'runaway'> & Partial<Pick<ApiKey, 'runaway'>>;
   team: Team | null;
   user: User | null;
 }
@@ -212,7 +213,21 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         ? await sum(ctx.db, requestLogs.teamId, team.id, cal.startOfMonth(now))
         : 0;
 
-    if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
+    if (rules.runawayGuard.enabled && key.runaway) {
+      const rule = ruleNumber('runawayGuard');
+      const { spent: hour, usual } = key.runaway;
+      reroute = {
+        reason: step(
+          'warn',
+          `Rule ${rule}: key ${key.name} spent ${usd(hour)} in an hour; its busiest hour before was ${usd(usual)}`,
+          'runaway',
+          { rule, key: key.name, spent: hour, usual },
+        ),
+        ruleId: 'runawayGuard',
+        allowed: key.fallbackToLocal,
+        hard: true,
+      };
+    } else if (key.dailyLimitUsd != null && keyDay >= key.dailyLimitUsd) {
       reroute = {
         reason: step(
           'warn',
@@ -303,13 +318,25 @@ export async function decide(ctx: AppContext, input: Input): Promise<Decision> {
         ? await findModel(ctx.db, eq(models.id, settings.localModelId))
         : null;
       if (!reroute.allowed || !local) {
-        const blocked = !reroute.allowed
-          ? step(
-              'block',
-              'Request blocked: this key blocks instead of switching to a local model',
-              'blockedKeyNoFallback',
-            )
-          : step('block', 'Request blocked: no local model is configured', 'blockedNoLocalModel');
+        // Whoever reads the refusal in their client needs to know it is not their daily limit.
+        const blocked =
+          reroute.ruleId === 'runawayGuard'
+            ? step(
+                'block',
+                'Request blocked: Spillway stopped this key for unusual spending; an admin can let it back on the Keys page',
+                'runawayStopped',
+              )
+            : !reroute.allowed
+              ? step(
+                  'block',
+                  'Request blocked: this key blocks instead of switching to a local model',
+                  'blockedKeyNoFallback',
+                )
+              : step(
+                  'block',
+                  'Request blocked: no local model is configured',
+                  'blockedNoLocalModel',
+                );
         return stop('blocked_budget', 429, blocked, requested, reroute.ruleId);
       }
       target = local;

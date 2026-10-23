@@ -26,6 +26,7 @@ import {
   step,
   type Target,
 } from './policy.ts';
+import { recordSpend } from './runaway.ts';
 import { openAIChunks, parseSSE, SSEParser, sse, UpstreamError } from './sse.ts';
 import {
   anthropicRequestToOpenAI,
@@ -590,6 +591,7 @@ export async function writeLog(
   keyId: string,
 ): Promise<void> {
   try {
+    await recordSpend(ctx, keyId, row.costUsd ?? 0);
     await ctx.db.insert(requestLogs).values(row);
     await ctx.db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, keyId));
   } catch (error) {

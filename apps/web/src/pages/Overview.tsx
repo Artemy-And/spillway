@@ -48,6 +48,8 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
       return { text: m.alerts.keyLimit(alert), meta: alert.team ?? m.common.noTeam };
     case 'keyUnused':
       return { text: m.alerts.keyUnused(alert), meta: m.alerts.considerRevoking };
+    case 'keyRunaway':
+      return { text: m.alerts.keyRunaway(alert), meta: m.alerts.letBackOnKeys };
     case 'piiBlocked':
       return { text: m.alerts.piiBlocked(alert), meta: alert.key };
     case 'teamOverBudget':

@@ -25,7 +25,7 @@ import {
 import type { Messages } from '../i18n/en.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, type KeyRow, meQuery, modelsQuery, teamsQuery, unwrap } from '../lib/api.ts';
-import { fmtAgo, fmtLimit, fmtUsd, pct } from '../lib/format.ts';
+import { fmtAgo, fmtLimit, fmtTime, fmtUsd, pct } from '../lib/format.ts';
 
 type Kind = KeyKind;
 type Filter = 'all' | Kind;
@@ -55,6 +55,7 @@ const EMPTY: Draft = {
 function status(key: KeyRow, m: Messages): { label: string; tone: Tone } {
   const labels = m.keys.status;
   if (key.revokedAt) return { label: labels.revoked, tone: 'off' };
+  if (key.runaway) return { label: labels.stopped, tone: 'block' };
   if (key.dailyLimitUsd != null && key.spentToday >= key.dailyLimitUsd) {
     return key.fallbackToLocal
       ? { label: labels.localOnly, tone: 'info' }
@@ -158,6 +159,11 @@ export function KeysPage() {
       await refresh();
       setPanel(null);
     },
+  });
+
+  const letBack = useMutation({
+    mutationFn: (id: string) => unwrap(api.keys[':id']['let-back'].$post({ param: { id } })),
+    onSuccess: refresh,
   });
 
   const openNew = () => {
@@ -284,8 +290,18 @@ export function KeysPage() {
                         <span className="text-xs text-muted">{m.apps[key.lastApp]}</span>
                       )}
                     </div>
-                    <div>
+                    <div className="flex flex-col items-start gap-1">
                       <Status tone={s.tone}>{s.label}</Status>
+                      {key.runaway && isAdmin && (
+                        <button
+                          type="button"
+                          disabled={letBack.isPending}
+                          onClick={() => letBack.mutate(key.id)}
+                          className="cursor-pointer text-xs font-medium text-accent hover:underline disabled:opacity-60"
+                        >
+                          {m.keys.letBack}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -474,7 +490,22 @@ export function KeysPage() {
               )}
               {!isAdmin && <p className="text-[13px] text-muted">{m.keys.adminSets}</p>}
 
-              <ErrorNote error={save.error ?? revoke.error} />
+              {editing?.runaway && (
+                <div className="flex flex-col items-start gap-2.5 rounded-lg border border-line bg-canvas p-3 text-[13px] leading-relaxed">
+                  <p>
+                    {m.keys.stoppedNote(
+                      fmtUsd(editing.runaway.spent),
+                      fmtUsd(editing.runaway.usual),
+                      fmtTime(new Date(editing.runaway.at).toISOString()),
+                    )}
+                  </p>
+                  <Button disabled={letBack.isPending} onClick={() => letBack.mutate(editing.id)}>
+                    {m.keys.letBack}
+                  </Button>
+                </div>
+              )}
+
+              <ErrorNote error={save.error ?? revoke.error ?? letBack.error} />
               <div className="flex flex-wrap justify-between gap-2.5">
                 {editing ? (
                   <Button

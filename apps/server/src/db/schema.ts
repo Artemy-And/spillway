@@ -43,6 +43,9 @@ export type TraceStep = {
   params?: Record<string, string | number | boolean | Record<string, number> | null>;
 };
 
+/** Why rule 5 stopped a key: what it spent in the last hour against its busiest hour before. */
+export type Runaway = { at: number; spent: number; usual: number };
+
 export const teams = sqliteTable('teams', {
   id: id(),
   name: text('name').notNull().unique(),
@@ -135,6 +138,8 @@ export const apiKeys = sqliteTable(
     createdAt: createdAt(),
     lastUsedAt: timestamp('last_used_at'),
     revokedAt: timestamp('revoked_at'),
+    /** Set when rule 5 stopped the key for unusual spending, until an admin lets it back */
+    runaway: text('runaway', { mode: 'json' }).$type<Runaway>(),
   },
   (t) => [index('api_keys_user_idx').on(t.userId), index('api_keys_team_idx').on(t.teamId)],
 );

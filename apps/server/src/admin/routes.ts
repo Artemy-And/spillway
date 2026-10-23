@@ -25,6 +25,7 @@ import {
 } from '../db/schema.ts';
 import { findModel } from '../gateway/policy.ts';
 import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
+import { letAllBack, letBack } from '../gateway/runaway.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
 import { SERVER_ZONE } from '../lib/time.ts';
@@ -369,6 +370,13 @@ export function adminRoutes(ctx: AppContext) {
         return c.json({ ok: true });
       })
 
+      // Rule 5 stopped the key for unusual spending; an admin decides it is fine.
+      .post('/keys/:id/let-back', adminOnly, idParam, async (c) => {
+        const ok = await letBack(ctx, c.req.valid('param').id);
+        if (!ok) return c.json({ error: 'This key is not stopped' }, 409);
+        return c.json({ ok: true });
+      })
+
       // ── Teams, budgets and rules ────────────────────────────────────────────
       .get('/teams', async (c) => {
         const now = new Date();
@@ -453,6 +461,7 @@ export function adminRoutes(ctx: AppContext) {
 
       .put('/rules', adminOnly, zValidator('json', rulesSchema), async (c) => {
         const settings = await ctx.settings.update({ rules: c.req.valid('json') });
+        if (!settings.rules.runawayGuard.enabled) await letAllBack(ctx);
         return c.json(settings.rules);
       })
 

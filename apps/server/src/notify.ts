@@ -204,6 +204,20 @@ async function budgetNotices(
   for (const key of keys) {
     const usage = spend.get(key.id);
     const then = key.fallbackToLocal && local ? `go to ${local}` : 'are blocked';
+    if (key.runaway && current.rules.runawayGuard.enabled) {
+      const { spent, usual, at } = key.runaway;
+      out.push([
+        `runaway:${key.id}:${at}`,
+        {
+          title: `Key ${key.name} was stopped: unusual spending`,
+          lines: [
+            `${usd(spent)} in the last hour; its busiest hour in the two weeks before was ${usd(usual)}.`,
+            `Its cloud requests ${then} until an admin lets it back on the Keys page.`,
+          ],
+          path: '/keys',
+        },
+      ]);
+    }
     // A zero limit means no cloud at all for this key, which is no news.
     if (key.dailyLimitUsd && (usage?.today ?? 0) >= key.dailyLimitUsd) {
       out.push([

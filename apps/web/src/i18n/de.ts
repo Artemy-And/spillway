@@ -378,6 +378,9 @@ export const de: Messages = {
     keyUnused: (a) =>
       `Schlüssel ${a.key} wurde seit ${p(a.days, { one: '# Tag', other: '# Tagen' })} nicht genutzt`,
     considerRevoking: 'Eventuell widerrufen',
+    keyRunaway: (a) =>
+      `${a.key} wurde wegen ungewöhnlicher Ausgaben gestoppt: ${fmtUsd(a.spent)} in einer Stunde, die teuerste Stunde davor lag bei ${fmtUsd(a.usual)}`,
+    letBackOnKeys: 'Wenn das so gewollt ist, auf der Seite „Schlüssel“ freigeben',
     modelNoPrice: (a) =>
       `Cloud-Modelle ohne Preis: ${a.models.length}. Ihre Kosten fließen nicht in die Budgets ein`,
     piiBlocked: (a) =>
@@ -420,6 +423,7 @@ export const de: Messages = {
       revoked: 'Widerrufen',
       localOnly: 'Nur lokal',
       limitReached: 'Limit erreicht',
+      stopped: 'Gestoppt',
       nearLimit: 'Fast am Limit',
       active: 'Aktiv',
     },
@@ -438,6 +442,9 @@ export const de: Messages = {
       'Wählen Sie zuerst in den Einstellungen ein lokales Modell; bis dahin werden Anfragen blockiert.',
     adminSets: 'Limits für Ihre Schlüssel legt ein Admin fest.',
     revoke: 'Widerrufen',
+    letBack: 'Freigeben',
+    stoppedNote: (spent, usual, time) =>
+      `Regel 5 hat diesen Schlüssel um ${time} gestoppt: ${spent} in einer Stunde, während die teuerste Stunde der zwei Wochen davor bei ${usual} lag. Bis Sie ihn freigeben, gehen seine Cloud-Anfragen an das lokale Modell oder werden abgelehnt.`,
     revokeConfirm: (name) => `${name} widerrufen? Apps damit funktionieren sofort nicht mehr.`,
     create: 'Schlüssel erstellen',
     keyCreated: 'Schlüssel erstellt',
@@ -501,6 +508,13 @@ export const de: Messages = {
     startLabel: 'Arbeitsbeginn',
     endLabel: 'Arbeitsende',
     offThen: 'Nur lokale Modelle',
+    runawayBefore: 'Ein Schlüssel ohne eigenes Limit gibt mehr aus als',
+    runawayMiddle: '× seine teuerste Stunde der zwei Wochen davor, und mindestens',
+    runawayAfter: '$ in einer Stunde',
+    timesLabel: 'Vielfaches der teuersten Stunde',
+    minLabel: 'Mindestausgaben in einer Stunde, Dollar',
+    runawayThen: (local) =>
+      `Schlüssel stoppen: seine Anfragen an ${local} senden, bis ein Admin ihn freigibt`,
     zoneHint: 'Zeitzone des Gateways. Änderbar in den Einstellungen.',
     matched: (n) => `Diesen Monat ${times(n)} ausgelöst`,
     discard: 'Verwerfen',
@@ -585,6 +599,10 @@ export const de: Messages = {
     blockedKeyNoFallback: () =>
       'Anfrage blockiert: dieser Schlüssel blockiert, statt auf ein lokales Modell zu wechseln',
     blockedNoLocalModel: () => 'Anfrage blockiert: kein lokales Modell eingerichtet',
+    runaway: (t: TraceParams) =>
+      `Regel ${t.rule}: Schlüssel ${t.key} hat ${fmtUsd(t.spent ?? 0)} in einer Stunde ausgegeben; die teuerste Stunde davor lag bei ${fmtUsd(t.usual ?? 0)}`,
+    runawayStopped: () =>
+      'Anfrage blockiert: Spillway hat diesen Schlüssel wegen ungewöhnlicher Ausgaben gestoppt; ein Admin kann ihn auf der Seite „Schlüssel“ freigeben',
     embeddings: (t: TraceParams) =>
       `Embeddings für ${p(t.count ?? 1, { one: '# Text', other: '# Texte' })}`,
     ruleSkippedEmbeddings: (t: TraceParams) =>

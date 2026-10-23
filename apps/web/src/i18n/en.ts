@@ -349,6 +349,9 @@ export const en = {
     keyUnused: (a: AlertOf<'keyUnused'>) =>
       `Key ${a.key} has not been used for ${p(a.days, { one: '# day', other: '# days' })}`,
     considerRevoking: 'Consider revoking it',
+    keyRunaway: (a: AlertOf<'keyRunaway'>) =>
+      `${a.key} was stopped for unusual spending: ${fmtUsd(a.spent)} in an hour, while its busiest hour before was ${fmtUsd(a.usual)}`,
+    letBackOnKeys: 'If this is expected, let it back on the Keys page',
     modelNoPrice: (a: AlertOf<'modelNoPrice'>) =>
       p(a.models.length, {
         one: '# cloud model has no price, so its spend is not counted',
@@ -398,6 +401,7 @@ export const en = {
       revoked: 'Revoked',
       localOnly: 'Local only',
       limitReached: 'Limit reached',
+      stopped: 'Stopped',
       nearLimit: 'Near limit',
       active: 'Active',
     },
@@ -415,6 +419,9 @@ export const en = {
     fallbackNone: 'Pick a local model in Settings first; until then requests are blocked.',
     adminSets: 'Limits for your keys are set by an admin.',
     revoke: 'Revoke',
+    letBack: 'Let back',
+    stoppedNote: (spent: string, usual: string, time: string) =>
+      `Rule 5 stopped this key at ${time}: it spent ${spent} in an hour, while its busiest hour in the two weeks before was ${usual}. Its cloud requests go to the local model, or are refused, until you let it back.`,
     revokeConfirm: (name: string) => `Revoke ${name}? Apps using it stop working at once.`,
     create: 'Create key',
     keyCreated: 'Key created',
@@ -477,6 +484,13 @@ export const en = {
     startLabel: 'Working hours start',
     endLabel: 'Working hours end',
     offThen: 'Local models only',
+    runawayBefore: 'A key without a limit of its own spends more than',
+    runawayMiddle: '× its busiest hour of the two weeks before, and at least $',
+    runawayAfter: 'in an hour',
+    timesLabel: 'Times its busiest hour',
+    minLabel: 'Least spend in an hour, dollars',
+    runawayThen: (local: string) =>
+      `Stop the key: send its requests to ${local} until an admin lets it back`,
     zoneHint: "The gateway's time zone. Change it in Settings.",
     matched: (n: number) =>
       p(n, { one: 'Matched # time this month', other: 'Matched # times this month' }),
@@ -560,6 +574,10 @@ export const en = {
     blockedKeyNoFallback: () =>
       'Request blocked: this key blocks instead of switching to a local model',
     blockedNoLocalModel: () => 'Request blocked: no local model is configured',
+    runaway: (t: TraceParams) =>
+      `Rule ${t.rule}: key ${t.key} spent ${fmtUsd(t.spent ?? 0)} in an hour; its busiest hour before was ${fmtUsd(t.usual ?? 0)}`,
+    runawayStopped: () =>
+      'Request blocked: Spillway stopped this key for unusual spending; an admin can let it back on the Keys page',
     embeddings: (t: TraceParams) =>
       `Embeddings for ${p(t.count ?? 1, { one: '# text', other: '# texts' })}`,
     ruleSkippedEmbeddings: (t: TraceParams) =>
