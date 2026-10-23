@@ -9,8 +9,9 @@ other agent. [CONTRIBUTING.md](CONTRIBUTING.md) and the README's
 A self-hosted AI gateway for companies of 10–50 people without a DevOps team. Its job:
 
 - one key per person, device or agent, with daily and monthly dollar limits;
-- team budgets and the four routing rules: local model at N% of the budget, personal data kept
-  away from cloud models, agent rate limits, off-hours traffic kept local;
+- team budgets and the five routing rules: local model at N% of the budget, personal data kept
+  away from cloud models, agent rate limits, off-hours traffic kept local, keys without a limit
+  of their own stopped when they suddenly spend far more than usual;
 - failover to the local model when a provider fails;
 - three API formats in (OpenAI, Anthropic, Ollama), any provider out, so Claude Code, Codex,
   Open WebUI, n8n and Cursor work without changes on their side;
