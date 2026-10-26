@@ -96,6 +96,15 @@ export class Calendar {
     return `${w.year}-${pad(w.month)}-${pad(w.day)}`;
   }
 
+  /** "Oct 30": the date in this zone, for messages in English. */
+  shortDate(date: Date): string {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      timeZone: this.zone,
+    });
+  }
+
   /** "HH:MM" window check; handles windows that wrap past midnight. */
   isWithin(from: string, to: string, now = new Date()): boolean {
     const w = this.wall(now);

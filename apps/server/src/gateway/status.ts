@@ -7,7 +7,7 @@ import type { AppContext } from '../context.ts';
 import { requestLogs } from '../db/schema.ts';
 import { usd } from '../lib/time.ts';
 import { calendarOf } from '../settings.ts';
-import { authenticate } from './handler.ts';
+import { endsSoon, findCaller, isExpired, lastDayOf } from './handler.ts';
 import {
   askUrl,
   type Caller,
@@ -115,12 +115,16 @@ async function statusLine(
       parts.push(`ask for more: ${askUrl(ctx)}`);
     }
   }
+  if (key.expiresAt && endsSoon(key, now)) {
+    parts.push(`${YELLOW}key works until ${cal.shortDate(lastDayOf(key.expiresAt))}${RESET}`);
+  }
   return parts.join(' · ');
 }
 
 export async function handleStatus(ctx: AppContext, c: Context): Promise<Response> {
-  const caller = await authenticate(ctx, c.req.raw.headers);
+  const caller = await findCaller(ctx, c.req.raw.headers);
   if (!caller) return c.text('Spillway · key not accepted', 401);
+  if (isExpired(caller.key)) return c.text('Spillway · key past its end date', 401);
   const model = c.req.method === 'POST' ? modelOf(await c.req.text()) : null;
   const kept = keptBy.get(ctx) ?? { lines: new Map(), teams: new Map() };
   keptBy.set(ctx, kept);

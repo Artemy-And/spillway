@@ -359,6 +359,8 @@ export const zh: Messages = {
     keyRunaway: (a) =>
       `${a.key} 因花费异常已被停用：一小时花费 ${fmtUsd(a.spent)}，而此前最贵的一小时为 ${fmtUsd(a.usual)}`,
     letBackOnKeys: '如属正常，请在“密钥”页面恢复',
+    keyEnding: (a, date) => `密钥 ${a.key} 将在 ${date} 之后停止工作`,
+    extendOnKeys: '如需继续使用，请在“密钥”页面修改有效期',
     limitAsk: (a) => `${a.person} 申请今天为 ${a.key} 追加 ${fmtLimit(a.usd)}`,
     approveOnKeys: '请在“密钥”页面批准或拒绝',
     modelNoPrice: (a) => `未设置价格的云端模型：${a.models.length} 个，其花费不计入预算`,
@@ -397,6 +399,7 @@ export const zh: Messages = {
     todayNoLimit: (amount) => `今日 ${amount} · 无限额`,
     status: {
       revoked: '已吊销',
+      expired: '已过期',
       localOnly: '仅限本地',
       limitReached: '已达限额',
       stopped: '已停用',
@@ -416,6 +419,9 @@ export const zh: Messages = {
     fallbackTo: (model) => `请求将发往 ${model}，而不会失败。`,
     fallbackNone: '请先在设置中选择本地模型，在此之前请求会被拦截。',
     adminSets: '你的密钥限额由管理员设置。',
+    until: '有效期至',
+    untilHint: '可用的最后一天，适合外包人员或试用。留空则一直有效。',
+    worksUntil: (date) => `有效期至 ${date}`,
     revoke: '吊销',
     replace: '更换密钥',
     replaceConfirm: (name) =>

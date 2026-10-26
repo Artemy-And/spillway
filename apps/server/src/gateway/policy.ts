@@ -19,8 +19,8 @@ import { type Calendar, usd } from '../lib/time.ts';
 import { calendarOf, RULE_IDS, type RuleId, type Settings } from '../settings.ts';
 
 /** A key read from the database; one put together in code may leave out the newer columns */
-export type CallerKey = Omit<ApiKey, 'runaway' | 'extra'> &
-  Partial<Pick<ApiKey, 'runaway' | 'extra'>>;
+export type CallerKey = Omit<ApiKey, 'runaway' | 'extra' | 'expiresAt'> &
+  Partial<Pick<ApiKey, 'runaway' | 'extra' | 'expiresAt'>>;
 
 export interface Caller {
   key: CallerKey;

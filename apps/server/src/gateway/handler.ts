@@ -19,6 +19,7 @@ import { cached, cacheKey, remember, wantsCache } from './cache.ts';
 import { Meter } from './meter.ts';
 import {
   type Caller,
+  type CallerKey,
   type Decision,
   decide,
   findModel,
@@ -119,7 +120,8 @@ export function errorResponse(
   return Response.json({ error: { message, type, code } }, { status: sent });
 }
 
-export async function authenticate(ctx: AppContext, headers: Headers): Promise<Caller | null> {
+/** The live key a request carries, past its end date or not. */
+export async function findCaller(ctx: AppContext, headers: Headers): Promise<Caller | null> {
   const bearer = headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
   const token = bearer ?? headers.get('x-api-key');
   if (!token) return null;
@@ -132,6 +134,36 @@ export async function authenticate(ctx: AppContext, headers: Headers): Promise<C
     .get();
   if (!row || row.user?.disabledAt) return null;
   return row;
+}
+
+export const isExpired = (key: Pick<CallerKey, 'expiresAt'>, now = new Date()) =>
+  key.expiresAt != null && key.expiresAt <= now;
+
+/** A moment on a key's last day: it works through that day and stops at the midnight after. */
+export const lastDayOf = (expiresAt: Date) => new Date(expiresAt.getTime() - 1);
+
+/**
+ * A key that was used in the last week and stops working within three days says so: in Claude
+ * Code's status line, under Needs attention and in a notice.
+ */
+export function endsSoon(key: Pick<CallerKey, 'expiresAt' | 'lastUsedAt'>, now = new Date()) {
+  if (!key.expiresAt || isExpired(key, now) || !key.lastUsedAt) return false;
+  return (
+    key.expiresAt.getTime() - now.getTime() < 3 * 86_400_000 &&
+    now.getTime() - key.lastUsedAt.getTime() < 7 * 86_400_000
+  );
+}
+
+export async function authenticate(ctx: AppContext, headers: Headers): Promise<Caller | null> {
+  const caller = await findCaller(ctx, headers);
+  return caller && !isExpired(caller.key) ? caller : null;
+}
+
+/** What the app of a refused request shows: its key is missing or unknown, or past its end date. */
+export function keyRefusal(caller: Caller | null): string {
+  return caller
+    ? 'This Spillway key has passed its end date. Ask an admin to extend it or for a new key.'
+    : 'Missing or invalid Spillway key. Send it as "Authorization: Bearer sw-…" or "x-api-key: sw-…".';
 }
 
 function responsesText(content: string | RContentPart[] | undefined): string {
@@ -605,14 +637,8 @@ export async function handleGateway(
   format: Format,
 ): Promise<Response> {
   const started = Date.now();
-  const caller = await authenticate(ctx, c.req.raw.headers);
-  if (!caller) {
-    return errorResponse(
-      format,
-      401,
-      'Missing or invalid Spillway key. Send it as "Authorization: Bearer sw-…" or "x-api-key: sw-…".',
-    );
-  }
+  const caller = await findCaller(ctx, c.req.raw.headers);
+  if (!caller || isExpired(caller.key)) return errorResponse(format, 401, keyRefusal(caller));
 
   let body: Record<string, unknown>;
   try {

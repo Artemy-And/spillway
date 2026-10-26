@@ -404,6 +404,8 @@ export const ru: Messages = {
     keyRunaway: (a) =>
       `${a.key} остановлен из-за необычных трат: ${fmtUsd(a.spent)} за час, а его самый дорогой час до этого — ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Если так и задумано, верните его на странице «Ключи»',
+    keyEnding: (a, date) => `Ключ ${a.key} перестанет работать после ${date}`,
+    extendOnKeys: 'Если он ещё нужен, измените срок на странице «Ключи»',
     limitAsk: (a) => `${a.person} просит ещё ${fmtLimit(a.usd)} на сегодня для ${a.key}`,
     approveOnKeys: 'Одобрить или отказать можно на странице «Ключи»',
     modelNoPrice: (a) =>
@@ -446,6 +448,7 @@ export const ru: Messages = {
     todayNoLimit: (amount) => `${amount} сегодня · без лимита`,
     status: {
       revoked: 'Отозван',
+      expired: 'Срок истёк',
       localOnly: 'Только локально',
       limitReached: 'Лимит исчерпан',
       stopped: 'Остановлен',
@@ -465,6 +468,10 @@ export const ru: Messages = {
     fallbackTo: (model) => `Запросы уйдут в ${model}, а не завершатся ошибкой.`,
     fallbackNone: 'Сначала выберите локальную модель в настройках, до этого запросы блокируются.',
     adminSets: 'Лимиты для ваших ключей задаёт администратор.',
+    until: 'Работает до',
+    untilHint:
+      'Последний день работы, например для подрядчика или пробного периода. Оставьте пустым, чтобы ключ работал всегда.',
+    worksUntil: (date) => `до ${date}`,
     revoke: 'Отозвать',
     replace: 'Заменить ключ',
     replaceConfirm: (name) =>

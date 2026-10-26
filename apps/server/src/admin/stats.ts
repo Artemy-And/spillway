@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { type App, apiKeys, models, providers, requestLogs, teams } from '../db/schema.ts';
+import { endsSoon, isExpired, lastDayOf } from '../gateway/handler.ts';
 import { dailyLimit } from '../gateway/policy.ts';
 import type { Calendar } from '../lib/time.ts';
 import { waitingAsks } from './asks.ts';
@@ -384,6 +385,8 @@ type Alert =
       at: number;
     }
   | { tone: 'muted'; code: 'keyUnused'; key: string; days: number; at: number }
+  /** `until` is the key's last day on the gateway's calendar, "2026-10-30" */
+  | { tone: 'warn'; code: 'keyEnding'; key: string; until: string; at: number }
   | {
       tone: 'warn';
       code: 'limitAsk';
@@ -448,6 +451,11 @@ async function alerts(db: Db, keyIds: string[] | null, cal: Calendar, now: Date)
   const spend = await keySpend(db, keyIds, cal, now);
 
   for (const { key, team } of keys) {
+    if (isExpired(key, now)) continue;
+    if (key.expiresAt && endsSoon(key, now)) {
+      const until = cal.dayKey(lastDayOf(key.expiresAt));
+      out.push({ tone: 'warn', code: 'keyEnding', key: key.name, until, at: now.getTime() });
+    }
     if (key.runaway) {
       const { spent, usual, at } = key.runaway;
       out.push({ tone: 'block', code: 'keyRunaway', key: key.name, spent, usual, at });

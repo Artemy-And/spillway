@@ -23,12 +23,13 @@ import {
   type User,
   users,
 } from '../db/schema.ts';
+import { isExpired, lastDayOf } from '../gateway/handler.ts';
 import { dailyLimit, findModel } from '../gateway/policy.ts';
 import { listPrice, PRICE_LIST_DATE, type Price } from '../gateway/prices.ts';
 import { letAllBack, letBack } from '../gateway/runaway.ts';
 import { DEFAULT_BASE_URLS, listUpstreamModels } from '../gateway/upstream.ts';
 import { hashPassword, newGatewayKey, verifyPassword } from '../lib/crypto.ts';
-import { SERVER_ZONE } from '../lib/time.ts';
+import { type Calendar, SERVER_ZONE } from '../lib/time.ts';
 import { mailFrom, send } from '../notify.ts';
 import {
   calendarOf,
@@ -63,7 +64,20 @@ const keyInput = z.object({
   monthlyLimitUsd: money.optional(),
   fallbackToLocal: z.boolean().optional(),
   allowedModelIds: idList.optional(),
+  /** The last day the key works, on the gateway's calendar; null = no end */
+  expiresOn: z.iso.date().nullable().optional(),
 });
+
+/** A key's fields as stored: its last day becomes the moment that day ends. */
+function keyValues<T extends { expiresOn?: string | null }>(
+  { expiresOn, ...rest }: T,
+  cal: Calendar,
+) {
+  if (expiresOn === undefined) return rest;
+  if (expiresOn === null) return { ...rest, expiresAt: null };
+  const [year, month, day] = expiresOn.split('-').map(Number) as [number, number, number];
+  return { ...rest, expiresAt: cal.at(year, month, day + 1) };
+}
 
 const teamInput = z.object({
   name: z.string().trim().min(1).max(64),
@@ -333,6 +347,9 @@ export function adminRoutes(ctx: AppContext) {
               lastApp,
               /** The daily limit plus what an admin approved on top for today */
               dailyLimitToday: dailyLimit(key, cal),
+              /** The last day the key works, on the gateway's calendar */
+              expiresOn: key.expiresAt ? cal.dayKey(lastDayOf(key.expiresAt)) : null,
+              expired: isExpired(key),
               spentToday: usage?.today ?? 0,
               spentMonth: usage?.month ?? 0,
               requestsMonth: usage?.requests ?? 0,
@@ -345,10 +362,18 @@ export function adminRoutes(ctx: AppContext) {
         const user = c.get('user');
         const input = c.req.valid('json');
         const isAdmin = user.role === 'admin';
-        // People manage their own keys; limits and ownership are for admins.
+        const cal = calendarOf(await ctx.settings.get());
+        // People manage their own keys; limits and ownership are for admins. An end date only
+        // takes away, so anyone may give their key one.
         const values = isAdmin
-          ? { ...input, userId: input.userId ?? null, teamId: input.teamId ?? null }
-          : { name: input.name, kind: input.kind, userId: user.id, teamId: user.teamId };
+          ? { ...keyValues(input, cal), userId: input.userId ?? null, teamId: input.teamId ?? null }
+          : {
+              ...keyValues({ expiresOn: input.expiresOn }, cal),
+              name: input.name,
+              kind: input.kind,
+              userId: user.id,
+              teamId: user.teamId,
+            };
         if (isAdmin && values.userId && values.teamId === null) {
           const owner = await db.query.users.findFirst({ where: eq(users.id, values.userId) });
           values.teamId = owner?.teamId ?? null;
@@ -362,9 +387,10 @@ export function adminRoutes(ctx: AppContext) {
       })
 
       .patch('/keys/:id', adminOnly, idParam, zValidator('json', keyInput.partial()), async (c) => {
+        const cal = calendarOf(await ctx.settings.get());
         await db
           .update(apiKeys)
-          .set(c.req.valid('json'))
+          .set(keyValues(c.req.valid('json'), cal))
           .where(eq(apiKeys.id, c.req.valid('param').id));
         return c.json({ ok: true });
       })

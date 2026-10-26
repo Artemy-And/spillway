@@ -6,6 +6,7 @@ import { failingProviders, keySpend, teamSpend } from './admin/stats.ts';
 import type { AppContext } from './context.ts';
 import { type App, apiKeys, models, providers, requestLogs, settings, teams } from './db/schema.ts';
 import { APP_NAMES } from './gateway/apps.ts';
+import { endsSoon, lastDayOf } from './gateway/handler.ts';
 import { dailyLimit, findModel, modelLabel, ruleNumber } from './gateway/policy.ts';
 import { type Mail, sendMail } from './lib/smtp.ts';
 import { type Calendar, usd } from './lib/time.ts';
@@ -205,6 +206,16 @@ async function budgetNotices(
   for (const key of keys) {
     const usage = spend.get(key.id);
     const then = key.fallbackToLocal && local ? `go to ${local}` : 'are blocked';
+    if (key.expiresAt && endsSoon(key, now)) {
+      out.push([
+        `key-ends:${key.id}:${key.expiresAt.getTime()}`,
+        {
+          title: `Key ${key.name} stops working after ${cal.shortDate(lastDayOf(key.expiresAt))}`,
+          lines: ['If it should keep working, change its end date on the Keys page.'],
+          path: '/keys',
+        },
+      ]);
+    }
     if (key.runaway && current.rules.runawayGuard.enabled) {
       const { spent, usual, at } = key.runaway;
       out.push([

@@ -6,7 +6,15 @@ import { maskPii } from '../lib/pii.ts';
 import { usd } from '../lib/time.ts';
 import { detectApp } from './apps.ts';
 import { cached, cacheKey, remember, wantsCache } from './cache.ts';
-import { answered, authenticate, errorResponse, PREVIEW, writeLog } from './handler.ts';
+import {
+  answered,
+  errorResponse,
+  findCaller,
+  isExpired,
+  keyRefusal,
+  PREVIEW,
+  writeLog,
+} from './handler.ts';
 import { Meter } from './meter.ts';
 import { decide, modelLabel, step } from './policy.ts';
 import { UpstreamError } from './sse.ts';
@@ -63,13 +71,9 @@ export async function handleEmbeddings(
 ): Promise<Response> {
   const started = Date.now();
   const errorFormat = format === 'openai' ? 'openai' : 'ollama-chat';
-  const caller = await authenticate(ctx, c.req.raw.headers);
-  if (!caller) {
-    return errorResponse(
-      errorFormat,
-      401,
-      'Missing or invalid Spillway key. Send it as "Authorization: Bearer sw-…" or "x-api-key: sw-…".',
-    );
+  const caller = await findCaller(ctx, c.req.raw.headers);
+  if (!caller || isExpired(caller.key)) {
+    return errorResponse(errorFormat, 401, keyRefusal(caller));
   }
 
   let body: Record<string, unknown>;

@@ -102,6 +102,17 @@ export const fmtDate = (
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' },
 ) => new Date(iso).toLocaleDateString(locale, options);
 
+/** "Oct 30" for a calendar day such as "2026-10-30"; with the year when it is not this one. */
+export function fmtDay(day: string): string {
+  const date = new Date(`${day}T12:00:00`);
+  const thisYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(locale, {
+    month: 'short',
+    day: 'numeric',
+    ...(thisYear ? {} : { year: 'numeric' }),
+  });
+}
+
 export const fmtMonth = (date: Date, withYear = false) =>
   date.toLocaleDateString(
     locale,

@@ -16,7 +16,16 @@ import {
 import type { Messages } from '../i18n/en.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, meQuery, modelsQuery, type Overview, unwrap } from '../lib/api.ts';
-import { fmtDate, fmtDuration, fmtLimit, fmtMonth, fmtNumber, fmtUsd, pct } from '../lib/format.ts';
+import {
+  fmtDate,
+  fmtDay,
+  fmtDuration,
+  fmtLimit,
+  fmtMonth,
+  fmtNumber,
+  fmtUsd,
+  pct,
+} from '../lib/format.ts';
 
 type Period = '7d' | '30d' | 'month';
 type Alert = Overview['alerts'][number];
@@ -50,6 +59,8 @@ function describeAlert(alert: Alert, m: Messages): { text: string; meta: string 
       return { text: m.alerts.keyUnused(alert), meta: m.alerts.considerRevoking };
     case 'keyRunaway':
       return { text: m.alerts.keyRunaway(alert), meta: m.alerts.letBackOnKeys };
+    case 'keyEnding':
+      return { text: m.alerts.keyEnding(alert, fmtDay(alert.until)), meta: m.alerts.extendOnKeys };
     case 'limitAsk':
       return {
         text: m.alerts.limitAsk(alert),

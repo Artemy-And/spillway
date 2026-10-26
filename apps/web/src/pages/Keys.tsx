@@ -25,7 +25,7 @@ import {
 import type { Messages } from '../i18n/en.ts';
 import { useI18n } from '../i18n/index.tsx';
 import { api, type KeyRow, meQuery, modelsQuery, teamsQuery, unwrap } from '../lib/api.ts';
-import { fmtAgo, fmtLimit, fmtTime, fmtUsd, pct } from '../lib/format.ts';
+import { fmtAgo, fmtDay, fmtLimit, fmtTime, fmtUsd, pct } from '../lib/format.ts';
 
 type Kind = KeyKind;
 type Filter = 'all' | Kind;
@@ -39,6 +39,8 @@ interface Draft {
   monthly: string;
   fallbackToLocal: boolean;
   allowedModelIds: string[] | null;
+  /** The last day the key works, "2026-10-30"; empty = no end */
+  until: string;
 }
 
 const EMPTY: Draft = {
@@ -50,11 +52,13 @@ const EMPTY: Draft = {
   monthly: '',
   fallbackToLocal: true,
   allowedModelIds: null,
+  until: '',
 };
 
 function status(key: KeyRow, m: Messages): { label: string; tone: Tone } {
   const labels = m.keys.status;
   if (key.revokedAt) return { label: labels.revoked, tone: 'off' };
+  if (key.expired) return { label: labels.expired, tone: 'off' };
   if (key.runaway) return { label: labels.stopped, tone: 'block' };
   if (key.dailyLimitToday != null && key.spentToday >= key.dailyLimitToday) {
     return key.fallbackToLocal
@@ -136,6 +140,7 @@ export function KeysPage() {
   const body = () => ({
     name: draft.name.trim(),
     kind: draft.kind,
+    expiresOn: draft.until || null,
     ...(isAdmin
       ? {
           userId: draft.userId || null,
@@ -228,6 +233,7 @@ export function KeysPage() {
       monthly: key.monthlyLimitUsd?.toString() ?? '',
       fallbackToLocal: key.fallbackToLocal,
       allowedModelIds: key.allowedModelIds,
+      until: key.expiresOn ?? '',
     });
     setPanel({ mode: 'edit', id: key.id });
   };
@@ -351,7 +357,7 @@ export function KeysPage() {
                       (panel?.mode === 'edit' || panel?.mode === 'own') &&
                         panel.id === key.id &&
                         '-mx-5 bg-accent-soft px-5',
-                      key.revokedAt && 'opacity-70',
+                      (key.revokedAt || key.expired) && 'opacity-70',
                     )}
                   >
                     <div className="flex min-w-0 flex-col gap-0.5">
@@ -411,6 +417,11 @@ export function KeysPage() {
                     </div>
                     <div className="flex flex-col items-start gap-1">
                       <Status tone={s.tone}>{s.label}</Status>
+                      {key.expiresOn && !key.expired && !key.revokedAt && (
+                        <span className="text-xs text-muted">
+                          {m.keys.worksUntil(fmtDay(key.expiresOn))}
+                        </span>
+                      )}
                       {key.runaway && isAdmin && (
                         <button
                           type="button"
@@ -643,6 +654,16 @@ export function KeysPage() {
                 </div>
               </fieldset>
 
+              {(isAdmin || panel.mode === 'new') && (
+                <Field label={m.keys.until} hint={m.keys.untilHint}>
+                  <Input
+                    type="date"
+                    value={draft.until}
+                    onChange={(e) => setDraft({ ...draft, until: e.target.value })}
+                  />
+                </Field>
+              )}
+
               {isAdmin && (
                 <>
                   <fieldset className="flex flex-col gap-2">
@@ -739,22 +760,26 @@ export function KeysPage() {
                 </div>
               )}
 
+              {editing && (
+                <div className="flex flex-col items-start gap-2.5 rounded-lg border border-line bg-canvas p-3 text-[13px] leading-relaxed">
+                  <p className="text-muted">{m.keys.replaceNote}</p>
+                  <Button disabled={replace.isPending} onClick={() => confirmReplace(editing)}>
+                    {m.keys.replace}
+                  </Button>
+                </div>
+              )}
+
               <ErrorNote error={save.error ?? revoke.error ?? replace.error ?? letBack.error} />
               <div className="flex flex-wrap justify-between gap-2.5">
                 {editing ? (
-                  <div className="flex gap-2.5">
-                    <Button
-                      variant="danger"
-                      onClick={() =>
-                        confirm(m.keys.revokeConfirm(editing.name)) && revoke.mutate(editing.id)
-                      }
-                    >
-                      {m.keys.revoke}
-                    </Button>
-                    <Button disabled={replace.isPending} onClick={() => confirmReplace(editing)}>
-                      {m.keys.replace}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="danger"
+                    onClick={() =>
+                      confirm(m.keys.revokeConfirm(editing.name)) && revoke.mutate(editing.id)
+                    }
+                  >
+                    {m.keys.revoke}
+                  </Button>
                 ) : (
                   <span />
                 )}

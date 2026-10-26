@@ -379,6 +379,8 @@ export const es: Messages = {
     keyRunaway: (a) =>
       `${a.key} se detuvo por un gasto inusual: ${fmtUsd(a.spent)} en una hora, cuando su hora más cara antes fue de ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Si es lo previsto, reactívela en la página Claves',
+    keyEnding: (a, date) => `La clave ${a.key} deja de funcionar después del ${date}`,
+    extendOnKeys: 'Si debe seguir funcionando, cambia su fecha de fin en la página Claves',
     limitAsk: (a) => `${a.person} pide ${fmtLimit(a.usd)} más para hoy en ${a.key}`,
     approveOnKeys: 'Apruébelo o recháselo en la página Claves',
     modelNoPrice: (a) =>
@@ -420,6 +422,7 @@ export const es: Messages = {
     todayNoLimit: (amount) => `${amount} hoy · sin límite`,
     status: {
       revoked: 'Revocada',
+      expired: 'Caducada',
       localOnly: 'Solo local',
       limitReached: 'Límite alcanzado',
       stopped: 'Detenida',
@@ -440,6 +443,10 @@ export const es: Messages = {
     fallbackNone:
       'Elige primero un modelo local en Ajustes; hasta entonces las solicitudes se bloquean.',
     adminSets: 'Los límites de tus claves los fija un admin.',
+    until: 'Válida hasta',
+    untilHint:
+      'El último día que funciona, para un contratista o una prueba. Déjalo vacío para que funcione siempre.',
+    worksUntil: (date) => `hasta el ${date}`,
     revoke: 'Revocar',
     replace: 'Reemplazar clave',
     replaceConfirm: (name) =>

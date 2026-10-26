@@ -140,6 +140,8 @@ export const apiKeys = sqliteTable(
     createdAt: createdAt(),
     lastUsedAt: timestamp('last_used_at'),
     revokedAt: timestamp('revoked_at'),
+    /** The key stops working at this moment: the end of its last day on the gateway's calendar */
+    expiresAt: timestamp('expires_at'),
     /** Set when rule 5 stopped the key for unusual spending, until an admin lets it back */
     runaway: text('runaway', { mode: 'json' }).$type<Runaway>(),
     /** What an admin added to the daily limit for one day, on the gateway's calendar */

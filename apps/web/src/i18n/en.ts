@@ -352,6 +352,9 @@ export const en = {
     keyRunaway: (a: AlertOf<'keyRunaway'>) =>
       `${a.key} was stopped for unusual spending: ${fmtUsd(a.spent)} in an hour, while its busiest hour before was ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'If this is expected, let it back on the Keys page',
+    keyEnding: (a: AlertOf<'keyEnding'>, date: string) =>
+      `Key ${a.key} stops working after ${date}`,
+    extendOnKeys: 'If it should keep working, change its end date on the Keys page',
     limitAsk: (a: AlertOf<'limitAsk'>) =>
       `${a.person} asks for ${fmtLimit(a.usd)} more today on ${a.key}`,
     approveOnKeys: 'Approve or decline it on the Keys page',
@@ -402,6 +405,7 @@ export const en = {
     todayNoLimit: (amount: string) => `${amount} today · no limit`,
     status: {
       revoked: 'Revoked',
+      expired: 'Expired',
       localOnly: 'Local only',
       limitReached: 'Limit reached',
       stopped: 'Stopped',
@@ -421,6 +425,10 @@ export const en = {
     fallbackTo: (model: string) => `Requests go to ${model} instead of failing.`,
     fallbackNone: 'Pick a local model in Settings first; until then requests are blocked.',
     adminSets: 'Limits for your keys are set by an admin.',
+    until: 'Works until',
+    untilHint:
+      'The last day it works, for a contractor or a trial. Leave empty to keep it working.',
+    worksUntil: (date: string) => `until ${date}`,
     revoke: 'Revoke',
     replace: 'Replace key',
     replaceConfirm: (name: string) =>

@@ -381,6 +381,8 @@ export const fr: Messages = {
     keyRunaway: (a) =>
       `${a.key} a été arrêtée pour dépenses inhabituelles : ${fmtUsd(a.spent)} en une heure, alors que son heure la plus chère auparavant était de ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Si c’est voulu, rétablissez-la sur la page Clés',
+    keyEnding: (a, date) => `La clé ${a.key} cesse de fonctionner après le ${date}`,
+    extendOnKeys: 'Si elle doit continuer à fonctionner, changez sa date de fin sur la page Clés',
     limitAsk: (a) => `${a.person} demande ${fmtLimit(a.usd)} de plus aujourd’hui pour ${a.key}`,
     approveOnKeys: 'Approuvez ou refusez sur la page Clés',
     modelNoPrice: (a) =>
@@ -422,6 +424,7 @@ export const fr: Messages = {
     todayNoLimit: (amount) => `${amount} aujourd’hui · sans limite`,
     status: {
       revoked: 'Révoquée',
+      expired: 'Expirée',
       localOnly: 'Local uniquement',
       limitReached: 'Limite atteinte',
       stopped: 'Arrêtée',
@@ -442,6 +445,10 @@ export const fr: Messages = {
     fallbackNone:
       'Choisissez d’abord un modèle local dans les réglages ; d’ici là, les requêtes sont bloquées.',
     adminSets: 'Les limites de vos clés sont fixées par un admin.',
+    until: 'Valable jusqu’au',
+    untilHint:
+      'Le dernier jour où elle fonctionne, pour un prestataire ou un essai. Laissez vide pour qu’elle fonctionne sans limite.',
+    worksUntil: (date) => `jusqu’au ${date}`,
     revoke: 'Révoquer',
     replace: 'Remplacer la clé',
     replaceConfirm: (name) =>

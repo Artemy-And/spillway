@@ -381,6 +381,8 @@ export const de: Messages = {
     keyRunaway: (a) =>
       `${a.key} wurde wegen ungewöhnlicher Ausgaben gestoppt: ${fmtUsd(a.spent)} in einer Stunde, die teuerste Stunde davor lag bei ${fmtUsd(a.usual)}`,
     letBackOnKeys: 'Wenn das so gewollt ist, auf der Seite „Schlüssel“ freigeben',
+    keyEnding: (a, date) => `Schlüssel ${a.key} funktioniert nach dem ${date} nicht mehr`,
+    extendOnKeys: 'Wenn er weiter funktionieren soll, das Datum auf der Seite „Schlüssel“ ändern',
     limitAsk: (a) => `${a.person} fragt für heute ${fmtLimit(a.usd)} mehr für ${a.key} an`,
     approveOnKeys: 'Auf der Seite „Schlüssel“ freigeben oder ablehnen',
     modelNoPrice: (a) =>
@@ -423,6 +425,7 @@ export const de: Messages = {
     todayNoLimit: (amount) => `${amount} heute · ohne Limit`,
     status: {
       revoked: 'Widerrufen',
+      expired: 'Abgelaufen',
       localOnly: 'Nur lokal',
       limitReached: 'Limit erreicht',
       stopped: 'Gestoppt',
@@ -443,6 +446,10 @@ export const de: Messages = {
     fallbackNone:
       'Wählen Sie zuerst in den Einstellungen ein lokales Modell; bis dahin werden Anfragen blockiert.',
     adminSets: 'Limits für Ihre Schlüssel legt ein Admin fest.',
+    until: 'Gültig bis',
+    untilHint:
+      'Der letzte Tag, an dem er funktioniert, etwa für Freelancer oder eine Testphase. Leer lassen, damit er unbegrenzt funktioniert.',
+    worksUntil: (date) => `bis ${date}`,
     revoke: 'Widerrufen',
     replace: 'Schlüssel ersetzen',
     replaceConfirm: (name) =>
