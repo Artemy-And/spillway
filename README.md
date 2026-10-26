@@ -49,7 +49,9 @@ For a setup you keep, use [Docker Compose](#quick-start).
   OpenRouter from a list, or any OpenAI-compatible API by its URL.
 - **A key per person, device or agent** with daily and monthly dollar limits, and model allowlists
   per team and per key. Prices of well-known models fill in when you add them, and a cloud model
-  without a price is flagged instead of quietly counting as free.
+  without a price is flagged instead of quietly counting as free. A key for a contractor or a trial
+  can have an end date, and a leaked key is replaced in one click without losing its limits and
+  history.
 - **Tight limits that do not stop work.** Someone who uses up the day's limit sees where to ask
   for more, in Claude Code's status line or in the refusal their app shows. An admin gets a
   message and approves it with one click; the extra counts for that day only.
