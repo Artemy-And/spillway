@@ -496,6 +496,10 @@ export const es: Messages = {
     subtitle:
       'Límites por equipo y reglas que la pasarela revisa en cada solicitud, de arriba abajo.',
     addTeam: 'Añadir equipo',
+    report: 'Descargar informe',
+    reportMonth: 'Mes del informe',
+    reportHint:
+      'Una hoja de cálculo del mes: lo que cada persona y cada clave gastó en cada modelo, por equipo',
     teamBudgets: 'Presupuestos de equipo',
     teamBudgetsMonth: (month) => `Presupuestos de equipo · ${month}`,
     noTeams:

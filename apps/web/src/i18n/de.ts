@@ -500,6 +500,10 @@ export const de: Messages = {
     subtitle:
       'Limits pro Team und Regeln, die das Gateway bei jeder Anfrage von oben nach unten prüft.',
     addTeam: 'Team hinzufügen',
+    report: 'Bericht herunterladen',
+    reportMonth: 'Monat des Berichts',
+    reportHint:
+      'Eine Tabelle für den Monat: was jede Person und jeder Schlüssel für jedes Modell ausgegeben hat, nach Team',
     teamBudgets: 'Team-Budgets',
     teamBudgetsMonth: (month) => `Team-Budgets · ${month}`,
     noTeams:

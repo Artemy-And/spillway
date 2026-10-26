@@ -477,6 +477,9 @@ export const en = {
     title: 'Budgets & rules',
     subtitle: 'Limits per team, and rules the gateway checks on every request, top to bottom.',
     addTeam: 'Add team',
+    report: 'Download report',
+    reportMonth: 'Report month',
+    reportHint: 'A spreadsheet of the month: what each person and key spent on each model, by team',
     teamBudgets: 'Team budgets',
     teamBudgetsMonth: (month: string) => `Team budgets · ${month}`,
     noTeams:

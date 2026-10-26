@@ -10,6 +10,7 @@ import {
   Input,
   PageHeader,
   Progress,
+  Select,
 } from '../components/ui.tsx';
 import { useI18n } from '../i18n/index.tsx';
 import {
@@ -25,6 +26,43 @@ import {
 import { fmtDate, fmtLimit, fmtMonth, fmtUsd, pct } from '../lib/format.ts';
 
 type RuleSet = Rules['rules'];
+
+/** "2026-09": a month as the report asks for it. */
+const monthKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+/** A month's spend per person, key and model as a spreadsheet; last month unless picked. */
+function MonthReport() {
+  const { m } = useI18n();
+  const months = Array.from({ length: 12 }, (_, back) => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() - back, 1);
+  });
+  const [month, setMonth] = useState(monthKey(months[1]!));
+  return (
+    <div className="flex items-center gap-2">
+      <Select
+        aria-label={m.budgets.reportMonth}
+        value={month}
+        onChange={(e) => setMonth(e.target.value)}
+        className="w-auto"
+      >
+        {months.map((date) => (
+          <option key={monthKey(date)} value={monthKey(date)}>
+            {fmtMonth(date, true)}
+          </option>
+        ))}
+      </Select>
+      <a
+        href={`/admin/export/month.csv?month=${month}`}
+        title={m.budgets.reportHint}
+        className="inline-flex h-10 shrink-0 items-center rounded-lg border border-field bg-surface px-4 text-sm font-medium text-ink no-underline hover:bg-canvas hover:text-ink"
+      >
+        {m.budgets.report}
+      </a>
+    </div>
+  );
+}
 
 export function BudgetsPage() {
   const { m } = useI18n();
@@ -74,6 +112,7 @@ export function BudgetsPage() {
   return (
     <>
       <PageHeader title={m.budgets.title} subtitle={m.budgets.subtitle}>
+        <MonthReport />
         {isAdmin && (
           <Button variant="primary" onClick={() => setAdding(true)}>
             <PlusIcon strokeWidth={2.2} />

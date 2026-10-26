@@ -74,7 +74,8 @@ For a setup you keep, use [Docker Compose](#quick-start).
   answer for free; handy for n8n workflows and re-indexing documents. Off by default, and it never
   keeps prompts with personal data.
 - **Every decision explained.** Each log entry shows the steps the gateway took ("Marketing is at
-  104% of its budget → sent to Qwen Coder · local"), tokens, cost, and money saved.
+  104% of its budget → sent to Qwen Coder · local"), tokens, cost, and money saved. For the books,
+  a monthly spreadsheet shows what each team, person and key spent on each model.
 - **Privacy by default.** Prompts are stored masked, text is dropped after a retention period (the
   numbers stay), storage can be switched off, and provider keys are encrypted at rest.
 - **SSO without an enterprise plan**: Google Workspace, Microsoft Entra ID or any OpenID Connect

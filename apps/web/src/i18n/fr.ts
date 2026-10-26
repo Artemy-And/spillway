@@ -500,6 +500,10 @@ export const fr: Messages = {
     subtitle:
       'Limites par équipe et règles que la passerelle vérifie à chaque requête, de haut en bas.',
     addTeam: 'Ajouter une équipe',
+    report: 'Télécharger le rapport',
+    reportMonth: 'Mois du rapport',
+    reportHint:
+      'Un tableur du mois : ce que chaque personne et chaque clé a dépensé pour chaque modèle, par équipe',
     teamBudgets: 'Budgets d’équipe',
     teamBudgetsMonth: (month) => `Budgets d’équipe · ${month}`,
     noTeams:
