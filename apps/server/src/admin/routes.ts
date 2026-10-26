@@ -380,6 +380,21 @@ export function adminRoutes(ctx: AppContext) {
         return c.json({ ok: true });
       })
 
+      // A leaked or lost key gets a new value: limits, settings and history stay with it, and the
+      // old value stops working at once. People replace their own keys, admins any key.
+      .post('/keys/:id/replace', idParam, async (c) => {
+        const user = c.get('user');
+        const owned = user.role === 'admin' ? undefined : eq(apiKeys.userId, user.id);
+        const { key, prefix, hash } = newGatewayKey();
+        const [replaced] = await db
+          .update(apiKeys)
+          .set({ prefix, hash })
+          .where(and(eq(apiKeys.id, c.req.valid('param').id), isNull(apiKeys.revokedAt), owned))
+          .returning({ id: apiKeys.id });
+        if (!replaced) return c.json({ error: 'Key not found' }, 404);
+        return c.json({ id: replaced.id, key });
+      })
+
       // Rule 5 stopped the key for unusual spending; an admin decides it is fine.
       .post('/keys/:id/let-back', adminOnly, idParam, async (c) => {
         const ok = await letBack(ctx, c.req.valid('param').id);

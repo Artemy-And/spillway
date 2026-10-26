@@ -422,6 +422,13 @@ export const en = {
     fallbackNone: 'Pick a local model in Settings first; until then requests are blocked.',
     adminSets: 'Limits for your keys are set by an admin.',
     revoke: 'Revoke',
+    replace: 'Replace key',
+    replaceConfirm: (name: string) =>
+      `Replace ${name} with a new key? The current one stops working at once. Limits, settings and history carry over.`,
+    replaceNote:
+      'Leaked it, pasted it somewhere public or lost it? Replace it: you get a new key with the same limits and history, and the current one stops working.',
+    replaced: (name: string) => `New key for ${name} is ready`,
+    oldStopped: 'The old one no longer works: put this one in every app that used it.',
     askMore: 'Ask for more',
     askTitle: (name: string) => `Ask for more on ${name}`,
     askAmount: 'How much more today, $',

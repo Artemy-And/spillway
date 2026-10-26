@@ -443,6 +443,13 @@ export const fr: Messages = {
       'Choisissez d’abord un modèle local dans les réglages ; d’ici là, les requêtes sont bloquées.',
     adminSets: 'Les limites de vos clés sont fixées par un admin.',
     revoke: 'Révoquer',
+    replace: 'Remplacer la clé',
+    replaceConfirm: (name) =>
+      `Remplacer ${name} par une nouvelle clé ? L’actuelle cesse aussitôt de fonctionner. Limites, réglages et historique sont conservés.`,
+    replaceNote:
+      'Clé divulguée, collée dans un canal public ou perdue ? Remplacez-la : la nouvelle clé garde les mêmes limites et l’historique, et l’actuelle cesse de fonctionner.',
+    replaced: (name) => `La nouvelle clé pour ${name} est prête`,
+    oldStopped: 'L’ancienne ne fonctionne plus : mettez celle-ci dans chaque app qui l’utilisait.',
     askMore: 'Demander plus',
     askTitle: (name) => `Demander plus pour ${name}`,
     askAmount: 'Combien de plus pour aujourd’hui, $',

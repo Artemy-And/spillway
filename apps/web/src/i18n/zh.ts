@@ -417,6 +417,13 @@ export const zh: Messages = {
     fallbackNone: '请先在设置中选择本地模型，在此之前请求会被拦截。',
     adminSets: '你的密钥限额由管理员设置。',
     revoke: '吊销',
+    replace: '更换密钥',
+    replaceConfirm: (name) =>
+      `用新密钥替换 ${name}？当前密钥会立即失效，限额、设置和历史记录保持不变。`,
+    replaceNote:
+      '密钥泄露、被贴到公开频道或丢失了？更换它：新密钥沿用相同的限额和历史记录，当前密钥随即失效。',
+    replaced: (name) => `${name} 的新密钥已就绪`,
+    oldStopped: '旧密钥已失效：请在所有用过它的应用中换成这个。',
     askMore: '申请追加',
     askTitle: (name) => `为 ${name} 申请追加`,
     askAmount: '今天追加多少（美元）',

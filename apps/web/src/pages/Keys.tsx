@@ -95,8 +95,9 @@ export function KeysPage() {
   const [panel, setPanel] = useState<
     | { mode: 'new' }
     | { mode: 'edit'; id: string }
-    | { mode: 'created'; key: string; name: string }
+    | { mode: 'created'; key: string; name: string; replaced?: boolean }
     | { mode: 'ask'; id: string }
+    | { mode: 'own'; id: string }
     | null
   >(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -169,6 +170,18 @@ export function KeysPage() {
     },
   });
 
+  const replace = useMutation({
+    mutationFn: (id: string) => unwrap(api.keys[':id'].replace.$post({ param: { id } })),
+    onSuccess: async (replaced) => {
+      await refresh();
+      const name = keys.find((key) => key.id === replaced.id)?.name ?? '';
+      setPanel({ mode: 'created', key: replaced.key, name, replaced: true });
+    },
+  });
+  const confirmReplace = (key: KeyRow) => {
+    if (confirm(m.keys.replaceConfirm(key.name))) replace.mutate(key.id);
+  };
+
   const letBack = useMutation({
     mutationFn: (id: string) => unwrap(api.keys[':id']['let-back'].$post({ param: { id } })),
     onSuccess: refresh,
@@ -221,6 +234,7 @@ export function KeysPage() {
 
   const editing = panel?.mode === 'edit' ? keys.find((k) => k.id === panel.id) : undefined;
   const asking = panel?.mode === 'ask' ? keys.find((k) => k.id === panel.id) : undefined;
+  const own = panel?.mode === 'own' ? keys.find((k) => k.id === panel.id) : undefined;
 
   return (
     <>
@@ -334,15 +348,24 @@ export function KeysPage() {
                     key={key.id}
                     className={cx(
                       'grid grid-cols-[2fr_0.9fr_1.7fr_1fr_1fr] items-center gap-3.5 border-b border-line-soft py-3 text-sm last:border-0',
-                      panel?.mode === 'edit' && panel.id === key.id && '-mx-5 bg-accent-soft px-5',
+                      (panel?.mode === 'edit' || panel?.mode === 'own') &&
+                        panel.id === key.id &&
+                        '-mx-5 bg-accent-soft px-5',
                       key.revokedAt && 'opacity-70',
                     )}
                   >
                     <div className="flex min-w-0 flex-col gap-0.5">
                       <button
                         type="button"
-                        disabled={!!key.revokedAt || !isAdmin}
-                        onClick={() => openEdit(key)}
+                        disabled={!!key.revokedAt || !(isAdmin || mine)}
+                        onClick={() => {
+                          if (isAdmin) openEdit(key);
+                          else {
+                            replace.reset();
+                            revoke.reset();
+                            setPanel({ mode: 'own', id: key.id });
+                          }
+                        }}
                         className="w-fit cursor-pointer truncate text-left font-mono text-[13px] font-medium enabled:hover:text-accent disabled:cursor-default"
                       >
                         {key.name}
@@ -424,7 +447,43 @@ export function KeysPage() {
         </section>
 
         {panel?.mode === 'created' && (
-          <CreatedKey name={panel.name} value={panel.key} onClose={() => setPanel(null)} />
+          <CreatedKey
+            name={panel.name}
+            value={panel.key}
+            replaced={panel.replaced}
+            onClose={() => setPanel(null)}
+          />
+        )}
+
+        {own && (
+          <Aside label={own.name}>
+            <div className="flex items-center justify-between">
+              <h2 className="truncate font-mono text-[17px] font-semibold">{own.name}</h2>
+              <button
+                type="button"
+                aria-label={m.common.close}
+                onClick={() => setPanel(null)}
+                className="flex size-8 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-track"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <span className="font-mono text-[13px] text-ink-2">{own.prefix}…</span>
+            <p className="text-[13px] leading-relaxed text-muted">{m.keys.replaceNote}</p>
+            <p className="text-[13px] text-muted">{m.keys.adminSets}</p>
+            <ErrorNote error={replace.error ?? revoke.error} />
+            <div className="flex flex-wrap justify-between gap-2.5">
+              <Button
+                variant="danger"
+                onClick={() => confirm(m.keys.revokeConfirm(own.name)) && revoke.mutate(own.id)}
+              >
+                {m.keys.revoke}
+              </Button>
+              <Button disabled={replace.isPending} onClick={() => confirmReplace(own)}>
+                {m.keys.replace}
+              </Button>
+            </div>
+          </Aside>
         )}
 
         {asking && (
@@ -680,17 +739,22 @@ export function KeysPage() {
                 </div>
               )}
 
-              <ErrorNote error={save.error ?? revoke.error ?? letBack.error} />
+              <ErrorNote error={save.error ?? revoke.error ?? replace.error ?? letBack.error} />
               <div className="flex flex-wrap justify-between gap-2.5">
                 {editing ? (
-                  <Button
-                    variant="danger"
-                    onClick={() =>
-                      confirm(m.keys.revokeConfirm(editing.name)) && revoke.mutate(editing.id)
-                    }
-                  >
-                    {m.keys.revoke}
-                  </Button>
+                  <div className="flex gap-2.5">
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        confirm(m.keys.revokeConfirm(editing.name)) && revoke.mutate(editing.id)
+                      }
+                    >
+                      {m.keys.revoke}
+                    </Button>
+                    <Button disabled={replace.isPending} onClick={() => confirmReplace(editing)}>
+                      {m.keys.replace}
+                    </Button>
+                  </div>
                 ) : (
                   <span />
                 )}
@@ -716,10 +780,12 @@ export function KeysPage() {
 function CreatedKey({
   name,
   value,
+  replaced = false,
   onClose,
 }: {
   name: string;
   value: string;
+  replaced?: boolean;
   onClose: () => void;
 }) {
   const { m } = useI18n();
@@ -755,7 +821,9 @@ function CreatedKey({
   return (
     <Aside label={m.keys.keyCreated}>
       <div className="flex items-center justify-between">
-        <h2 className="text-[17px] font-semibold">{m.keys.ready(name)}</h2>
+        <h2 className="text-[17px] font-semibold">
+          {replaced ? m.keys.replaced(name) : m.keys.ready(name)}
+        </h2>
         <button
           type="button"
           aria-label={m.common.close}
@@ -765,7 +833,10 @@ function CreatedKey({
           <CloseIcon />
         </button>
       </div>
-      <p className="rounded-lg bg-warn-bg px-3 py-2 text-[13px] text-warn-fg">{m.keys.copyNow}</p>
+      <p className="rounded-lg bg-warn-bg px-3 py-2 text-[13px] text-warn-fg">
+        {replaced && `${m.keys.oldStopped} `}
+        {m.keys.copyNow}
+      </p>
       <div className="rounded-lg bg-canvas p-3 font-mono text-[13px] break-all">{value}</div>
       <CopyButton value={value} label={m.keys.copyKey} />
       <div className="flex flex-col gap-2">

@@ -441,6 +441,13 @@ export const es: Messages = {
       'Elige primero un modelo local en Ajustes; hasta entonces las solicitudes se bloquean.',
     adminSets: 'Los límites de tus claves los fija un admin.',
     revoke: 'Revocar',
+    replace: 'Reemplazar clave',
+    replaceConfirm: (name) =>
+      `¿Reemplazar ${name} por una clave nueva? La actual deja de funcionar al instante. Los límites, ajustes e historial se mantienen.`,
+    replaceNote:
+      '¿Se filtró, la pegaste en un canal público o la perdiste? Reemplázala: la clave nueva conserva los mismos límites e historial, y la actual deja de funcionar.',
+    replaced: (name) => `La clave nueva para ${name} está lista`,
+    oldStopped: 'La anterior ya no funciona: pon esta en cada app que la usaba.',
     askMore: 'Pedir más',
     askTitle: (name) => `Pedir más para ${name}`,
     askAmount: 'Cuánto más para hoy, $',

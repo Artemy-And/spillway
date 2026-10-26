@@ -444,6 +444,14 @@ export const de: Messages = {
       'Wählen Sie zuerst in den Einstellungen ein lokales Modell; bis dahin werden Anfragen blockiert.',
     adminSets: 'Limits für Ihre Schlüssel legt ein Admin fest.',
     revoke: 'Widerrufen',
+    replace: 'Schlüssel ersetzen',
+    replaceConfirm: (name) =>
+      `${name} durch einen neuen Schlüssel ersetzen? Der aktuelle funktioniert sofort nicht mehr. Limits, Einstellungen und Verlauf bleiben erhalten.`,
+    replaceNote:
+      'Schlüssel geleakt, öffentlich gepostet oder verloren? Ersetzen Sie ihn: Der neue Schlüssel behält Limits und Verlauf, der aktuelle funktioniert nicht mehr.',
+    replaced: (name) => `Neuer Schlüssel für ${name} ist bereit`,
+    oldStopped:
+      'Der alte funktioniert nicht mehr: Tragen Sie diesen in jeder App ein, die ihn genutzt hat.',
     askMore: 'Mehr anfragen',
     askTitle: (name) => `Mehr für ${name} anfragen`,
     askAmount: 'Wie viel mehr für heute, $',
