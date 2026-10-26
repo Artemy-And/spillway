@@ -225,16 +225,16 @@ the same Codex can run on Claude or on the local model.
 
 **Overview.** Spend against the budget, the share served by local models, and what needs attention.
 
-![Overview: $179.90 of an $860 budget spent this month, 18% of requests served by local models, Marketing over its budget](docs/overview.png)
+![Overview: $181.47 of an $860 budget spent this month, 18% of requests served by local models, Marketing over its budget](docs/overview.png)
 
 **Where the money goes.** Who spends the most, which apps send the requests, and what the same
 requests would have cost on another model.
 
-![Bottom of Overview: top spenders, requests by app (Claude Code 33%, n8n 32%, other apps 35%) and the month's requests costing about $63.65 on Claude Haiku instead of $179.90](docs/overview-costs.png)
+![Bottom of Overview: top spenders, requests by app (Claude Code 34%, n8n 31%, other apps 36%) and the month's requests costing about $64.61 on Claude Haiku instead of $181.47](docs/overview-costs.png)
 
 **Keys.** One key per person, device or agent, each with its own daily limit.
 
-![Keys: seven keys for people, a device and agents, with today's spend against each daily limit](docs/keys.png)
+![Keys: seven keys for people, a device and agents, with today's spend against each daily limit, and a review bot on a trial until November 30](docs/keys.png)
 
 **Request log.** Who sent each request, where it went, what it cost and why.
 
